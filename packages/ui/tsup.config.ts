@@ -1,16 +1,15 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-  entry: ['src/**/*.ts', 'src/**/*.tsx'], // Include all .ts and .tsx files in src
+  entry: ['src/index.ts'],
   format: ['esm'],
   dts: {
-    resolve: true, // Resolve path aliases in declaration files
+    resolve: true,
   },
   sourcemap: true,
   clean: true,
-  bundle: false, // Do not bundle; compile each module separately
+  bundle: true, // Bundle all code into one file
   splitting: false,
-  tsconfig: 'tsconfig.json', // Ensure tsup uses your tsconfig.json
-  preserveModules: true, // Preserve the directory structure in the output
+  tsconfig: 'tsconfig.json',
   external: [],
 });

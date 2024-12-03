@@ -1,4 +1,5 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@repo/ui/components/ui/card";
+// import { Card, CardContent, CardHeader, CardTitle } from "@repo/ui/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from '@repo/ui';
 import type { CandidateScore } from '@votelab/shared-utils';
 import {
     calculateSmithSet,
