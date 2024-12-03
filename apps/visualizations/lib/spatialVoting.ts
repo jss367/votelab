@@ -1,4 +1,4 @@
-import { Candidate } from './types';
+import { Candidate } from '@votelab/shared-utils';
 
 export const VOTER_RADIUS = 0.15; // Radius of voter influence
 export const DEFAULT_APPROVAL_THRESHOLD = 0.3;

@@ -1,6 +1,6 @@
+import type { Candidate } from '@votelab/shared-utils';
 import { describe, expect, test } from 'vitest';
-import { distance, getWeight, runElection, simulateElection, VotingMethod } from './ElectionUtils';
-import type { Candidate } from './types';
+import { distance, getWeight, runElection, simulateElection, VotingMethod } from './spatialVoting';
 
 describe('Election utilities', () => {
   describe('distance calculation', () => {

@@ -1,5 +1,5 @@
+import type { Candidate } from '@votelab/shared-utils';
 import { describe, expect, test } from 'vitest';
-import type { Candidate } from './types';
 import { distance, getVoterPreference, votingMethods } from './votingMethods';
 
 describe('Voting utility functions', () => {
