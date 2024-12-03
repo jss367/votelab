@@ -9,8 +9,8 @@
     ".": {
       "import": "./dist/index.js"
     },
-    "./components/card": {
-      "import": "./dist/components/card.js"
+    "./components/ui/card": {
+      "import": "./dist/components/ui/card.js"
     }
   },
   "scripts": {
