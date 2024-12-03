@@ -1,6 +1,9 @@
 export interface Candidate {
   id: string;
   name: string;
+  x?: number;
+  y?: number;
+  color?: string;
 }
 
 export interface Vote {
@@ -22,7 +25,6 @@ export interface Victory {
   loser: string;
   margin: number;
 }
-
 
 export interface PairwiseResult {
   candidate1: string;

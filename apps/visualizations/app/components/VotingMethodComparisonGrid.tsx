@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { DEFAULT_APPROVAL_THRESHOLD, runElection, VotingMethod } from './ElectionUtils';
+import { DEFAULT_APPROVAL_THRESHOLD, runElection, VotingMethod } from '../../lib/spatialVoting';
 
 
 const CANVAS_SIZE = 300;
