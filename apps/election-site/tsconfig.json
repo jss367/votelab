@@ -28,7 +28,8 @@
     "include": [
         "next-env.d.ts",
         "**/*.ts",
-        "**/*.tsx"
+        "**/*.tsx",
+        "../../packages/ui/src/components/ui/button.tsx"
     ],
     "exclude": [
         "node_modules"

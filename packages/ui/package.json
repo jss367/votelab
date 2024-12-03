@@ -6,12 +6,19 @@
   "exports": {
     "./button": "./src/button.tsx",
     "./card": "./src/card.tsx",
-    "./code": "./src/code.tsx"
+    "./code": "./src/code.tsx",
+    "./input": "./src/input.tsx",
+    "./utils": "./src/lib/utils.ts",
+    "./components/button": "./src/components/ui/button.tsx",
+    "./components/card": "./src/components/ui/card.tsx",
+    "./components/input": "./src/components/ui/input.tsx"
   },
   "scripts": {
     "lint": "eslint . --max-warnings 0",
     "generate:component": "turbo gen react-component",
-    "check-types": "tsc --noEmit"
+    "check-types": "tsc --noEmit",
+    "build": "tsup src/index.ts --dts --format esm,cjs",
+    "dev": "tsup src/index.ts --dts --format esm,cjs --watch"
   },
   "devDependencies": {
     "@repo/eslint-config": "*",
@@ -20,10 +27,15 @@
     "@types/node": "^20.11.24",
     "@types/react": "18.3.0",
     "@types/react-dom": "18.3.1",
+    "tsup": "^8.3.5",
     "typescript": "5.5.4"
   },
   "dependencies": {
+    "@radix-ui/react-slot": "^1.0.2",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.0",
     "react": "19.0.0-rc-5c56b873-20241107",
-    "react-dom": "19.0.0-rc-5c56b873-20241107"
+    "react-dom": "19.0.0-rc-5c56b873-20241107",
+    "tailwind-merge": "^2.2.1"
   }
 }

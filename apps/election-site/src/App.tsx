@@ -1,4 +1,5 @@
 import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd';
+import { Button, Card, CardContent, CardHeader, CardTitle, Input } from '@repo/ui';
 import {
     Candidate,
     Election,
@@ -17,7 +18,6 @@ import {
 import { Check, Circle, Copy, Grip, Plus, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import type { DropResult } from 'react-beautiful-dnd';
-import { Button, Card, CardContent, CardHeader, CardTitle, Input } from './components/ui';
 import ElectionResults from './ElectionResults';
 
 // Firebase config

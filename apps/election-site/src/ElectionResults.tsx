@@ -11,7 +11,7 @@ import {
 } from '@votelab/shared-utils';
 import { CheckCircle2, Medal, Star, Swords, TrendingDown, TrendingUp, Users } from 'lucide-react';
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from "@repo/ui/components/card"
 
 const formatDescription = (description: string) => {
     // Split the description into parts by line breaks or marking phrases
