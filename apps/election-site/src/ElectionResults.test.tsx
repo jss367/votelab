@@ -1,5 +1,5 @@
-import { Election } from './types';
-import { calculateSmithSet, getHeadToHeadVictories, getPairwiseResults } from './utils/ElectionUtils';
+import { calculateSmithSet, Election, getHeadToHeadVictories, getPairwiseResults } from '@votelab/shared-utils';
+
 
 describe('Election Result Calculations', () => {
     const threeWayTestElection: Election = {
