@@ -2,124 +2,124 @@ import { Candidate } from './types';
 
 // Constants
 export const methods = {
-    plurality: 'Plurality',
-    approval: 'Approval',
-    borda: 'Borda Count',
-    irv: 'Instant Runoff',
-    smithApproval: 'Smith Set + Approval'
+  plurality: 'Plurality',
+  approval: 'Approval',
+  borda: 'Borda Count',
+  irv: 'Instant Runoff',
+  smithApproval: 'Smith Set + Approval'
 };
 
 export const methodDescriptions = {
-    plurality: "Each voter chooses their closest candidate. The candidate with the most votes wins.",
-    approval: "Voters 'approve' all candidates within a certain distance. The most approved candidate wins.",
-    borda: "Voters rank candidates by distance. Each rank gives points (n-1 for 1st, n-2 for 2nd, etc.). Highest points wins.",
-    irv: "Voters rank by distance. If no majority, eliminate last place and retry with remaining candidates.",
-    smithApproval: "First finds candidates who beat all others outside their set in pairwise matchups (Smith set), then uses approval voting among them."
+  plurality: "Each voter chooses their closest candidate. The candidate with the most votes wins.",
+  approval: "Voters 'approve' all candidates within a certain distance. The most approved candidate wins.",
+  borda: "Voters rank candidates by distance. Each rank gives points (n-1 for 1st, n-2 for 2nd, etc.). Highest points wins.",
+  irv: "Voters rank by distance. If no majority, eliminate last place and retry with remaining candidates.",
+  smithApproval: "First finds candidates who beat all others outside their set in pairwise matchups (Smith set), then uses approval voting among them."
 };
 
 // Utility functions
 export const distance = (x1: number, y1: number, x2: number, y2: number): number =>
-    Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+  Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
 
 function getPairwisePreferences(voterX: number, voterY: number, candidates: Candidate[]): [string, string][] {
   const prefs = getVoterPreference(voterX, voterY, candidates);
   const pairs: [string, string][] = [];
-  
+
   // Create all possible pairs in order of preference
   for (let i = 0; i < prefs.length; i++) {
-      for (let j = i + 1; j < prefs.length; j++) {
-          pairs.push([prefs[i].id, prefs[j].id]);
-      }
+    for (let j = i + 1; j < prefs.length; j++) {
+      pairs.push([prefs[i].id, prefs[j].id]);
+    }
   }
-  
+
   return pairs;
 }
 
 function findSmithSet(voterX: number, voterY: number, candidates: Candidate[]): Set<string> {
   const pairs = getPairwisePreferences(voterX, voterY, candidates);
   const defeats = new Map<string, Set<string>>();
-  
+
   // Initialize defeats map
   candidates.forEach(c => defeats.set(c.id, new Set<string>()));
-  
+
   // Record all pairwise defeats
   pairs.forEach(([winner, loser]) => {
-      defeats.get(winner)?.add(loser);
+    defeats.get(winner)?.add(loser);
   });
-  
+
   // Find Smith set
   const smithSet = new Set<string>(candidates.map(c => c.id));
   let changed = true;
-  
+
   while (changed) {
-      changed = false;
-      for (const candidate of smithSet) {
-          for (const other of smithSet) {
-              if (candidate !== other) {
-                  // If candidate doesn't beat other, and other beats candidate
-                  if (!defeats.get(candidate)?.has(other) && defeats.get(other)?.has(candidate)) {
-                      smithSet.delete(candidate);
-                      changed = true;
-                      break;
-                  }
-              }
+    changed = false;
+    for (const candidate of smithSet) {
+      for (const other of smithSet) {
+        if (candidate !== other) {
+          // If candidate doesn't beat other, and other beats candidate
+          if (!defeats.get(candidate)?.has(other) && defeats.get(other)?.has(candidate)) {
+            smithSet.delete(candidate);
+            changed = true;
+            break;
           }
-          if (changed) break;
+        }
       }
+      if (changed) break;
+    }
   }
-  
+
   return smithSet;
 }
 
 export const getVoterPreference = (
-    voterX: number, 
-    voterY: number, 
-    candidates: Candidate[]
+  voterX: number,
+  voterY: number,
+  candidates: Candidate[]
 ) => {
-    return candidates
-        .map((candidate) => ({
-            id: candidate.id,
-            dist: distance(voterX, voterY, candidate.x, candidate.y)
-        }))
-        .sort((a, b) => a.dist - b.dist);
+  return candidates
+    .map((candidate) => ({
+      id: candidate.id,
+      dist: distance(voterX, voterY, candidate.x, candidate.y)
+    }))
+    .sort((a, b) => a.dist - b.dist);
 };
 
 // Voting method implementations
 export const votingMethods = {
-    plurality: (voterX: number, voterY: number, candidates: Candidate[]) => {
-        return [getVoterPreference(voterX, voterY, candidates)[0].id];
-    },
+  plurality: (voterX: number, voterY: number, candidates: Candidate[]) => {
+    return [getVoterPreference(voterX, voterY, candidates)[0].id];
+  },
 
-    approval: (voterX: number, voterY: number, candidates: Candidate[], approvalThreshold: number) => {
-        const prefs = getVoterPreference(voterX, voterY, candidates);
-        const approvedCandidates = prefs.filter(p => p.dist <= approvalThreshold);
-        return approvedCandidates.length > 0 ? approvedCandidates.map(c => c.id) : [prefs[0].id];
-    },
+  approval: (voterX: number, voterY: number, candidates: Candidate[], approvalThreshold: number) => {
+    const prefs = getVoterPreference(voterX, voterY, candidates);
+    const approvedCandidates = prefs.filter(p => p.dist <= approvalThreshold);
+    return approvedCandidates.length > 0 ? approvedCandidates.map(c => c.id) : [prefs[0].id];
+  },
 
-    borda: (voterX: number, voterY: number, candidates: Candidate[]) => {
-        const prefs = getVoterPreference(voterX, voterY, candidates);
-        const points = new Map<string, number>();
+  borda: (voterX: number, voterY: number, candidates: Candidate[]) => {
+    const prefs = getVoterPreference(voterX, voterY, candidates);
+    const points = new Map<string, number>();
 
-        prefs.forEach((p, i) => {
-            points.set(p.id, (candidates.length - 1 - i));
-        });
+    prefs.forEach((p, i) => {
+      points.set(p.id, (candidates.length - 1 - i));
+    });
 
-        return [...points.entries()]
-            .sort((a, b) => b[1] - a[1])
-            .map(([id]) => id);
-    },
+    return [...points.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([id]) => id);
+  },
 
-    irv: (voterX: number, voterY: number, candidates: Candidate[]) => {
-        return getVoterPreference(voterX, voterY, candidates).map(p => p.id);
-    },
+  irv: (voterX: number, voterY: number, candidates: Candidate[]) => {
+    return getVoterPreference(voterX, voterY, candidates).map(p => p.id);
+  },
 
-    smithApproval: (voterX: number, voterY: number, candidates: Candidate[], approvalThreshold: number = 0.3) => {
-      // First find the Smith set
-      const smithSet = findSmithSet(voterX, voterY, candidates);
-      
-      // Then run approval voting only among Smith set members
-      const smithCandidates = candidates.filter(c => smithSet.has(c.id));
-      return votingMethods.approval(voterX, voterY, smithCandidates, approvalThreshold);
+  smithApproval: (voterX: number, voterY: number, candidates: Candidate[], approvalThreshold: number = 0.3) => {
+    // First find the Smith set
+    const smithSet = findSmithSet(voterX, voterY, candidates);
+
+    // Then run approval voting only among Smith set members
+    const smithCandidates = candidates.filter(c => smithSet.has(c.id));
+    return votingMethods.approval(voterX, voterY, smithCandidates, approvalThreshold);
   }
 };
 
