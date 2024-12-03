@@ -1,0 +1,10 @@
+{
+    "compilerOptions": {
+        "baseUrl": ".",
+        "paths": {
+            "@votelab/shared-utils": [
+                "../../packages/shared-utils/src"
+            ]
+        }
+    }
+}

@@ -1,15 +1,17 @@
+import type { CandidateScore } from '@votelab/shared-utils';
+import {
+    calculateSmithSet,
+    Candidate,
+    Election,
+    getHeadToHeadVictories, getOrdinalSuffix,
+    getPairwiseResults,
+    PairwiseResult,
+    selectWinner,
+    Vote
+} from '@votelab/shared-utils';
 import { CheckCircle2, Medal, Star, Swords, TrendingDown, TrendingUp, Users } from 'lucide-react';
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
-import { Candidate, Election, PairwiseResult, Vote } from './types';
-import type { CandidateScore } from './utils/ElectionUtils';
-import {
-    calculateSmithSet,
-    getHeadToHeadVictories,
-    getOrdinalSuffix,
-    getPairwiseResults,
-    selectWinner
-} from './utils/ElectionUtils';
 
 const formatDescription = (description: string) => {
     // Split the description into parts by line breaks or marking phrases

@@ -18,6 +18,7 @@ import { Check, Circle, Copy, Grip, Plus, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import type { DropResult } from 'react-beautiful-dnd';
 import { Button, Card, CardContent, CardHeader, CardTitle, Input } from './components/ui';
+import ElectionResults from './ElectionResults';
 
 // Firebase config
 const firebaseConfig = {
@@ -29,25 +30,6 @@ const firebaseConfig = {
     appId: "1:457756698776:web:e1326245c652affb7b08ed",
     measurementId: "G-1KCG6HW8RT"
 };
-
-interface Candidate {
-    id: string;
-    name: string;
-}
-
-interface Vote {
-    voterName: string;
-    ranking: string[];
-    approved: string[];
-    timestamp: string;
-}
-
-interface Election {
-    title: string;
-    candidates: Candidate[];
-    votes: Vote[];
-    createdAt: string;
-}
 
 type Mode = 'home' | 'create' | 'vote' | 'success' | 'results';
 
