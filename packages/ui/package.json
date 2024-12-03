@@ -7,8 +7,8 @@
   "types": "./src/index.ts",
   "exports": {
     ".": {
-      "import": "./src/index.ts",
-      "types": "./src/index.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     },
     "./button": "./src/button.tsx",
     "./card": "./src/card.tsx",
@@ -20,10 +20,11 @@
     "./components/input": "./src/components/ui/input.tsx"
   },
   "scripts": {
+    "clean": "rm -rf dist .turbo",
     "lint": "eslint . --max-warnings 0",
     "generate:component": "turbo gen react-component",
     "check-types": "tsc --noEmit",
-    "build": "tsup src/index.ts --dts --format esm,cjs"
+    "build": "tsup src/index.ts --dts --format esm"
   },
   "devDependencies": {
     "@repo/eslint-config": "*",
