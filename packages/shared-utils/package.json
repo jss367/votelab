@@ -1,17 +1,17 @@
 {
-    "name": "@votelab/shared-utils",
-    "version": "0.0.1",
-    "private": true,
-    "main": "./dist/index.js",
-    "module": "./dist/index.js",
-    "types": "./dist/index.d.ts",
-    "files": [
-        "dist"
-    ],
-    "scripts": {
-        "lint": "eslint .",
-        "test": "jest",
-        "build": "tsc",
-        "dev": "tsc --project tsconfig.json --watch"
-    }
+  "name": "@votelab/shared-utils",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "lint": "eslint .",
+    "test": "jest",
+    "build": "tsc",
+    "dev": "tsc --project tsconfig.json --watch"
+  }
 }

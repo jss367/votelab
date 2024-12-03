@@ -1,6 +1,18 @@
-# Turborepo starter
+# VoteLab
 
-This is an official starter Turborepo.
+This is a monorepo of different voting applications. The monorepo is built using Turborepo.
+
+## Testing
+
+There are multiple test commands across different packages:
+
+- @votelab/shared-utils: Uses Jest
+- voting-visualization: Uses Vitest
+- rank-and-approve-voting: Uses React Testing Library
+
+You can run all tests together by running `npm test` from the root directory.
+
+# Old
 
 ## Using this example
 

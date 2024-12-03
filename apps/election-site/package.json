@@ -1,62 +1,62 @@
 {
-    "name": "rank-and-approve-voting",
-    "version": "0.1.0",
-    "private": true,
-    "dependencies": {
-        "@hello-pangea/dnd": "^17.0.0",
-        "@radix-ui/react-accordion": "^1.2.1",
-        "@radix-ui/react-icons": "^1.3.1",
-        "@radix-ui/react-slot": "^1.1.0",
-        "@testing-library/jest-dom": "^5.17.0",
-        "@testing-library/react": "^13.4.0",
-        "@testing-library/user-event": "^13.5.0",
-        "@types/jest": "^29.5.14",
-        "@types/node": "^22.9.0",
-        "@types/react": "^18.3.12",
-        "@types/react-beautiful-dnd": "^13.1.8",
-        "@types/react-dom": "^18.3.1",
-        "@votelab/shared-utils": "file:../../packages/shared-utils",
-        "class-variance-authority": "^0.7.0",
-        "clsx": "^2.1.1",
-        "firebase": "^11.0.1",
-        "lucide-react": "^0.456.0",
-        "react": "^18.3.1",
-        "react-dom": "^18.3.1",
-        "react-scripts": "5.0.1",
-        "tailwind-merge": "^2.5.4",
-        "tailwindcss-animate": "^1.0.7",
-        "typescript": "^4.9.5",
-        "web-vitals": "^2.1.4"
-    },
-    "scripts": {
-        "start": "react-scripts start",
-        "build": "GENERATE_SOURCEMAP=false react-scripts build",
-        "test": "react-scripts test",
-        "eject": "react-scripts eject"
-    },
-    "eslintConfig": {
-        "extends": [
-            "react-app",
-            "react-app/jest"
-        ]
-    },
-    "browserslist": {
-        "production": [
-            ">0.2%",
-            "not dead",
-            "not op_mini all"
-        ],
-        "development": [
-            "last 1 chrome version",
-            "last 1 firefox version",
-            "last 1 safari version"
-        ]
-    },
-    "devDependencies": {
-        "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
-        "@shadcn/ui": "^0.0.4",
-        "autoprefixer": "^10.4.20",
-        "postcss": "^8.4.49",
-        "tailwindcss": "^3.4.14"
-    }
+  "name": "rank-and-approve-voting",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@hello-pangea/dnd": "^17.0.0",
+    "@radix-ui/react-accordion": "^1.2.1",
+    "@radix-ui/react-icons": "^1.3.1",
+    "@radix-ui/react-slot": "^1.1.0",
+    "@testing-library/jest-dom": "^5.17.0",
+    "@testing-library/react": "^13.4.0",
+    "@testing-library/user-event": "^13.5.0",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.9.0",
+    "@types/react": "^18.3.12",
+    "@types/react-beautiful-dnd": "^13.1.8",
+    "@types/react-dom": "^18.3.1",
+    "@votelab/shared-utils": "file:../../packages/shared-utils",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.1",
+    "firebase": "^11.0.1",
+    "lucide-react": "^0.456.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-scripts": "5.0.1",
+    "tailwind-merge": "^2.5.4",
+    "tailwindcss-animate": "^1.0.7",
+    "typescript": "^4.9.5",
+    "web-vitals": "^2.1.4"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "GENERATE_SOURCEMAP=false react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "devDependencies": {
+    "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
+    "@shadcn/ui": "^0.0.4",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.14"
+  }
 }
