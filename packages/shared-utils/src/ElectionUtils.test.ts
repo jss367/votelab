@@ -1,5 +1,5 @@
-import { Election } from '../types';
 import { calculateSmithSet, getHeadToHeadVictories, getPairwiseResults } from './ElectionUtils';
+import { Election } from './types';
 
 describe('Election Result Calculations', () => {
   // Simple test case with clear winner
