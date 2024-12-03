@@ -1,4 +1,6 @@
-import { Card } from "@repo/ui/components/card"
+// import { Card } from "@repo/ui/src/components/ui/card"
+import { Card } from "@repo/ui/components/ui/card";
+
 import { useEffect, useRef, useState } from 'react';
 
 const DetailedVotingViz = () => {
