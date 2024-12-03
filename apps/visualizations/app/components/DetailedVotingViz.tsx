@@ -1,5 +1,7 @@
 // import { Card } from "@repo/ui/src/components/ui/card"
-import { Card } from "@repo/ui/components/ui/card";
+// import { Card } from "@repo/ui/components/ui/card";
+import { Card } from '@repo/ui';
+
 
 import { useEffect, useRef, useState } from 'react';
 
