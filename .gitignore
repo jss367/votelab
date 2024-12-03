@@ -31,3 +31,4 @@ firebase-debug.log*
 
 # Turbo
 .turbo
+/apps/visualizations/.next
