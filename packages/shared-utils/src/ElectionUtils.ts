@@ -1,4 +1,4 @@
-import { Election, PairwiseResult, Victory } from '../types';
+import { Election, PairwiseResult, Victory } from './types';
 
 export interface Metrics {
   approval: number;
