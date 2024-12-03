@@ -1,14 +1,14 @@
+import { CheckCircle2, Medal, Star, Swords, TrendingDown, TrendingUp, Users } from 'lucide-react';
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
-import { CheckCircle2, Medal, TrendingDown, TrendingUp, Users, Star, Swords } from 'lucide-react';
-import { Election, Candidate, Vote } from './types';
+import { Candidate, Election, PairwiseResult, Vote } from './types';
 import type { CandidateScore } from './utils/ElectionUtils';
 import {
-    getPairwiseResults,
-    getHeadToHeadVictories,
     calculateSmithSet,
-    selectWinner,
-    getOrdinalSuffix
+    getHeadToHeadVictories,
+    getOrdinalSuffix,
+    getPairwiseResults,
+    selectWinner
 } from './utils/ElectionUtils';
 
 const formatDescription = (description: string) => {
@@ -250,7 +250,7 @@ const ElectionResults: React.FC<{ election: Election }> = ({ election }) => {
                             }
                         </p>
                         <div className="flex flex-wrap gap-2">
-                            {smithSet.map((candidate) => (
+                            {smithSet.map((candidate: string) => (
                                 <span
                                     key={candidate}
                                     className="inline-flex items-center px-3 py-1 rounded-full bg-purple-100 text-purple-700 text-sm font-medium"
@@ -274,7 +274,7 @@ const ElectionResults: React.FC<{ election: Election }> = ({ election }) => {
                 <div className="space-y-6">
                     <h3 className="text-2xl font-bold text-slate-900 text-center">Head-to-head Matchups</h3>
                     <div className="grid md:grid-cols-2 gap-4">
-                        {pairwiseResults.map((result, index) => (
+                        {pairwiseResults.map((result: PairwiseResult, index: number) => (
                             <Card key={index} className="hover:shadow-lg transition-shadow duration-200">
                                 <CardContent className="pt-6">
                                     <div className="grid grid-cols-[1fr,auto,1fr] gap-4 items-center">

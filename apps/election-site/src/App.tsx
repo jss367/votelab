@@ -1,3 +1,9 @@
+import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd';
+import {
+    Candidate,
+    Election,
+    Vote
+} from '@votelab/shared-utils';
 import { initializeApp } from 'firebase/app';
 import {
     addDoc,
@@ -11,11 +17,7 @@ import {
 import { Check, Circle, Copy, Grip, Plus, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import type { DropResult } from 'react-beautiful-dnd';
-import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
-import { Button } from './components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
-import { Input } from './components/ui/input';
-import ElectionResults from './ElectionResults';
+import { Button, Card, CardContent, CardHeader, CardTitle, Input } from './components/ui';
 
 // Firebase config
 const firebaseConfig = {
