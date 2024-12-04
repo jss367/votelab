@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   DEFAULT_APPROVAL_THRESHOLD,
-  runElection,
-  VotingMethod,
+  SpatialCandidate,
+  spatialVoteCalculators,
 } from '../../lib/spatialVoting';
+import { VotingMethod } from '../../lib/votingMethods';
 
 const CANVAS_SIZE = 300;
 
@@ -41,7 +42,7 @@ const generateCacheKey = (
 };
 
 const VotingMethodComparisonGrid = () => {
-  const [candidates, setCandidates] = useState([
+  const [candidates, setCandidates] = useState<SpatialCandidate[]>([
     { id: '1', x: 0.3, y: 0.7, color: '#22c55e', name: 'A' },
     { id: '2', x: 0.5, y: 0.5, color: '#ef4444', name: 'B' },
     { id: '3', x: 0.7, y: 0.3, color: '#3b82f6', name: 'C' },
@@ -112,14 +113,10 @@ const VotingMethodComparisonGrid = () => {
   const drawCanvas = useCallback(
     (canvasRef: React.RefObject<HTMLCanvasElement>, method: VotingMethod) => {
       const canvas = canvasRef.current;
-      if (!canvas) {
-        return;
-      }
+      if (!canvas) return;
 
       const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        return;
-      }
+      if (!ctx) return;
 
       const imageData = ctx.createImageData(CANVAS_SIZE, CANVAS_SIZE);
       const { data } = imageData;
@@ -141,7 +138,6 @@ const VotingMethodComparisonGrid = () => {
       // Draw with anti-aliasing
       for (let y = 0; y < CANVAS_SIZE; y += 1) {
         for (let x = 0; x < CANVAS_SIZE; x += 1) {
-          // Use supersampling for anti-aliasing
           const samples = 4;
           const colors = new Map<string, number>();
 
@@ -150,14 +146,15 @@ const VotingMethodComparisonGrid = () => {
               const px = (x + (sx + 0.5) / samples) / CANVAS_SIZE;
               const py = 1 - (y + (sy + 0.5) / samples) / CANVAS_SIZE;
 
-              // Use the new runElection function
-              const winnerId = runElection(
-                method,
+              // Fixed type error by providing a default value for the threshold
+              const winnerIds = spatialVoteCalculators[method](
                 px,
                 py,
                 candidates,
-                method === 'approval' ? DEFAULT_APPROVAL_THRESHOLD : undefined
+                method === 'approval' ? DEFAULT_APPROVAL_THRESHOLD : 0 // Provide default value
               );
+              // For methods that return multiple IDs (like approval), use the first one
+              const winnerId = winnerIds[0];
               colors.set(winnerId, (colors.get(winnerId) || 0) + 1);
             }
           }
@@ -181,39 +178,13 @@ const VotingMethodComparisonGrid = () => {
           data[idx + 3] = 255;
         }
 
-        // Update progress more frequently
         if (y % 10 === 0) {
           ctx.putImageData(imageData, 0, 0);
         }
       }
 
       ctx.putImageData(imageData, 0, 0);
-
-      // Draw candidates
-      candidates.forEach((candidate) => {
-        ctx.beginPath();
-        ctx.arc(
-          candidate.x * CANVAS_SIZE,
-          (1 - candidate.y) * CANVAS_SIZE,
-          6,
-          0,
-          2 * Math.PI
-        );
-        ctx.fillStyle = isDarkMode ? '#1f2937' : 'white';
-        ctx.fill();
-        ctx.strokeStyle = candidate.color;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-
-        ctx.fillStyle = 'black';
-        ctx.font = '12px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(
-          candidate.name,
-          candidate.x * CANVAS_SIZE,
-          (1 - candidate.y) * CANVAS_SIZE + 20
-        );
-      });
+      drawCandidates(ctx);
     },
     [candidates]
   );
