@@ -511,6 +511,10 @@ const VotingMethodViz: React.FC = () => {
     setHasGeneratedVoters(true);
   };
 
+  const getMethodEntries = () => {
+    return Object.entries(methods) as Array<[VotingMethod, string]>;
+  };
+
   return (
     <div className="w-full max-w-6xl p-4 bg-white rounded-lg shadow-lg">
       <div className="flex justify-between items-start mb-4">
@@ -524,7 +528,7 @@ const VotingMethodViz: React.FC = () => {
               }
               className="block w-40 px-4 py-2 border rounded-md shadow-sm"
             >
-              {Object.entries(methods).map(([value, label]) => (
+              {getMethodEntries().map(([value, label]) => (
                 <option key={value} value={value as VotingMethod}>
                   {label}
                 </option>
@@ -549,7 +553,7 @@ const VotingMethodViz: React.FC = () => {
           <div className="p-4 bg-gray-50 rounded-lg">
             <h3 className="font-semibold mb-2">Theoretical Area Coverage</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {Object.entries(methods).map(([method, label]) => {
+              {getMethodEntries().map(([method, label]) => {
                 const areaResults = calculateWinningAreas(method);
                 const winner = candidates.find(
                   (c) =>
@@ -588,8 +592,10 @@ const VotingMethodViz: React.FC = () => {
               Actual Voter Results ({voters.length} voters)
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {Object.entries(methods).map(([method, label]) => {
+              {getMethodEntries().map(([method, label]) => {
                 const voterResults = calculateActualVotes(method);
+                if (!voterResults) return null;
+
                 const winner = candidates.find(
                   (c) =>
                     c.id ===
@@ -597,6 +603,7 @@ const VotingMethodViz: React.FC = () => {
                       a[1] > b[1] ? a : b
                     )[0]
                 );
+                if (!winner) return null;
 
                 return (
                   <div
