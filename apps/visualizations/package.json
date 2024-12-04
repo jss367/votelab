@@ -16,8 +16,9 @@
         "clsx": "^2.1.1",
         "lucide-react": "^0.454.0",
         "next": "15.0.2",
-        "react": "19.0.0-rc-02c0e824-20241028",
-        "react-dom": "19.0.0-rc-02c0e824-20241028",
+        "react": "^18.3.1",
+        "react-dom": "^18.3.1",
+        "styled-jsx": "^5.1.6",
         "tailwind-merge": "^2.5.4"
     },
     "devDependencies": {
@@ -25,7 +26,9 @@
         "@types/node": "^20",
         "@types/react": "^18",
         "@types/react-dom": "^18",
-        "eslint": "^8",
+        "@typescript-eslint/eslint-plugin": "^8.17.0",
+        "@typescript-eslint/parser": "^8.17.0",
+        "eslint": "^8.57.1",
         "eslint-config-next": "15.0.2",
         "postcss": "^8",
         "tailwindcss": "^3.4.1",
