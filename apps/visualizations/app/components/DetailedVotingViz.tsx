@@ -11,7 +11,7 @@ const DetailedVotingViz = () => {
     { id: '2', x: 0.5, y: 0.5, color: '#ef4444', name: 'Bob' },
     { id: '3', x: 0.7, y: 0.3, color: '#3b82f6', name: 'Charlie' }
   ]);
-  const [voters, setVoters] = useState([]);
+  const [voters, setVoters] = useState<Voter[]>([]);
   const [ballots, setBallots] = useState([]);
   const [electionResults, setElectionResults] = useState(null);
   const [placementMode, setPlacementMode] = useState('none'); // 'voter' or 'candidate' or 'none'
@@ -21,11 +21,11 @@ const DetailedVotingViz = () => {
   const CANVAS_SIZE = 400;
 
   // Calculate distance between two points
-  const distance = (x1, y1, x2, y2) => 
+  const distance = (x1: number, y1: number, x2: number, y2: number): number => 
     Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
 
   // Get voter preferences based on distance
-  const getVoterPreferences = (voterX, voterY) => {
+  const getVoterPreferences = (voterX: number, voterY: number): Array<{ id: string; name: string; dist: number }> => {
     return candidates
       .map(candidate => ({
         id: candidate.id,
