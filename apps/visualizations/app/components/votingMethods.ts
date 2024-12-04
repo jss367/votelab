@@ -1,5 +1,12 @@
 import { Candidate } from '@votelab/shared-utils';
 
+// Define a spatial-specific candidate type that requires x and y
+export interface SpatialCandidate extends Candidate {
+  x: number;
+  y: number;
+  color: string;
+}
+
 // Constants
 export const methods = {
   plurality: 'Plurality',
@@ -28,6 +35,8 @@ export const distance = (
   x2: number,
   y2: number
 ): number => Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+
+export type VotingMethod = 'plurality' | 'approval' | 'irv';
 
 function getPairwisePreferences(
   voterX: number,
@@ -93,7 +102,7 @@ function findSmithSet(
 export const getVoterPreference = (
   voterX: number,
   voterY: number,
-  candidates: Candidate[]
+  candidates: SpatialCandidate[]
 ) => {
   return candidates
     .map((candidate) => ({
@@ -105,14 +114,18 @@ export const getVoterPreference = (
 
 // Voting method implementations
 export const votingMethods = {
-  plurality: (voterX: number, voterY: number, candidates: Candidate[]) => {
+  plurality: (
+    voterX: number,
+    voterY: number,
+    candidates: SpatialCandidate[]
+  ) => {
     return [getVoterPreference(voterX, voterY, candidates)[0].id];
   },
 
   approval: (
     voterX: number,
     voterY: number,
-    candidates: Candidate[],
+    candidates: SpatialCandidate[],
     approvalThreshold: number
   ) => {
     const prefs = getVoterPreference(voterX, voterY, candidates);
@@ -122,7 +135,7 @@ export const votingMethods = {
       : [prefs[0].id];
   },
 
-  borda: (voterX: number, voterY: number, candidates: Candidate[]) => {
+  borda: (voterX: number, voterY: number, candidates: SpatialCandidate[]) => {
     const prefs = getVoterPreference(voterX, voterY, candidates);
     const points = new Map<string, number>();
 
@@ -133,7 +146,7 @@ export const votingMethods = {
     return [...points.entries()].sort((a, b) => b[1] - a[1]).map(([id]) => id);
   },
 
-  irv: (voterX: number, voterY: number, candidates: Candidate[]) => {
+  irv: (voterX: number, voterY: number, candidates: SpatialCandidate[]) => {
     return getVoterPreference(voterX, voterY, candidates).map((p) => p.id);
   },
 
