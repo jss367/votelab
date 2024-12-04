@@ -1,30 +1,54 @@
-// import { Card } from "@repo/ui/src/components/ui/card"
-// import { Card } from "@repo/ui/components/ui/card";
 import { Card } from '@repo/ui';
-
-
 import { useEffect, useRef, useState } from 'react';
 
+interface Candidate {
+  id: string;
+  x: number;
+  y: number;
+  color: string;
+  name: string;
+}
+
+interface Voter {
+  x: number;
+  y: number;
+}
+
+interface Ballot {
+  voterX: number;
+  voterY: number;
+  ranking: string[];
+}
+
+interface ElectionResult {
+  name: string;
+  votes: number;
+  status: string;
+}
+
+type ElectionRound = ElectionResult[];
+
+type PlacementMode = 'none' | 'voter' | 'candidate';
+
 const DetailedVotingViz = () => {
-  const [candidates, setCandidates] = useState([
+  const [candidates, setCandidates] = useState<Candidate[]>([
     { id: '1', x: 0.3, y: 0.7, color: '#22c55e', name: 'Alice' },
     { id: '2', x: 0.5, y: 0.5, color: '#ef4444', name: 'Bob' },
     { id: '3', x: 0.7, y: 0.3, color: '#3b82f6', name: 'Charlie' }
   ]);
+
   const [voters, setVoters] = useState<Voter[]>([]);
-  const [ballots, setBallots] = useState([]);
-  const [electionResults, setElectionResults] = useState(null);
-  const [placementMode, setPlacementMode] = useState('none'); // 'voter' or 'candidate' or 'none'
-  const canvasRef = useRef(null);
-  const [isDragging, setIsDragging] = useState(null);
+  const [ballots, setBallots] = useState<Ballot[]>([]);
+  const [electionResults, setElectionResults] = useState<ElectionRound[] | null>(null);
+  const [placementMode, setPlacementMode] = useState<PlacementMode>('none');
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [isDragging, setIsDragging] = useState<string | null>(null);
 
   const CANVAS_SIZE = 400;
 
-  // Calculate distance between two points
-  const distance = (x1: number, y1: number, x2: number, y2: number): number => 
+  const distance = (x1: number, y1: number, x2: number, y2: number): number =>
     Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
 
-  // Get voter preferences based on distance
   const getVoterPreferences = (voterX: number, voterY: number): Array<{ id: string; name: string; dist: number }> => {
     return candidates
       .map(candidate => ({
@@ -35,8 +59,7 @@ const DetailedVotingViz = () => {
       .sort((a, b) => a.dist - b.dist);
   };
 
-  // Generate ballots for all voters
-  const generateBallots = () => {
+  const generateBallots = (): Ballot[] => {
     const newBallots = voters.map(voter => {
       const prefs = getVoterPreferences(voter.x, voter.y);
       return {
@@ -49,20 +72,17 @@ const DetailedVotingViz = () => {
     return newBallots;
   };
 
-  // Run IRV election with the current ballots
-  const runElection = (ballots) => {
-    let rounds = [];
+  const runElection = (ballots: Ballot[]): void => {
+    let rounds: ElectionRound[] = [];
     let remainingCandidates = [...candidates];
     let currentBallots = [...ballots];
-    
+
     while (remainingCandidates.length > 1) {
-      // Count first preferences
-      const voteCounts = {};
-      remainingCandidates.forEach(c => voteCounts[c.name] = 0);
-      
+      const voteCounts: { [key: string]: number } = {};
+      remainingCandidates.forEach(c => (voteCounts[c.name] = 0));
+
       currentBallots.forEach(ballot => {
-        // Find first preference that's still in the race
-        const firstChoice = ballot.ranking.find(name => 
+        const firstChoice = ballot.ranking.find(name =>
           remainingCandidates.some(c => c.name === name)
         );
         if (firstChoice) {
@@ -70,22 +90,19 @@ const DetailedVotingViz = () => {
         }
       });
 
-      // Calculate round results
       const totalVotes = Object.values(voteCounts).reduce((a, b) => a + b, 0);
-      const roundResults = remainingCandidates.map(candidate => ({
+      const roundResults: ElectionResult[] = remainingCandidates.map(candidate => ({
         name: candidate.name,
         votes: voteCounts[candidate.name],
         status: 'Active'
       }));
 
-      // Check for majority
-      const leader = Object.entries(voteCounts).reduce((a, b) => 
+      const leader = Object.entries(voteCounts).reduce((a, b) =>
         a[1] > b[1] ? a : b
       );
 
       if (leader[1] > totalVotes / 2) {
-        // We have a winner
-        roundResults.find(r => r.name === leader[0]).status = 'Elected';
+        roundResults.find(r => r.name === leader[0])!.status = 'Elected';
         roundResults.forEach(r => {
           if (r.status === 'Active') r.status = 'Rejected';
         });
@@ -93,25 +110,24 @@ const DetailedVotingViz = () => {
         break;
       }
 
-      // Eliminate candidate with fewest votes
-      const loser = Object.entries(voteCounts).reduce((a, b) => 
+      const loser = Object.entries(voteCounts).reduce((a, b) =>
         a[1] < b[1] ? a : b
       );
-      
-      roundResults.find(r => r.name === loser[0]).status = 'Rejected';
+
+      roundResults.find(r => r.name === loser[0])!.status = 'Rejected';
       rounds.push(roundResults);
-      
-      remainingCandidates = remainingCandidates.filter(c => 
-        c.name !== loser[0]
-      );
+
+      remainingCandidates = remainingCandidates.filter(c => c.name !== loser[0]);
     }
 
     setElectionResults(rounds);
   };
 
-  const drawCanvas = () => {
+  const drawCanvas = (): void => {
     const canvas = canvasRef.current;
+    if (!canvas) return;
     const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
     // Clear canvas
     ctx.fillStyle = '#ffffff';
@@ -178,10 +194,10 @@ const DetailedVotingViz = () => {
     drawCanvas();
   }, [candidates, voters, placementMode]);
 
-  const handleCanvasClick = (e) => {
+  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>): void => {
     if (placementMode === 'none') return;
 
-    const rect = canvasRef.current.getBoundingClientRect();
+    const rect = canvasRef.current!.getBoundingClientRect();
     const x = (e.clientX - rect.left) / CANVAS_SIZE;
     const y = 1 - ((e.clientY - rect.top) / CANVAS_SIZE);
 
@@ -190,32 +206,35 @@ const DetailedVotingViz = () => {
     }
   };
 
-  const handleCanvasMouseDown = (e) => {
-    const rect = canvasRef.current.getBoundingClientRect();
+  const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>): void => {
+    const rect = canvasRef.current!.getBoundingClientRect();
     const x = (e.clientX - rect.left) / CANVAS_SIZE;
-    const y = 1 - ((e.clientY - rect.top) / CANVAS_SIZE);
-
-    const clickedCandidate = candidates.find(candidate =>
+    const y = 1 - (e.clientY - rect.top) / CANVAS_SIZE;
+  
+    const clickedCandidate: Candidate | undefined = candidates.find(candidate =>
       distance(x, y, candidate.x, candidate.y) < 0.05
     );
-
+  
     if (clickedCandidate) {
       setIsDragging(clickedCandidate.id);
       e.preventDefault();
     }
   };
 
-  const handleCanvasMouseMove = (e) => {
+  const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>): void => {
     if (!isDragging) return;
-
+  
+    if (!canvasRef.current) return;
+  
     const rect = canvasRef.current.getBoundingClientRect();
     const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / CANVAS_SIZE));
     const y = Math.max(0, Math.min(1, 1 - ((e.clientY - rect.top) / CANVAS_SIZE)));
-
+  
     setCandidates(candidates.map(c =>
       c.id === isDragging ? { ...c, x, y } : c
     ));
   };
+  
 
   const handleCanvasMouseUp = () => {
     setIsDragging(null);
