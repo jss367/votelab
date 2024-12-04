@@ -1,29 +1,40 @@
 'use client';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-
 import {
+  DEFAULT_APPROVAL_THRESHOLD,
   distance,
-  getVoterPreference,
-  methodDescriptions,
-  methods,
-  votingMethods,
-} from '../../lib/votingMethods';
-import type { Voter } from './types';
+  SpatialCandidate,
+  spatialVoteCalculators,
+} from '../../lib/spatialVoting';
+import type { VotingMethod } from '../../lib/votingMethods';
+import { methodDescriptions, methods } from '../../lib/votingMethods';
 
-const VotingMethodViz = () => {
-  const canvasRef = useRef(null);
-  const [candidates, setCandidates] = useState([
+interface Voter {
+  id: string;
+  x: number;
+  y: number;
+}
+
+type VoterDistribution = 'uniform' | 'normal' | 'clustered';
+
+const VotingMethodViz: React.FC = () => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [candidates, setCandidates] = useState<SpatialCandidate[]>([
     { id: '1', x: 0.3, y: 0.7, color: '#22c55e', name: 'Candidate A' },
     { id: '2', x: 0.5, y: 0.5, color: '#ef4444', name: 'Candidate B' },
     { id: '3', x: 0.7, y: 0.3, color: '#3b82f6', name: 'Candidate C' },
   ]);
-  const [selectedMethod, setSelectedMethod] = useState('plurality');
-  const [isDragging, setIsDragging] = useState(null);
-  const [approvalThreshold, setApprovalThreshold] = useState(0.3);
+  const [selectedMethod, setSelectedMethod] =
+    useState<VotingMethod>('plurality');
+  const [isDragging, setIsDragging] = useState<string | null>(null);
+  const [approvalThreshold, setApprovalThreshold] = useState(
+    DEFAULT_APPROVAL_THRESHOLD
+  );
   const [showSettings, setShowSettings] = useState(false);
-  const [voters, setVoters] = useState([]);
+  const [voters, setVoters] = useState<Voter[]>([]);
   const [voterCount, setVoterCount] = useState(10000);
-  const [voterDistribution, setVoterDistribution] = useState('uniform');
+  const [voterDistribution, setVoterDistribution] =
+    useState<VoterDistribution>('uniform');
   const [hasGeneratedVoters, setHasGeneratedVoters] = useState(false);
 
   const availableColors = [
@@ -39,7 +50,8 @@ const VotingMethodViz = () => {
     '#06b6d4',
   ];
 
-  const randn_bm = () => {
+  // Box-Muller transform for normal distribution
+  const randn_bm = (): number => {
     let u = 0,
       v = 0;
     while (u === 0) u = Math.random();
@@ -48,25 +60,22 @@ const VotingMethodViz = () => {
   };
 
   const generateVoters = useCallback(
-    (count: number, distribution: 'uniform' | 'normal' | 'clustered') => {
+    (count: number, distribution: VoterDistribution): Voter[] => {
       const newVoters: Voter[] = [];
 
       for (let i = 0; i < count; i++) {
         let x: number, y: number;
 
         switch (distribution) {
-          case 'normal':
+          case 'normal': {
             const standardDev = 0.15;
-
-            // Generate values until we get one in bounds
-            // This avoids edge accumulation
             do {
               x = 0.5 + randn_bm() * standardDev;
               y = 0.5 + randn_bm() * standardDev;
             } while (x < 0 || x > 1 || y < 0 || y > 1);
             break;
-
-          case 'clustered':
+          }
+          case 'clustered': {
             const clusters = [
               [0.3, 0.3],
               [0.7, 0.7],
@@ -77,17 +86,14 @@ const VotingMethodViz = () => {
             x = Math.min(1, Math.max(0, cluster[0] + randn_bm() * 0.2));
             y = Math.min(1, Math.max(0, cluster[1] + randn_bm() * 0.2));
             break;
-
-          default: // uniform
+          }
+          default: {
             x = Math.random();
             y = Math.random();
+          }
         }
 
-        newVoters.push({
-          id: `voter-${i}`,
-          x,
-          y,
-        });
+        newVoters.push({ id: `voter-${i}`, x, y });
       }
 
       return newVoters;
@@ -95,7 +101,7 @@ const VotingMethodViz = () => {
     []
   );
 
-  const addCandidate = () => {
+  const addCandidate = useCallback(() => {
     if (candidates.length >= availableColors.length) return;
 
     const newId = (
@@ -104,8 +110,8 @@ const VotingMethodViz = () => {
     const newColor = availableColors[candidates.length];
     const letter = String.fromCharCode(65 + candidates.length);
 
-    setCandidates([
-      ...candidates,
+    setCandidates((prev) => [
+      ...prev,
       {
         id: newId,
         x: 0.5,
@@ -114,29 +120,38 @@ const VotingMethodViz = () => {
         name: `Candidate ${letter}`,
       },
     ]);
+  }, [candidates, availableColors]);
+
+  const removeCandidate = useCallback(
+    (id: string) => {
+      if (candidates.length <= 2) return;
+      setCandidates((prev) => prev.filter((c) => c.id !== id));
+    },
+    [candidates]
+  );
+
+  const updateCandidateName = (id: string, name: string): void => {
+    setCandidates((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, name } : c))
+    );
   };
 
-  const removeCandidate = (id: string) => {
-    if (candidates.length <= 2) return;
-    setCandidates(candidates.filter((c) => c.id !== id));
-  };
-
-  const updateCandidateName = (id: string, name: string) => {
-    setCandidates(candidates.map((c) => (c.id === id ? { ...c, name } : c)));
-  };
-
-  const updateCandidatePosition = (id: string, newX: number, newY: number) => {
-    const x = Math.max(0, Math.min(1, newX));
-    const y = Math.max(0, Math.min(1, newY));
-
-    setCandidates(candidates.map((c) => (c.id === id ? { ...c, x, y } : c)));
-  };
+  const updateCandidatePosition = useCallback(
+    (id: string, newX: number, newY: number): void => {
+      const x = Math.max(0, Math.min(1, newX));
+      const y = Math.max(0, Math.min(1, newY));
+      setCandidates((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, x, y } : c))
+      );
+    },
+    []
+  );
 
   const handleCoordinateInput = (
     id: string,
     coord: 'x' | 'y',
     value: string
-  ) => {
+  ): void => {
     const numValue = parseFloat(value);
     if (isNaN(numValue)) return;
 
@@ -167,31 +182,14 @@ const VotingMethodViz = () => {
         const voterX = x / width;
         const voterY = 1 - y / height;
 
-        let winnerId;
-        if (selectedMethod === 'approval') {
-          // For approval, color based on approved candidates
-          const prefs = getVoterPreference(voterX, voterY, candidates);
-          const approvedCandidates = prefs.filter(
-            (p) => p.dist <= approvalThreshold
-          );
-          winnerId =
-            approvedCandidates.length > 0
-              ? approvedCandidates[0].id
-              : prefs[0].id;
-        } else if (selectedMethod === 'borda') {
-          // For Borda, color based on points
-          const prefs = getVoterPreference(voterX, voterY, candidates);
-          const points = new Map();
-          prefs.forEach((p, i) => {
-            points.set(p.id, candidates.length - 1 - i);
-          });
-          winnerId = [...points.entries()].reduce((a, b) =>
-            a[1] > b[1] ? a : b
-          )[0];
-        } else {
-          // For plurality and IRV, color based on closest candidate
-          winnerId = getVoterPreference(voterX, voterY, candidates)[0].id;
-        }
+        // Use spatialVoteCalculators for all methods
+        const winnerIds = spatialVoteCalculators[selectedMethod](
+          voterX,
+          voterY,
+          candidates,
+          selectedMethod === 'approval' ? approvalThreshold : 0
+        );
+        const winnerId = winnerIds[0]; // Take first winner
 
         const winnerColor =
           candidates.find((c) => c.id === winnerId)?.color ?? '#000000';
@@ -312,7 +310,7 @@ const VotingMethodViz = () => {
   };
 
   const calculateWinningAreas = useCallback(
-    (method: keyof typeof votingMethods) => {
+    (method: VotingMethod) => {
       const samplePoints = 50;
       const votes = new Map<string, number>();
       candidates.forEach((c) => votes.set(c.id, 0));
@@ -324,26 +322,22 @@ const VotingMethodViz = () => {
         for (let y = 0; y < samplePoints; y++) {
           const voterX = x / (samplePoints - 1);
           const voterY = y / (samplePoints - 1);
-          const voteResult = votingMethods[method](
+          const voteResult = spatialVoteCalculators[method](
             voterX,
             voterY,
             candidates,
-            method === 'approval' ? approvalThreshold : undefined
+            method === 'approval' ? approvalThreshold : 0
           );
 
           if (method === 'approval') {
-            // For approval, count all approved candidates
             voteResult.forEach((id) => votes.set(id, votes.get(id)! + 1));
           } else if (method === 'borda') {
-            // For Borda, give points based on ranking
             voteResult.forEach((id, index) => {
               votes.set(id, votes.get(id)! + (candidates.length - 1 - index));
             });
           } else if (method === 'irv') {
-            // For IRV, collect all votes for later processing
             allVotes.push(voteResult);
           } else {
-            // For plurality, just count first preference
             votes.set(voteResult[0], votes.get(voteResult[0])! + 1);
           }
         }
@@ -389,9 +383,8 @@ const VotingMethodViz = () => {
           remainingCandidates.delete(loser);
         }
 
-        // If we get here without finding a majority winner, the last remaining candidate wins
         if (remainingCandidates.size === 1) {
-          const winner = remainingCandidates.values().next().value;
+          const [winner] = Array.from(remainingCandidates);
           votes.clear();
           candidates.forEach((c) => votes.set(c.id, 0));
           votes.set(winner, samplePoints * samplePoints);
@@ -417,11 +410,11 @@ const VotingMethodViz = () => {
         percentages: results,
       };
     },
-    [candidates, votingMethods, approvalThreshold]
+    [candidates, approvalThreshold]
   );
 
   const calculateActualVotes = useCallback(
-    (method: keyof typeof votingMethods) => {
+    (method: VotingMethod) => {
       if (!hasGeneratedVoters || voters.length === 0) return null;
 
       const votes = new Map<string, number>();
@@ -430,7 +423,7 @@ const VotingMethodViz = () => {
       if (method === 'irv') {
         let remainingCandidates = [...candidates];
         const allVotes = voters.map((voter) =>
-          votingMethods[method](voter.x, voter.y, candidates)
+          spatialVoteCalculators[method](voter.x, voter.y, candidates)
         );
 
         while (remainingCandidates.length > 1) {
@@ -469,11 +462,11 @@ const VotingMethodViz = () => {
         }
       } else {
         voters.forEach((voter) => {
-          const voteResult = votingMethods[method](
+          const voteResult = spatialVoteCalculators[method](
             voter.x,
             voter.y,
             candidates,
-            method === 'approval' ? approvalThreshold : undefined
+            method === 'approval' ? approvalThreshold : 0
           );
           if (method === 'approval') {
             voteResult.forEach((id) => votes.set(id, votes.get(id)! + 1));
@@ -505,7 +498,7 @@ const VotingMethodViz = () => {
         percentages: results,
       };
     },
-    [candidates, voters, hasGeneratedVoters, votingMethods]
+    [candidates, voters, hasGeneratedVoters, approvalThreshold]
   );
 
   useEffect(() => {
@@ -526,11 +519,13 @@ const VotingMethodViz = () => {
           <div className="flex gap-4 items-center">
             <select
               value={selectedMethod}
-              onChange={(e) => setSelectedMethod(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                setSelectedMethod(e.target.value as VotingMethod)
+              }
               className="block w-40 px-4 py-2 border rounded-md shadow-sm"
             >
               {Object.entries(methods).map(([value, label]) => (
-                <option key={value} value={value}>
+                <option key={value} value={value as VotingMethod}>
                   {label}
                 </option>
               ))}
@@ -578,8 +573,8 @@ const VotingMethodViz = () => {
                       <span>{winner?.name}</span>
                     </div>
                     <div className="text-sm text-gray-600">
-                      {areaResults.percentages[winner.id].toFixed(1)}% of map
-                      area
+                      {areaResults.percentages[winner?.id ?? ''].toFixed(1)}% of
+                      map area area
                     </div>
                   </div>
                 );
