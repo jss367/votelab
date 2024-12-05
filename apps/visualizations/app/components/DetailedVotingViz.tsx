@@ -79,13 +79,19 @@ const DetailedVotingViz = () => {
 
   const runElection = (ballots: Ballot[]): void => {
     const rounds: ElectionRound[] = [];
-    const currentRoundBallots = [...ballots];
+    const currentBallots = [...ballots]; // Fixed: Define currentBallots
     let remainingCandidates = [...candidates];
+
+    if (currentBallots.length === 0) {
+      setElectionResults([]);
+      return;
+    }
 
     while (remainingCandidates.length > 1) {
       const voteCounts: { [key: string]: number } = {};
       remainingCandidates.forEach((c) => (voteCounts[c.name] = 0));
 
+      // Count first preferences among remaining candidates
       currentBallots.forEach((ballot) => {
         const firstChoice = ballot.ranking.find((name) =>
           remainingCandidates.some((c) => c.name === name)
@@ -96,6 +102,13 @@ const DetailedVotingViz = () => {
       });
 
       const totalVotes = Object.values(voteCounts).reduce((a, b) => a + b, 0);
+
+      // Handle case where no valid votes were cast
+      if (totalVotes === 0) {
+        setElectionResults([]);
+        return;
+      }
+
       const roundResults: ElectionResult[] = remainingCandidates.map(
         (candidate) => ({
           name: candidate.name,
@@ -108,6 +121,7 @@ const DetailedVotingViz = () => {
         a[1] > b[1] ? a : b
       );
 
+      // Check if we have a majority winner
       if (leader[1] > totalVotes / 2) {
         roundResults.find((r) => r.name === leader[0])!.status = 'Elected';
         roundResults.forEach((r) => {
@@ -117,6 +131,7 @@ const DetailedVotingViz = () => {
         break;
       }
 
+      // Eliminate candidate with fewest votes
       const loser = Object.entries(voteCounts).reduce((a, b) =>
         a[1] < b[1] ? a : b
       );
@@ -124,9 +139,21 @@ const DetailedVotingViz = () => {
       roundResults.find((r) => r.name === loser[0])!.status = 'Rejected';
       rounds.push(roundResults);
 
+      // Create new array instead of mutating
       remainingCandidates = remainingCandidates.filter(
         (c) => c.name !== loser[0]
       );
+    }
+
+    // Handle final remaining candidate if we didn't find a majority winner
+    if (remainingCandidates.length === 1) {
+      rounds.push([
+        {
+          name: remainingCandidates[0].name,
+          votes: currentBallots.length,
+          status: 'Elected',
+        },
+      ]);
     }
 
     setElectionResults(rounds);

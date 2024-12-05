@@ -27,6 +27,8 @@
     "css-box-model": "^1.2.1",
     "eslint-plugin-jest": "^25.3.0",
     "react-scripts": "^5.0.1",
-    "redux": "^5.0.1"
+    "redux": "^5.0.1",
+    "tailwindcss-animate": "^1.0.7",
+    "web-vitals": "^4.2.4"
   }
 }

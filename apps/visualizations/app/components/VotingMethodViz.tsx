@@ -1,5 +1,10 @@
-'use client';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   DEFAULT_APPROVAL_THRESHOLD,
   distance,
@@ -17,12 +22,38 @@ interface Voter {
 
 type VoterDistribution = 'uniform' | 'normal' | 'clustered';
 
+// Box-Muller transform for normal distribution
+const randn_bm = (): number => {
+  let u = 0,
+    v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+};
+
 const VotingMethodViz: React.FC = () => {
+  // Move color array to useMemo to fix build warning
+  const availableColors = useMemo(
+    () => [
+      '#22c55e',
+      '#ef4444',
+      '#3b82f6',
+      '#f59e0b',
+      '#8b5cf6',
+      '#ec4899',
+      '#10b981',
+      '#6366f1',
+      '#f97316',
+      '#06b6d4',
+    ],
+    []
+  );
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [candidates, setCandidates] = useState<SpatialCandidate[]>([
-    { id: '1', x: 0.3, y: 0.7, color: '#22c55e', name: 'Candidate A' },
-    { id: '2', x: 0.5, y: 0.5, color: '#ef4444', name: 'Candidate B' },
-    { id: '3', x: 0.7, y: 0.3, color: '#3b82f6', name: 'Candidate C' },
+    { id: '1', x: 0.3, y: 0.7, color: availableColors[0], name: 'Candidate A' },
+    { id: '2', x: 0.5, y: 0.5, color: availableColors[1], name: 'Candidate B' },
+    { id: '3', x: 0.7, y: 0.3, color: availableColors[2], name: 'Candidate C' },
   ]);
   const [selectedMethod, setSelectedMethod] =
     useState<VotingMethod>('plurality');
@@ -36,28 +67,6 @@ const VotingMethodViz: React.FC = () => {
   const [voterDistribution, setVoterDistribution] =
     useState<VoterDistribution>('uniform');
   const [hasGeneratedVoters, setHasGeneratedVoters] = useState(false);
-
-  const availableColors = [
-    '#22c55e',
-    '#ef4444',
-    '#3b82f6',
-    '#f59e0b',
-    '#8b5cf6',
-    '#ec4899',
-    '#10b981',
-    '#6366f1',
-    '#f97316',
-    '#06b6d4',
-  ];
-
-  // Box-Muller transform for normal distribution
-  const randn_bm = (): number => {
-    let u = 0,
-      v = 0;
-    while (u === 0) u = Math.random();
-    while (v === 0) v = Math.random();
-    return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
-  };
 
   const generateVoters = useCallback(
     (count: number, distribution: VoterDistribution): Voter[] => {
@@ -80,7 +89,7 @@ const VotingMethodViz: React.FC = () => {
               [0.3, 0.3],
               [0.7, 0.7],
               [0.5, 0.5],
-            ];
+            ] as const;
             const cluster =
               clusters[Math.floor(Math.random() * clusters.length)];
             x = Math.min(1, Math.max(0, cluster[0] + randn_bm() * 0.2));
@@ -345,7 +354,7 @@ const VotingMethodViz: React.FC = () => {
 
       // Special handling for IRV
       if (method === 'irv') {
-        let remainingCandidates = new Set(candidates.map((c) => c.id));
+        const remainingCandidates = new Set(candidates.map((c) => c.id));
 
         while (remainingCandidates.size > 1) {
           const roundVotes = new Map<string, number>();
@@ -505,11 +514,11 @@ const VotingMethodViz: React.FC = () => {
     drawVisualization();
   }, [drawVisualization]);
 
-  const handleGenerateVoters = () => {
+  const handleGenerateVoters = useCallback(() => {
     const newVoters = generateVoters(voterCount, voterDistribution);
     setVoters(newVoters);
     setHasGeneratedVoters(true);
-  };
+  }, [generateVoters, voterCount, voterDistribution]);
 
   const getMethodEntries = () => {
     return Object.entries(methods) as Array<[VotingMethod, string]>;
