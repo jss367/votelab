@@ -124,12 +124,23 @@ describe('Spatial Voting Utilities', () => {
         expect(result).toHaveLength(candidates.length);
         expect(result[0]).toBe('1'); // Closest should be first
       });
-
-      test('maintains transitive ordering', () => {
-        const result = spatialVoteCalculators.irv(0.3, 0.3, candidates);
-        const indices = candidates.map((c) => result.indexOf(c.id));
-        // Check if sorted by distance
-        expect(indices).toEqual([...indices].sort((a, b) => a - b));
+    
+      test('maintains distance-based preference ordering', () => {
+        const voterX = 0.3;
+        const voterY = 0.3;
+        const result = spatialVoteCalculators.irv(voterX, voterY, candidates);
+        
+        // Get actual distances for each candidate
+        const distances = candidates.map(c => ({
+          id: c.id,
+          dist: distance(voterX, voterY, c.x, c.y)
+        }));
+        
+        // Sort by distance
+        const sortedByDistance = [...distances].sort((a, b) => a.dist - b.dist);
+        
+        // The order in result should match order by distance
+        expect(result).toEqual(sortedByDistance.map(d => d.id));
       });
     });
 
