@@ -1,12 +1,3 @@
-import { Candidate } from '@votelab/shared-utils';
-
-// Define a spatial-specific candidate type that requires x and y
-export interface SpatialCandidate extends Candidate {
-  x: number;
-  y: number;
-  color: string;
-}
-
 // Constants
 export const methods = {
   plurality: 'Plurality',
