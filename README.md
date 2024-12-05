@@ -12,6 +12,10 @@ There are multiple test commands across different packages:
 
 You can run all tests together by running `npm test` from the root directory.
 
+## Build
+
+npm run build
+
 # Old
 
 ## Using this example

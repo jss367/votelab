@@ -14,7 +14,7 @@ describe('Voting utility functions', () => {
     const candidates: Candidate[] = [
       { id: 'A', x: 0, y: 0, color: 'red', name: 'A' },
       { id: 'B', x: 1, y: 1, color: 'blue', name: 'B' },
-      { id: 'C', x: 0.5, y: 0.5, color: 'green', name: 'C' }
+      { id: 'C', x: 0.5, y: 0.5, color: 'green', name: 'C' },
     ];
 
     const prefs = getVoterPreference(0, 0, candidates);
@@ -27,7 +27,7 @@ describe('Voting utility functions', () => {
 describe('Plurality voting', () => {
   const candidates: Candidate[] = [
     { id: 'A', x: 0, y: 0, color: 'red', name: 'A' },
-    { id: 'B', x: 1, y: 1, color: 'blue', name: 'B' }
+    { id: 'B', x: 1, y: 1, color: 'blue', name: 'B' },
   ];
 
   test('votes for closest candidate', () => {
@@ -48,7 +48,7 @@ describe('Approval voting', () => {
   const candidates: Candidate[] = [
     { id: 'A', x: 0, y: 0, color: 'red', name: 'A' },
     { id: 'B', x: 1, y: 0, color: 'blue', name: 'B' },
-    { id: 'C', x: 0.5, y: 0, color: 'green', name: 'C' }
+    { id: 'C', x: 0.5, y: 0, color: 'green', name: 'C' },
   ];
 
   test('approves candidates within threshold', () => {
@@ -56,8 +56,7 @@ describe('Approval voting', () => {
     const threshold = 0.3;
 
     // At (0, 0), should approve only A
-    expect(votingMethods.approval(0, 0, candidates, threshold))
-      .toEqual(['A']);
+    expect(votingMethods.approval(0, 0, candidates, threshold)).toEqual(['A']);
 
     // At (0.5, 0), should approve C and possibly others
     const middleVote = votingMethods.approval(0.5, 0, candidates, threshold);
@@ -76,7 +75,7 @@ describe('Borda Count', () => {
   const candidates: Candidate[] = [
     { id: 'A', x: 0, y: 0, color: 'red', name: 'A' },
     { id: 'B', x: 1, y: 0, color: 'blue', name: 'B' },
-    { id: 'C', x: 0.5, y: 0, color: 'green', name: 'C' }
+    { id: 'C', x: 0.5, y: 0, color: 'green', name: 'C' },
   ];
 
   test('ranks candidates by distance', () => {
@@ -88,7 +87,7 @@ describe('Borda Count', () => {
   test('preserves all candidates in ranking', () => {
     const vote = votingMethods.borda(0.5, 0, candidates);
     expect(vote).toHaveLength(candidates.length);
-    expect(new Set(vote)).toEqual(new Set(candidates.map(c => c.id)));
+    expect(new Set(vote)).toEqual(new Set(candidates.map((c) => c.id)));
   });
 });
 
@@ -96,7 +95,7 @@ describe('Instant Runoff Voting', () => {
   const candidates: Candidate[] = [
     { id: 'A', x: 0, y: 0, color: 'red', name: 'A' },
     { id: 'B', x: 1, y: 0, color: 'blue', name: 'B' },
-    { id: 'C', x: 0.5, y: 0, color: 'green', name: 'C' }
+    { id: 'C', x: 0.5, y: 0, color: 'green', name: 'C' },
   ];
 
   test('returns full ranking of candidates', () => {
@@ -115,7 +114,7 @@ describe('Instant Runoff Voting', () => {
 
 describe('Edge cases for all methods', () => {
   const candidates: Candidate[] = [
-    { id: 'A', x: 0.5, y: 0.5, color: 'red', name: 'A' }
+    { id: 'A', x: 0.5, y: 0.5, color: 'red', name: 'A' },
   ];
 
   test('handles single candidate', () => {
@@ -131,24 +130,27 @@ describe('Edge cases for all methods', () => {
       { x: 0, y: 0 },
       { x: 1, y: 1 },
       { x: 0, y: 1 },
-      { x: 1, y: 0 }
+      { x: 1, y: 0 },
     ];
 
-    extremePositions.forEach(pos => {
-      expect(() => votingMethods.plurality(pos.x, pos.y, candidates)).not.toThrow();
-      expect(() => votingMethods.approval(pos.x, pos.y, candidates, 0.3)).not.toThrow();
+    extremePositions.forEach((pos) => {
+      expect(() =>
+        votingMethods.plurality(pos.x, pos.y, candidates)
+      ).not.toThrow();
+      expect(() =>
+        votingMethods.approval(pos.x, pos.y, candidates, 0.3)
+      ).not.toThrow();
       expect(() => votingMethods.borda(pos.x, pos.y, candidates)).not.toThrow();
       expect(() => votingMethods.irv(pos.x, pos.y, candidates)).not.toThrow();
     });
   });
 });
 
-
 describe('Smith Set + Approval voting', () => {
   const candidates: Candidate[] = [
     { id: 'A', x: 0, y: 0, color: 'red', name: 'A' },
     { id: 'B', x: 1, y: 0, color: 'blue', name: 'B' },
-    { id: 'C', x: 0.5, y: 0, color: 'green', name: 'C' }
+    { id: 'C', x: 0.5, y: 0, color: 'green', name: 'C' },
   ];
 
   test('selects from Smith set', () => {
@@ -162,8 +164,18 @@ describe('Smith Set + Approval voting', () => {
     const smallThreshold = 0.2;
     const largeThreshold = 0.6;
 
-    const voteSmall = votingMethods.smithApproval(0.5, 0, candidates, smallThreshold);
-    const voteLarge = votingMethods.smithApproval(0.5, 0, candidates, largeThreshold);
+    const voteSmall = votingMethods.smithApproval(
+      0.5,
+      0,
+      candidates,
+      smallThreshold
+    );
+    const voteLarge = votingMethods.smithApproval(
+      0.5,
+      0,
+      candidates,
+      largeThreshold
+    );
 
     expect(voteSmall.length).toBeLessThanOrEqual(voteLarge.length);
   });

@@ -1,9 +1,16 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   DEFAULT_APPROVAL_THRESHOLD,
-  runElection,
-  VotingMethod,
+  SpatialCandidate,
+  spatialVoteCalculators,
 } from '../../lib/spatialVoting';
+import { VotingMethod } from '../../lib/votingMethods';
 
 const CANVAS_SIZE = 300;
 
@@ -41,43 +48,55 @@ const generateCacheKey = (
 };
 
 const VotingMethodComparisonGrid = () => {
-  const [candidates, setCandidates] = useState([
+  const [candidates, setCandidates] = useState<SpatialCandidate[]>([
     { id: '1', x: 0.3, y: 0.7, color: '#22c55e', name: 'A' },
     { id: '2', x: 0.5, y: 0.5, color: '#ef4444', name: 'B' },
     { id: '3', x: 0.7, y: 0.3, color: '#3b82f6', name: 'C' },
   ]);
 
   // Preset configurations
-  const presets = {
-    spoiler: [
-      { id: '1', x: 0.3, y: 0.5, color: '#22c55e', name: 'Progressive A' },
-      { id: '2', x: 0.7, y: 0.5, color: '#3b82f6', name: 'Conservative' },
-      { id: '3', x: 0.4, y: 0.5, color: '#ef4444', name: 'Progressive B' },
-    ],
-    default: [
-      { id: '1', x: 0.3, y: 0.7, color: '#22c55e', name: 'A' },
-      { id: '2', x: 0.5, y: 0.5, color: '#ef4444', name: 'B' },
-      { id: '3', x: 0.7, y: 0.3, color: '#3b82f6', name: 'C' },
-    ],
-  };
+  const presets = useMemo(
+    () => ({
+      spoiler: [
+        { id: '1', x: 0.3, y: 0.5, color: '#22c55e', name: 'Progressive A' },
+        { id: '2', x: 0.7, y: 0.5, color: '#3b82f6', name: 'Conservative' },
+        { id: '3', x: 0.4, y: 0.5, color: '#ef4444', name: 'Progressive B' },
+      ],
+      default: [
+        { id: '1', x: 0.3, y: 0.7, color: '#22c55e', name: 'A' },
+        { id: '2', x: 0.5, y: 0.5, color: '#ef4444', name: 'B' },
+        { id: '3', x: 0.7, y: 0.3, color: '#3b82f6', name: 'C' },
+      ],
+    }),
+    []
+  );
 
-  const availableColors = [
-    '#22c55e',
-    '#ef4444',
-    '#3b82f6',
-    '#f59e0b',
-    '#8b5cf6',
-    '#ec4899',
-    '#10b981',
-    '#6366f1',
-    '#f97316',
-    '#06b6d4',
-  ];
+  const availableColors = useMemo(
+    () => [
+      '#22c55e',
+      '#ef4444',
+      '#3b82f6',
+      '#f59e0b',
+      '#8b5cf6',
+      '#ec4899',
+      '#10b981',
+      '#6366f1',
+      '#f97316',
+      '#06b6d4',
+    ],
+    []
+  );
 
-  const [isDarkMode, setIsDarkMode] = useState(() => {
+  const isDarkMode = useState(() => {
     if (typeof window === 'undefined') return false;
     return window.matchMedia('(prefers-color-scheme: dark)').matches;
-  });
+  })[0];
+
+  const canvasRefs = {
+    plurality: useRef<HTMLCanvasElement>(null),
+    approval: useRef<HTMLCanvasElement>(null),
+    irv: useRef<HTMLCanvasElement>(null),
+  };
 
   // Add effect to listen for changes
   useEffect(() => {
@@ -99,97 +118,13 @@ const VotingMethodComparisonGrid = () => {
       }
     });
   }, []);
-  const canvasRefs = {
-    plurality: useRef<HTMLCanvasElement>(null),
-    approval: useRef<HTMLCanvasElement>(null),
-    irv: useRef<HTMLCanvasElement>(null),
-  };
 
   const [isComputing, setIsComputing] = useState(false);
   const [isDragging, setIsDragging] = useState<string | null>(null);
   const [computeProgress, setComputeProgress] = useState(0);
 
-  const drawCanvas = useCallback(
-    (canvasRef: React.RefObject<HTMLCanvasElement>, method: VotingMethod) => {
-      const canvas = canvasRef.current;
-      if (!canvas) {
-        return;
-      }
-
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        return;
-      }
-
-      const imageData = ctx.createImageData(CANVAS_SIZE, CANVAS_SIZE);
-      const { data } = imageData;
-
-      // Pre-calculate candidate colors
-      const candidateColors = candidates.reduce(
-        (acc, candidate) => {
-          const rgb = parseInt(candidate.color.slice(1), 16);
-          acc[candidate.id] = {
-            r: (rgb >> 16) & 255,
-            g: (rgb >> 8) & 255,
-            b: rgb & 255,
-          };
-          return acc;
-        },
-        {} as Record<string, { r: number; g: number; b: number }>
-      );
-
-      // Draw with anti-aliasing
-      for (let y = 0; y < CANVAS_SIZE; y += 1) {
-        for (let x = 0; x < CANVAS_SIZE; x += 1) {
-          // Use supersampling for anti-aliasing
-          const samples = 4;
-          const colors = new Map<string, number>();
-
-          for (let sx = 0; sx < samples; sx++) {
-            for (let sy = 0; sy < samples; sy++) {
-              const px = (x + (sx + 0.5) / samples) / CANVAS_SIZE;
-              const py = 1 - (y + (sy + 0.5) / samples) / CANVAS_SIZE;
-
-              // Use the new runElection function
-              const winnerId = runElection(
-                method,
-                px,
-                py,
-                candidates,
-                method === 'approval' ? DEFAULT_APPROVAL_THRESHOLD : undefined
-              );
-              colors.set(winnerId, (colors.get(winnerId) || 0) + 1);
-            }
-          }
-
-          // Blend colors based on sample counts
-          let r = 0,
-            g = 0,
-            b = 0;
-          for (const [id, count] of colors.entries()) {
-            const color = candidateColors[id];
-            const weight = count / (samples * samples);
-            r += color.r * weight;
-            g += color.g * weight;
-            b += color.b * weight;
-          }
-
-          const idx = (y * CANVAS_SIZE + x) * 4;
-          data[idx] = r;
-          data[idx + 1] = g;
-          data[idx + 2] = b;
-          data[idx + 3] = 255;
-        }
-
-        // Update progress more frequently
-        if (y % 10 === 0) {
-          ctx.putImageData(imageData, 0, 0);
-        }
-      }
-
-      ctx.putImageData(imageData, 0, 0);
-
-      // Draw candidates
+  const drawCandidates = useCallback(
+    (ctx: CanvasRenderingContext2D) => {
       candidates.forEach((candidate) => {
         ctx.beginPath();
         ctx.arc(
@@ -215,35 +150,87 @@ const VotingMethodComparisonGrid = () => {
         );
       });
     },
-    [candidates]
+    [candidates, isDarkMode]
   );
 
-  const drawCandidates = (ctx: CanvasRenderingContext2D) => {
-    candidates.forEach((candidate) => {
-      ctx.beginPath();
-      ctx.arc(
-        candidate.x * CANVAS_SIZE,
-        (1 - candidate.y) * CANVAS_SIZE,
-        6,
-        0,
-        2 * Math.PI
-      );
-      ctx.fillStyle = isDarkMode ? '#1f2937' : 'white';
-      ctx.fill();
-      ctx.strokeStyle = candidate.color;
-      ctx.lineWidth = 2;
-      ctx.stroke();
+  const drawCanvas = useCallback(
+    (canvasRef: React.RefObject<HTMLCanvasElement>, method: VotingMethod) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
 
-      ctx.fillStyle = 'black';
-      ctx.font = '12px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(
-        candidate.name,
-        candidate.x * CANVAS_SIZE,
-        (1 - candidate.y) * CANVAS_SIZE + 20
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const imageData = ctx.createImageData(CANVAS_SIZE, CANVAS_SIZE);
+      const { data } = imageData;
+
+      // Pre-calculate candidate colors
+      const candidateColors = candidates.reduce(
+        (acc, candidate) => {
+          const rgb = parseInt(candidate.color.slice(1), 16);
+          acc[candidate.id] = {
+            r: (rgb >> 16) & 255,
+            g: (rgb >> 8) & 255,
+            b: rgb & 255,
+          };
+          return acc;
+        },
+        {} as Record<string, { r: number; g: number; b: number }>
       );
-    });
-  };
+
+      // Draw with anti-aliasing
+      for (let y = 0; y < CANVAS_SIZE; y += 1) {
+        for (let x = 0; x < CANVAS_SIZE; x += 1) {
+          const samples = 4;
+          const colors = new Map<string, number>();
+
+          for (let sx = 0; sx < samples; sx++) {
+            for (let sy = 0; sy < samples; sy++) {
+              const px = (x + (sx + 0.5) / samples) / CANVAS_SIZE;
+              const py = 1 - (y + (sy + 0.5) / samples) / CANVAS_SIZE;
+
+              // Fixed type error by providing a default value for the threshold
+              const winnerIds = spatialVoteCalculators[method](
+                px,
+                py,
+                candidates,
+                method === 'approval' ? DEFAULT_APPROVAL_THRESHOLD : 0 // Provide default value
+              );
+              // For methods that return multiple IDs (like approval), use the first one
+              const winnerId = winnerIds[0];
+              colors.set(winnerId, (colors.get(winnerId) || 0) + 1);
+            }
+          }
+
+          // Blend colors based on sample counts
+          let r = 0,
+            g = 0,
+            b = 0;
+          for (const [id, count] of colors.entries()) {
+            const color = candidateColors[id];
+            const weight = count / (samples * samples);
+            r += color.r * weight;
+            g += color.g * weight;
+            b += color.b * weight;
+          }
+
+          const idx = (y * CANVAS_SIZE + x) * 4;
+          data[idx] = r;
+          data[idx + 1] = g;
+          data[idx + 2] = b;
+          data[idx + 3] = 255;
+        }
+
+        if (y % 10 === 0) {
+          ctx.putImageData(imageData, 0, 0);
+        }
+      }
+
+      ctx.putImageData(imageData, 0, 0);
+      drawCandidates(ctx);
+    },
+    [candidates, drawCandidates]
+  );
 
   const handleCompute = async () => {
     setIsComputing(true);
@@ -340,7 +327,7 @@ const VotingMethodComparisonGrid = () => {
         );
       });
     });
-  }, [candidates]);
+  }, [candidates, isDarkMode, canvasRefs]);
 
   // Call initializeCanvases when component mounts and when candidates change
   useEffect(() => {
