@@ -1,5 +1,5 @@
 import { Card } from '@repo/ui';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface Candidate {
   id: string;
@@ -78,9 +78,9 @@ const DetailedVotingViz = () => {
   };
 
   const runElection = (ballots: Ballot[]): void => {
-    let rounds: ElectionRound[] = [];
+    const rounds: ElectionRound[] = [];
+    const currentRoundBallots = [...ballots];
     let remainingCandidates = [...candidates];
-    let currentBallots = [...ballots];
 
     while (remainingCandidates.length > 1) {
       const voteCounts: { [key: string]: number } = {};
@@ -132,7 +132,7 @@ const DetailedVotingViz = () => {
     setElectionResults(rounds);
   };
 
-  const drawCanvas = (): void => {
+  const drawCanvas = useCallback((): void => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -198,11 +198,11 @@ const DetailedVotingViz = () => {
         (1 - candidate.y) * CANVAS_SIZE + 20
       );
     });
-  };
+  }, [candidates, voters, placementMode]);
 
   useEffect(() => {
     drawCanvas();
-  }, [candidates, voters, placementMode]);
+  }, [drawCanvas]);
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>): void => {
     if (placementMode === 'none') return;

@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   DEFAULT_APPROVAL_THRESHOLD,
   SpatialCandidate,
@@ -49,36 +55,48 @@ const VotingMethodComparisonGrid = () => {
   ]);
 
   // Preset configurations
-  const presets = {
-    spoiler: [
-      { id: '1', x: 0.3, y: 0.5, color: '#22c55e', name: 'Progressive A' },
-      { id: '2', x: 0.7, y: 0.5, color: '#3b82f6', name: 'Conservative' },
-      { id: '3', x: 0.4, y: 0.5, color: '#ef4444', name: 'Progressive B' },
-    ],
-    default: [
-      { id: '1', x: 0.3, y: 0.7, color: '#22c55e', name: 'A' },
-      { id: '2', x: 0.5, y: 0.5, color: '#ef4444', name: 'B' },
-      { id: '3', x: 0.7, y: 0.3, color: '#3b82f6', name: 'C' },
-    ],
-  };
+  const presets = useMemo(
+    () => ({
+      spoiler: [
+        { id: '1', x: 0.3, y: 0.5, color: '#22c55e', name: 'Progressive A' },
+        { id: '2', x: 0.7, y: 0.5, color: '#3b82f6', name: 'Conservative' },
+        { id: '3', x: 0.4, y: 0.5, color: '#ef4444', name: 'Progressive B' },
+      ],
+      default: [
+        { id: '1', x: 0.3, y: 0.7, color: '#22c55e', name: 'A' },
+        { id: '2', x: 0.5, y: 0.5, color: '#ef4444', name: 'B' },
+        { id: '3', x: 0.7, y: 0.3, color: '#3b82f6', name: 'C' },
+      ],
+    }),
+    []
+  );
 
-  const availableColors = [
-    '#22c55e',
-    '#ef4444',
-    '#3b82f6',
-    '#f59e0b',
-    '#8b5cf6',
-    '#ec4899',
-    '#10b981',
-    '#6366f1',
-    '#f97316',
-    '#06b6d4',
-  ];
+  const availableColors = useMemo(
+    () => [
+      '#22c55e',
+      '#ef4444',
+      '#3b82f6',
+      '#f59e0b',
+      '#8b5cf6',
+      '#ec4899',
+      '#10b981',
+      '#6366f1',
+      '#f97316',
+      '#06b6d4',
+    ],
+    []
+  );
 
-  const [isDarkMode, setIsDarkMode] = useState(() => {
+  const isDarkMode = useState(() => {
     if (typeof window === 'undefined') return false;
     return window.matchMedia('(prefers-color-scheme: dark)').matches;
-  });
+  })[0];
+
+  const canvasRefs = {
+    plurality: useRef<HTMLCanvasElement>(null),
+    approval: useRef<HTMLCanvasElement>(null),
+    irv: useRef<HTMLCanvasElement>(null),
+  };
 
   // Add effect to listen for changes
   useEffect(() => {
@@ -100,15 +118,40 @@ const VotingMethodComparisonGrid = () => {
       }
     });
   }, []);
-  const canvasRefs = {
-    plurality: useRef<HTMLCanvasElement>(null),
-    approval: useRef<HTMLCanvasElement>(null),
-    irv: useRef<HTMLCanvasElement>(null),
-  };
 
   const [isComputing, setIsComputing] = useState(false);
   const [isDragging, setIsDragging] = useState<string | null>(null);
   const [computeProgress, setComputeProgress] = useState(0);
+
+  const drawCandidates = useCallback(
+    (ctx: CanvasRenderingContext2D) => {
+      candidates.forEach((candidate) => {
+        ctx.beginPath();
+        ctx.arc(
+          candidate.x * CANVAS_SIZE,
+          (1 - candidate.y) * CANVAS_SIZE,
+          6,
+          0,
+          2 * Math.PI
+        );
+        ctx.fillStyle = isDarkMode ? '#1f2937' : 'white';
+        ctx.fill();
+        ctx.strokeStyle = candidate.color;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = 'black';
+        ctx.font = '12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(
+          candidate.name,
+          candidate.x * CANVAS_SIZE,
+          (1 - candidate.y) * CANVAS_SIZE + 20
+        );
+      });
+    },
+    [candidates, isDarkMode]
+  );
 
   const drawCanvas = useCallback(
     (canvasRef: React.RefObject<HTMLCanvasElement>, method: VotingMethod) => {
@@ -186,35 +229,8 @@ const VotingMethodComparisonGrid = () => {
       ctx.putImageData(imageData, 0, 0);
       drawCandidates(ctx);
     },
-    [candidates]
+    [candidates, drawCandidates]
   );
-
-  const drawCandidates = (ctx: CanvasRenderingContext2D) => {
-    candidates.forEach((candidate) => {
-      ctx.beginPath();
-      ctx.arc(
-        candidate.x * CANVAS_SIZE,
-        (1 - candidate.y) * CANVAS_SIZE,
-        6,
-        0,
-        2 * Math.PI
-      );
-      ctx.fillStyle = isDarkMode ? '#1f2937' : 'white';
-      ctx.fill();
-      ctx.strokeStyle = candidate.color;
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      ctx.fillStyle = 'black';
-      ctx.font = '12px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(
-        candidate.name,
-        candidate.x * CANVAS_SIZE,
-        (1 - candidate.y) * CANVAS_SIZE + 20
-      );
-    });
-  };
 
   const handleCompute = async () => {
     setIsComputing(true);
@@ -311,7 +327,7 @@ const VotingMethodComparisonGrid = () => {
         );
       });
     });
-  }, [candidates]);
+  }, [candidates, isDarkMode, canvasRefs]);
 
   // Call initializeCanvases when component mounts and when candidates change
   useEffect(() => {

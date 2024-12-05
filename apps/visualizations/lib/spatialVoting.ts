@@ -38,7 +38,7 @@ export const isSpatialCandidate = (
   return (
     typeof candidate.x === 'number' &&
     typeof candidate.y === 'number' &&
-    typeof (candidate as any).color === 'string'
+    typeof (candidate as SpatialCandidate).color === 'string'
   );
 };
 
