@@ -11,7 +11,7 @@
   "devDependencies": {
     "prettier": "^3.2.5",
     "turbo": "^2.3.3",
-    "typescript": "5.5.4"
+    "typescript": "^4.9.5"
   },
   "engines": {
     "node": ">=18"
@@ -20,5 +20,15 @@
   "workspaces": [
     "apps/*",
     "packages/*"
-  ]
+  ],
+  "dependencies": {
+    "@hello-pangea/dnd": "^17.0.0",
+    "ajv": "^6.12.6",
+    "css-box-model": "^1.2.1",
+    "eslint-plugin-jest": "^25.3.0",
+    "react-scripts": "^5.0.1",
+    "redux": "^5.0.1",
+    "tailwindcss-animate": "^1.0.7",
+    "web-vitals": "^4.2.4"
+  }
 }
