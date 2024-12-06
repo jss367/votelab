@@ -32,3 +32,4 @@ firebase-debug.log*
 # Turbo
 .turbo
 /apps/visualizations/.next
+apps/election-site/tsconfig.tsbuildinfo
