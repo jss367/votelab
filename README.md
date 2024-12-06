@@ -6,7 +6,7 @@ This is a monorepo of different voting applications. The monorepo is built using
 
 There are multiple test commands across different packages:
 
-- @votelab/shared-utils: Uses Jest
+- @votelab/shared-utils: Uses Jest - No, I'm updating to Vitest everywhere.
 - voting-visualization: Uses Vitest
 - rank-and-approve-voting: Uses React Testing Library
 

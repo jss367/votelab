@@ -12,7 +12,7 @@ export default defineConfig({
     port: 3000,
   },
   esbuild: {
-    loader: 'tsx', // OR "jsx"
+    loader: 'tsx',
     include: /src\/.*\.[tj]sx?$/,
     exclude: [],
   },
