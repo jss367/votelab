@@ -1,4 +1,4 @@
-import { Election, PairwiseResult, Victory } from './types';
+import { Candidate, Election, PairwiseResult, Victory, Vote } from './types.js';
 
 export interface Metrics {
   approval: number;
@@ -32,7 +32,7 @@ export const getPairwiseResults = (election: Election): PairwiseResult[] => {
       let candidate2Votes = 0;
 
       // Count each vote where both candidates are ranked
-      election.votes.forEach(vote => {
+      election.votes.forEach((vote: Vote) => {
         const pos1 = vote.ranking.indexOf(candidate1.id);
         const pos2 = vote.ranking.indexOf(candidate2.id);
 
@@ -56,7 +56,7 @@ export const getPairwiseResults = (election: Election): PairwiseResult[] => {
         candidate1: candidate1.name,
         candidate2: candidate2.name,
         candidate1Votes,
-        candidate2Votes
+        candidate2Votes,
       });
     }
   }
@@ -64,50 +64,60 @@ export const getPairwiseResults = (election: Election): PairwiseResult[] => {
   return results;
 };
 
-export const getHeadToHeadVictories = (pairwiseResults: PairwiseResult[]): Victory[] => {
+export const getHeadToHeadVictories = (
+  pairwiseResults: PairwiseResult[]
+): Victory[] => {
   const victories: Victory[] = [];
 
-  pairwiseResults.forEach(result => {
+  pairwiseResults.forEach((result) => {
     if (result.candidate1Votes > result.candidate2Votes) {
       victories.push({
         winner: result.candidate1,
         loser: result.candidate2,
-        margin: result.candidate1Votes - result.candidate2Votes
+        margin: result.candidate1Votes - result.candidate2Votes,
       });
     } else if (result.candidate2Votes > result.candidate1Votes) {
       victories.push({
         winner: result.candidate2,
         loser: result.candidate1,
-        margin: result.candidate2Votes - result.candidate1Votes
+        margin: result.candidate2Votes - result.candidate1Votes,
       });
     }
-    // Note: We no longer add both directions for ties
   });
 
   return victories.sort((a, b) => a.winner.localeCompare(b.winner));
 };
 
-export const calculateSmithSet = (victories: Victory[], election: Election): string[] => {
+export const calculateSmithSet = (
+  victories: Victory[],
+  election: Election
+): string[] => {
   // Get all candidates from the election data
-  const candidates = election.candidates.map(c => c.name);
+  const candidates = election.candidates.map((c: Candidate) => c.name);
 
   // Create defeat graph
   const defeats = new Map<string, Set<string>>();
-  candidates.forEach(c => defeats.set(c, new Set()));
+  candidates.forEach((c: string) => defeats.set(c, new Set()));
 
   // Fill in victories
-  victories.forEach(v => {
+  victories.forEach((v) => {
     defeats.get(v.winner)?.add(v.loser);
   });
 
   // Helper function: can candidate A reach candidate B through victories?
-  const canReach = (start: string, target: string, visited = new Set<string>()): boolean => {
+  const canReach = (
+    start: string,
+    target: string,
+    visited = new Set<string>()
+  ): boolean => {
     if (start === target) return true;
     if (visited.has(start)) return false;
 
     visited.add(start);
     const beatenCandidates = defeats.get(start) || new Set();
-    return Array.from(beatenCandidates).some(c => canReach(c, target, visited));
+    return Array.from(beatenCandidates).some((c: string) =>
+      canReach(c, target, visited)
+    );
   };
 
   // A candidate is in the Smith set if they can reach all others OR
@@ -117,17 +127,19 @@ export const calculateSmithSet = (victories: Victory[], election: Election): str
     if (victories.length === 0) return true;
 
     const reachableCandidates = new Set(
-      candidates.filter(other =>
-        candidate === other || canReach(candidate, other)
+      candidates.filter(
+        (other: string) => candidate === other || canReach(candidate, other)
       )
     );
 
-    const unreachableCandidates = candidates.filter(c => !reachableCandidates.has(c));
+    const unreachableCandidates = candidates.filter(
+      (c: string) => !reachableCandidates.has(c)
+    );
 
     // Check if candidate has non-losing record against unreachable candidates
-    const hasNonLosingRecord = unreachableCandidates.every(other => {
-      const losesToOther = victories.some(v =>
-        v.winner === other && v.loser === candidate
+    const hasNonLosingRecord = unreachableCandidates.every((other: string) => {
+      const losesToOther = victories.some(
+        (v) => v.winner === other && v.loser === candidate
       );
       return !losesToOther;
     });
@@ -146,20 +158,22 @@ export const selectWinner = (
   returnAllScores: boolean = false
 ): CandidateScore[] => {
   // First calculate all metrics for each candidate
-  const scores: CandidateScore[] = smithSet.map(candidate => {
-    const wins = victories.filter(v => v.winner === candidate).length;
-    const losses = victories.filter(v => v.loser === candidate).length;
+  const scores: CandidateScore[] = smithSet.map((candidate) => {
+    const wins = victories.filter((v) => v.winner === candidate).length;
+    const losses = victories.filter((v) => v.loser === candidate).length;
     const netVictories = wins - losses;
 
     const margins = victories
-      .filter(v => v.winner === candidate || v.loser === candidate)
-      .map(v => v.winner === candidate ? v.margin : -v.margin);
-    const avgMargin = margins.length > 0
-      ? margins.reduce((sum, m) => sum + m, 0) / margins.length
-      : 0;
+      .filter((v) => v.winner === candidate || v.loser === candidate)
+      .map((v) => (v.winner === candidate ? v.margin : -v.margin));
+    const avgMargin =
+      margins.length > 0
+        ? margins.reduce((sum, m) => sum + m, 0) / margins.length
+        : 0;
 
-    const candidateId = election.candidates.find(c => c.name === candidate)?.id || '';
-    const approvalScore = election.votes.filter(vote =>
+    const candidateId =
+      election.candidates.find((c) => c.name === candidate)?.id || '';
+    const approvalScore = election.votes.filter((vote) =>
       vote.approved.includes(candidateId)
     ).length;
 
@@ -176,8 +190,8 @@ export const selectWinner = (
       metrics: {
         approval: approvalScore,
         headToHead: netVictories,
-        margin: avgMargin
-      }
+        margin: avgMargin,
+      },
     };
   });
 
@@ -189,9 +203,10 @@ export const selectWinner = (
     }
 
     // 2. If approval tied, check direct matchup
-    const directMatchup = victories.find(v =>
-      (v.winner === a.name && v.loser === b.name) ||
-      (v.winner === b.name && v.loser === a.name)
+    const directMatchup = victories.find(
+      (v) =>
+        (v.winner === a.name && v.loser === b.name) ||
+        (v.winner === b.name && v.loser === a.name)
     );
 
     if (directMatchup) {
@@ -216,15 +231,18 @@ export const selectWinner = (
     // Determine if current rank should increment
     if (index > 0) {
       const prevScore = sortedScores[index - 1];
-      const directMatchup = victories.find(v =>
-        (v.winner === score.name && v.loser === prevScore.name) ||
-        (v.winner === prevScore.name && v.loser === score.name)
+      const directMatchup = victories.find(
+        (v) =>
+          (v.winner === score.name && v.loser === prevScore.name) ||
+          (v.winner === prevScore.name && v.loser === score.name)
       );
 
-      if (score.metrics.approval !== prevScore.metrics.approval ||
+      if (
+        score.metrics.approval !== prevScore.metrics.approval ||
         (directMatchup && directMatchup.winner !== prevScore.name) ||
         score.metrics.headToHead !== prevScore.metrics.headToHead ||
-        score.metrics.margin !== prevScore.metrics.margin) {
+        score.metrics.margin !== prevScore.metrics.margin
+      ) {
         currentRank = index + 1;
       }
     }
@@ -232,43 +250,46 @@ export const selectWinner = (
     score.rank = currentRank;
 
     // Check for ties with adjacent candidates
-    score.isTied = (nextCand &&
-      nextCand.metrics.approval === score.metrics.approval &&
-      !victories.some(v =>
-        (v.winner === score.name && v.loser === nextCand.name) ||
-        (v.winner === nextCand.name && v.loser === score.name)
-      ) &&
-      nextCand.metrics.headToHead === score.metrics.headToHead
-    ) || (prevCand &&
-      prevCand.metrics.approval === score.metrics.approval &&
-      !victories.some(v =>
-        (v.winner === score.name && v.loser === prevCand.name) ||
-        (v.winner === prevCand.name && v.loser === score.name)
-      ) &&
-      prevCand.metrics.headToHead === score.metrics.headToHead
-      );
+    score.isTied =
+      (nextCand &&
+        nextCand.metrics.approval === score.metrics.approval &&
+        !victories.some(
+          (v) =>
+            (v.winner === score.name && v.loser === nextCand.name) ||
+            (v.winner === nextCand.name && v.loser === score.name)
+        ) &&
+        nextCand.metrics.headToHead === score.metrics.headToHead) ||
+      (prevCand &&
+        prevCand.metrics.approval === score.metrics.approval &&
+        !victories.some(
+          (v) =>
+            (v.winner === score.name && v.loser === prevCand.name) ||
+            (v.winner === prevCand.name && v.loser === score.name)
+        ) &&
+        prevCand.metrics.headToHead === score.metrics.headToHead);
 
     // Create detailed description showing which metric determined the ranking
     const rankText = score.isTied
       ? `Tied for ${score.rank}${getOrdinalSuffix(score.rank)} place`
       : `${score.rank}${getOrdinalSuffix(score.rank)} place`;
 
-    let decidingFactor = "";
+    let decidingFactor = '';
     if (index > 0) {
       const prevScore = sortedScores[index - 1];
       if (score.metrics.approval !== prevScore.metrics.approval) {
-        decidingFactor = "\nRanked by approval votes";
+        decidingFactor = '\nRanked by approval votes';
       } else {
-        const directMatchup = victories.find(v =>
-          (v.winner === score.name && v.loser === prevScore.name) ||
-          (v.winner === prevScore.name && v.loser === score.name)
+        const directMatchup = victories.find(
+          (v) =>
+            (v.winner === score.name && v.loser === prevScore.name) ||
+            (v.winner === prevScore.name && v.loser === score.name)
         );
         if (directMatchup) {
-          decidingFactor = "\nRanked by direct head-to-head matchup";
+          decidingFactor = '\nRanked by direct head-to-head matchup';
         } else if (score.metrics.headToHead !== prevScore.metrics.headToHead) {
-          decidingFactor = "\nRanked by head-to-head record";
+          decidingFactor = '\nRanked by head-to-head record';
         } else if (!score.isTied) {
-          decidingFactor = "\nRanked by average victory margin";
+          decidingFactor = '\nRanked by average victory margin';
         }
       }
     }
@@ -276,11 +297,13 @@ export const selectWinner = (
     score.description = [
       rankText,
       `Approval Votes: ${score.approvalScore}`,
-      `Head-to-Head Record: ${score.netVictories > 0 ? "+" : ""}${score.netVictories} (${score.wins} wins, ${score.losses} losses)`,
+      `Head-to-Head Record: ${score.netVictories > 0 ? '+' : ''}${score.netVictories} (${score.wins} wins, ${score.losses} losses)`,
       `Average Victory Margin: ${score.avgMargin.toFixed(2)}`,
       decidingFactor,
-      score.isTied ? "\nNo head-to-head victory between tied candidates" : ""
-    ].join('\n').trim();
+      score.isTied ? '\nNo head-to-head victory between tied candidates' : '',
+    ]
+      .join('\n')
+      .trim();
   });
 
   return sortedScores;
@@ -290,8 +313,8 @@ export const selectWinner = (
 export const getOrdinalSuffix = (n: number): string => {
   const j = n % 10;
   const k = n % 100;
-  if (j === 1 && k !== 11) return "st";
-  if (j === 2 && k !== 12) return "nd";
-  if (j === 3 && k !== 13) return "rd";
-  return "th";
+  if (j === 1 && k !== 11) return 'st';
+  if (j === 2 && k !== 12) return 'nd';
+  if (j === 3 && k !== 13) return 'rd';
+  return 'th';
 };
