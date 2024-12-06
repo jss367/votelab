@@ -1,19 +1,15 @@
 {
     "compilerOptions": {
-        "target": "es2015",
-        "module": "commonjs",
-        "lib": [
-            "es2015",
-            "dom"
-        ],
-        "declaration": true,
+        "target": "ES2020",
+        "module": "ESNext",
+        "moduleResolution": "bundler",
         "outDir": "./dist",
         "rootDir": "./src",
+        "declaration": true,
         "strict": true,
         "esModuleInterop": true,
         "skipLibCheck": true,
-        "forceConsistentCasingInFileNames": true,
-        "moduleResolution": "node"
+        "forceConsistentCasingInFileNames": true
     },
     "include": [
         "src/**/*"
