@@ -1,3 +1,4 @@
+import type { DropResult } from '@hello-pangea/dnd';
 import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd';
 import {
   Button,
@@ -20,7 +21,6 @@ import {
 } from 'firebase/firestore';
 import { Check, Circle, Copy, Grip, Plus, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import type { DropResult } from 'react-beautiful-dnd';
 import ElectionResults from './ElectionResults';
 
 // Firebase config
@@ -184,7 +184,9 @@ function App() {
     }
 
     const items = Array.from(candidates);
-    const [reorderedItem] = items.splice(result.source.index, 1);
+    const reorderedItem =
+      result.source.index >= 0 ? items[result.source.index] : null;
+    if (!reorderedItem) return;
     items.splice(result.destination.index, 0, reorderedItem);
 
     setCandidates(items);

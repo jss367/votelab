@@ -1,2 +1,2 @@
-export * from './ElectionUtils';
-export * from './types';
+export * from './ElectionUtils.js';
+export * from './types.js';
