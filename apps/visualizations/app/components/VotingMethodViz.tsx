@@ -49,6 +49,18 @@ const VotingMethodViz: React.FC = () => {
     []
   );
 
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = (e: MediaQueryListEvent) => setIsDarkMode(e.matches);
+    mediaQuery.addEventListener('change', handler);
+    return () => mediaQuery.removeEventListener('change', handler);
+  }, []);
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [candidates, setCandidates] = useState<SpatialCandidate[]>([
     { id: '1', x: 0.3, y: 0.7, color: availableColors[0], name: 'Candidate A' },
@@ -214,7 +226,9 @@ const VotingMethodViz: React.FC = () => {
     ctx.putImageData(imageData, 0, 0);
 
     // Draw voters
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+    ctx.fillStyle = isDarkMode
+      ? 'rgba(255, 255, 255, 0.3)'
+      : 'rgba(0, 0, 0, 0.3)';
     voters.forEach((voter) => {
       ctx.beginPath();
       ctx.arc(voter.x * width, (1 - voter.y) * height, 2, 0, 2 * Math.PI);
@@ -231,13 +245,13 @@ const VotingMethodViz: React.FC = () => {
         0,
         2 * Math.PI
       );
-      ctx.fillStyle = 'white';
+      ctx.fillStyle = isDarkMode ? '#1f2937' : 'white';
       ctx.fill();
       ctx.strokeStyle = candidate.color;
       ctx.lineWidth = 3;
       ctx.stroke();
 
-      ctx.fillStyle = 'black';
+      ctx.fillStyle = isDarkMode ? 'white' : 'black';
       ctx.font = '12px sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(
@@ -248,7 +262,10 @@ const VotingMethodViz: React.FC = () => {
     });
 
     if (selectedMethod === 'approval') {
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
+      ctx.strokeStyle = isDarkMode
+        ? 'rgba(255, 255, 255, 0.2)'
+        : 'rgba(0, 0, 0, 0.2)'; // For approval circles
+
       ctx.lineWidth = 1;
       candidates.forEach((candidate) => {
         ctx.beginPath();
@@ -525,17 +542,19 @@ const VotingMethodViz: React.FC = () => {
   };
 
   return (
-    <div className="w-full max-w-6xl p-4 bg-white rounded-lg shadow-lg">
+    <div className="w-full max-w-6xl p-4 bg-white dark:bg-gray-800 rounded-lg shadow-lg">
       <div className="flex justify-between items-start mb-4">
         <div>
-          <h2 className="text-2xl font-bold mb-2">Voting Method Comparison</h2>
+          <h2 className="text-2xl font-bold mb-2 text-gray-900 dark:text-white">
+            Voting Method Comparison
+          </h2>
           <div className="flex gap-4 items-center">
             <select
               value={selectedMethod}
               onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
                 setSelectedMethod(e.target.value as VotingMethod)
               }
-              className="block w-40 px-4 py-2 border rounded-md shadow-sm"
+              className="block w-40 px-4 py-2 border rounded-md shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
             >
               {getMethodEntries().map(([value, label]) => (
                 <option key={value} value={value as VotingMethod}>
@@ -545,12 +564,12 @@ const VotingMethodViz: React.FC = () => {
             </select>
             <button
               onClick={() => setShowSettings(!showSettings)}
-              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-md"
+              className="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-md transition-colors"
             >
               {showSettings ? 'Hide Settings' : 'Show Settings'}
             </button>
           </div>
-          <p className="mt-2 text-gray-600">
+          <p className="mt-2 text-gray-600 dark:text-gray-300">
             {methodDescriptions[selectedMethod as keyof typeof methods]}
           </p>
         </div>
@@ -559,8 +578,10 @@ const VotingMethodViz: React.FC = () => {
       {hasGeneratedVoters ? (
         <div className="mt-4 space-y-4">
           {/* Theoretical Area Coverage */}
-          <div className="p-4 bg-gray-50 rounded-lg">
-            <h3 className="font-semibold mb-2">Theoretical Area Coverage</h3>
+          <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+            <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">
+              Theoretical Area Coverage
+            </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {getMethodEntries().map(([method, label]) => {
                 const areaResults = calculateWinningAreas(method);
@@ -575,19 +596,27 @@ const VotingMethodViz: React.FC = () => {
                 return (
                   <div
                     key={`area-${method}`}
-                    className={`p-3 rounded-lg border ${method === selectedMethod ? 'bg-white border-blue-500' : 'bg-white'}`}
+                    className={`p-3 rounded-lg border dark:border-gray-600 ${
+                      method === selectedMethod
+                        ? 'bg-white dark:bg-gray-800 border-blue-500'
+                        : 'bg-white dark:bg-gray-800'
+                    }`}
                   >
-                    <div className="font-medium">{label}</div>
+                    <div className="font-medium text-gray-900 dark:text-white">
+                      {label}
+                    </div>
                     <div className="flex items-center gap-2 mt-1">
                       <div
                         className="w-3 h-3 rounded-full"
                         style={{ backgroundColor: winner?.color }}
                       />
-                      <span>{winner?.name}</span>
+                      <span className="text-gray-900 dark:text-white">
+                        {winner?.name}
+                      </span>
                     </div>
-                    <div className="text-sm text-gray-600">
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
                       {areaResults.percentages[winner?.id ?? ''].toFixed(1)}% of
-                      map area area
+                      map area
                     </div>
                   </div>
                 );
@@ -596,8 +625,8 @@ const VotingMethodViz: React.FC = () => {
           </div>
 
           {/* Actual Voter Results */}
-          <div className="p-4 bg-gray-50 rounded-lg">
-            <h3 className="font-semibold mb-2">
+          <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+            <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">
               Actual Voter Results ({voters.length} voters)
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -617,17 +646,25 @@ const VotingMethodViz: React.FC = () => {
                 return (
                   <div
                     key={`votes-${method}`}
-                    className={`p-3 rounded-lg border ${method === selectedMethod ? 'bg-white border-blue-500' : 'bg-white'}`}
+                    className={`p-3 rounded-lg border dark:border-gray-600 ${
+                      method === selectedMethod
+                        ? 'bg-white dark:bg-gray-800 border-blue-500'
+                        : 'bg-white dark:bg-gray-800'
+                    }`}
                   >
-                    <div className="font-medium">{label}</div>
+                    <div className="font-medium text-gray-900 dark:text-white">
+                      {label}
+                    </div>
                     <div className="flex items-center gap-2 mt-1">
                       <div
                         className="w-3 h-3 rounded-full"
                         style={{ backgroundColor: winner?.color }}
                       />
-                      <span>{winner?.name}</span>
+                      <span className="text-gray-900 dark:text-white">
+                        {winner?.name}
+                      </span>
                     </div>
-                    <div className="text-sm text-gray-600">
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
                       {voterResults.votes[winner.id]} votes (
                       {voterResults.percentages[winner.id].toFixed(1)}%)
                     </div>
@@ -638,13 +675,13 @@ const VotingMethodViz: React.FC = () => {
           </div>
         </div>
       ) : (
-        <div className="mt-4 p-4 bg-gray-100 rounded-lg text-center">
-          <p className="text-gray-600 mb-2">
+        <div className="mt-4 p-4 bg-gray-100 dark:bg-gray-700 rounded-lg text-center">
+          <p className="text-gray-600 dark:text-gray-300 mb-2">
             Generate voters to see election results
           </p>
           <button
             onClick={handleGenerateVoters}
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors"
           >
             Generate {voterCount} Voters
           </button>
@@ -652,15 +689,17 @@ const VotingMethodViz: React.FC = () => {
       )}
 
       {showSettings && (
-        <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+        <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <h3 className="font-semibold mb-2">Candidates</h3>
+              <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">
+                Candidates
+              </h3>
               <div className="space-y-2">
                 {candidates.map((candidate) => (
                   <div
                     key={candidate.id}
-                    className="flex flex-wrap items-center gap-2 p-2 border rounded bg-white"
+                    className="flex flex-wrap items-center gap-2 p-2 border rounded bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600"
                   >
                     <div
                       className="w-4 h-4 rounded-full"
@@ -672,10 +711,12 @@ const VotingMethodViz: React.FC = () => {
                       onChange={(e) =>
                         updateCandidateName(candidate.id, e.target.value)
                       }
-                      className="px-2 py-1 border rounded w-32"
+                      className="px-2 py-1 border rounded w-32 bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
                     />
                     <div className="flex items-center gap-2">
-                      <label className="text-sm">X:</label>
+                      <label className="text-sm text-gray-900 dark:text-white">
+                        X:
+                      </label>
                       <input
                         type="number"
                         value={candidate.x.toFixed(2)}
@@ -689,9 +730,11 @@ const VotingMethodViz: React.FC = () => {
                         step="0.05"
                         min="0"
                         max="1"
-                        className="px-2 py-1 border rounded w-20"
+                        className="px-2 py-1 border rounded w-20 bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
                       />
-                      <label className="text-sm">Y:</label>
+                      <label className="text-sm text-gray-900 dark:text-white">
+                        Y:
+                      </label>
                       <input
                         type="number"
                         value={candidate.y.toFixed(2)}
@@ -705,12 +748,12 @@ const VotingMethodViz: React.FC = () => {
                         step="0.05"
                         min="0"
                         max="1"
-                        className="px-2 py-1 border rounded w-20"
+                        className="px-2 py-1 border rounded w-20 bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
                       />
                     </div>
                     <button
                       onClick={() => removeCandidate(candidate.id)}
-                      className="px-2 py-1 text-red-600 hover:bg-red-50 rounded ml-auto"
+                      className="px-2 py-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded ml-auto"
                     >
                       Remove
                     </button>
@@ -718,13 +761,13 @@ const VotingMethodViz: React.FC = () => {
                 ))}
                 <button
                   onClick={addCandidate}
-                  className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                  className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors disabled:bg-gray-300 dark:disabled:bg-gray-600"
                   disabled={candidates.length >= availableColors.length}
                 >
                   Add Candidate
                 </button>
               </div>
-              <div className="mt-2 text-sm text-gray-600">
+              <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
                 <p>Tip: You can adjust positions by either:</p>
                 <ul className="list-disc ml-4">
                   <li>Dragging the circles on the visualization</li>
@@ -734,17 +777,21 @@ const VotingMethodViz: React.FC = () => {
             </div>
 
             <div>
-              <h3 className="font-semibold mb-2">Voter Settings</h3>
+              <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">
+                Voter Settings
+              </h3>
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <label>Number of Voters:</label>
+                  <label className="text-gray-900 dark:text-white">
+                    Number of Voters:
+                  </label>
                   <input
                     type="number"
                     value={voterCount}
                     onChange={(e) =>
                       setVoterCount(Math.max(1, parseInt(e.target.value) || 0))
                     }
-                    className="px-2 py-1 border rounded w-24"
+                    className="px-2 py-1 border rounded w-24 bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
                   />
                   <button
                     onClick={() =>
@@ -756,7 +803,9 @@ const VotingMethodViz: React.FC = () => {
                   </button>
                 </div>
                 <div className="flex items-center gap-2">
-                  <label>Distribution:</label>
+                  <label className="text-gray-900 dark:text-white">
+                    Distribution:
+                  </label>
                   <select
                     value={voterDistribution}
                     onChange={(e) =>
@@ -764,7 +813,7 @@ const VotingMethodViz: React.FC = () => {
                         e.target.value as typeof voterDistribution
                       )
                     }
-                    className="px-2 py-1 border rounded"
+                    className="px-2 py-1 border rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
                   >
                     <option value="uniform">Uniform</option>
                     <option value="normal">Normal</option>
@@ -776,9 +825,13 @@ const VotingMethodViz: React.FC = () => {
 
             {selectedMethod === 'approval' && (
               <div>
-                <h3 className="font-semibold mb-2">Approval Voting Settings</h3>
+                <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">
+                  Approval Voting Settings
+                </h3>
                 <div className="flex items-center gap-2">
-                  <label>Approval Threshold:</label>
+                  <label className="text-gray-900 dark:text-white">
+                    Approval Threshold:
+                  </label>
                   <input
                     type="range"
                     min="0.1"
@@ -790,7 +843,9 @@ const VotingMethodViz: React.FC = () => {
                     }
                     className="w-40"
                   />
-                  <span>{(approvalThreshold * 100).toFixed(0)}%</span>
+                  <span className="text-gray-900 dark:text-white">
+                    {(approvalThreshold * 100).toFixed(0)}%
+                  </span>
                 </div>
               </div>
             )}
@@ -798,12 +853,12 @@ const VotingMethodViz: React.FC = () => {
         </div>
       )}
 
-      <div className="border rounded-lg p-4">
+      <div className="border dark:border-gray-700 rounded-lg p-4">
         <canvas
           ref={canvasRef}
           width={400}
           height={400}
-          className="w-full border rounded cursor-move"
+          className="w-full border dark:border-gray-700 rounded cursor-move"
           style={{ touchAction: 'none' }}
           onMouseDown={handleCanvasMouseDown}
           onMouseMove={handleCanvasMouseMove}
