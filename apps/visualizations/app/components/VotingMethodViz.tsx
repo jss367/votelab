@@ -561,8 +561,10 @@ const VotingMethodViz: React.FC = () => {
       {hasGeneratedVoters ? (
         <div className="mt-4 space-y-4">
           {/* Theoretical Area Coverage */}
-          <div className="p-4 bg-gray-50 rounded-lg">
-            <h3 className="font-semibold mb-2">Theoretical Area Coverage</h3>
+          <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+            <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">
+              Theoretical Area Coverage
+            </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {getMethodEntries().map(([method, label]) => {
                 const areaResults = calculateWinningAreas(method);
