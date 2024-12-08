@@ -740,17 +740,21 @@ const VotingMethodViz: React.FC = () => {
             </div>
 
             <div>
-              <h3 className="font-semibold mb-2">Voter Settings</h3>
+              <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">
+                Voter Settings
+              </h3>
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <label>Number of Voters:</label>
+                  <label className="text-gray-900 dark:text-white">
+                    Number of Voters:
+                  </label>
                   <input
                     type="number"
                     value={voterCount}
                     onChange={(e) =>
                       setVoterCount(Math.max(1, parseInt(e.target.value) || 0))
                     }
-                    className="px-2 py-1 border rounded w-24"
+                    className="px-2 py-1 border rounded w-24 bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
                   />
                   <button
                     onClick={() =>
@@ -762,7 +766,9 @@ const VotingMethodViz: React.FC = () => {
                   </button>
                 </div>
                 <div className="flex items-center gap-2">
-                  <label>Distribution:</label>
+                  <label className="text-gray-900 dark:text-white">
+                    Distribution:
+                  </label>
                   <select
                     value={voterDistribution}
                     onChange={(e) =>
@@ -770,7 +776,7 @@ const VotingMethodViz: React.FC = () => {
                         e.target.value as typeof voterDistribution
                       )
                     }
-                    className="px-2 py-1 border rounded"
+                    className="px-2 py-1 border rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
                   >
                     <option value="uniform">Uniform</option>
                     <option value="normal">Normal</option>
