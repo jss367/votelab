@@ -579,19 +579,27 @@ const VotingMethodViz: React.FC = () => {
                 return (
                   <div
                     key={`area-${method}`}
-                    className={`p-3 rounded-lg border ${method === selectedMethod ? 'bg-white border-blue-500' : 'bg-white'}`}
+                    className={`p-3 rounded-lg border dark:border-gray-600 ${
+                      method === selectedMethod
+                        ? 'bg-white dark:bg-gray-800 border-blue-500'
+                        : 'bg-white dark:bg-gray-800'
+                    }`}
                   >
-                    <div className="font-medium">{label}</div>
+                    <div className="font-medium text-gray-900 dark:text-white">
+                      {label}
+                    </div>
                     <div className="flex items-center gap-2 mt-1">
                       <div
                         className="w-3 h-3 rounded-full"
                         style={{ backgroundColor: winner?.color }}
                       />
-                      <span>{winner?.name}</span>
+                      <span className="text-gray-900 dark:text-white">
+                        {winner?.name}
+                      </span>
                     </div>
-                    <div className="text-sm text-gray-600">
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
                       {areaResults.percentages[winner?.id ?? ''].toFixed(1)}% of
-                      map area area
+                      map area
                     </div>
                   </div>
                 );
@@ -600,8 +608,8 @@ const VotingMethodViz: React.FC = () => {
           </div>
 
           {/* Actual Voter Results */}
-          <div className="p-4 bg-gray-50 rounded-lg">
-            <h3 className="font-semibold mb-2">
+          <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+            <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">
               Actual Voter Results ({voters.length} voters)
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -621,17 +629,25 @@ const VotingMethodViz: React.FC = () => {
                 return (
                   <div
                     key={`votes-${method}`}
-                    className={`p-3 rounded-lg border ${method === selectedMethod ? 'bg-white border-blue-500' : 'bg-white'}`}
+                    className={`p-3 rounded-lg border dark:border-gray-600 ${
+                      method === selectedMethod
+                        ? 'bg-white dark:bg-gray-800 border-blue-500'
+                        : 'bg-white dark:bg-gray-800'
+                    }`}
                   >
-                    <div className="font-medium">{label}</div>
+                    <div className="font-medium text-gray-900 dark:text-white">
+                      {label}
+                    </div>
                     <div className="flex items-center gap-2 mt-1">
                       <div
                         className="w-3 h-3 rounded-full"
                         style={{ backgroundColor: winner?.color }}
                       />
-                      <span>{winner?.name}</span>
+                      <span className="text-gray-900 dark:text-white">
+                        {winner?.name}
+                      </span>
                     </div>
-                    <div className="text-sm text-gray-600">
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
                       {voterResults.votes[winner.id]} votes (
                       {voterResults.percentages[winner.id].toFixed(1)}%)
                     </div>
