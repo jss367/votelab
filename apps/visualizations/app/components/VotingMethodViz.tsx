@@ -196,10 +196,6 @@ const VotingMethodViz: React.FC = () => {
     const width = canvas.width;
     const height = canvas.height;
 
-    // Clear canvas with appropriate background
-    ctx.fillStyle = isDarkMode ? '#1f2937' : 'white';
-    ctx.fillRect(0, 0, width, height);
-
     // Draw the voting map
     const imageData = ctx.createImageData(width, height);
     for (let x = 0; x < width; x++) {
@@ -283,7 +279,7 @@ const VotingMethodViz: React.FC = () => {
         ctx.stroke();
       });
     }
-  }, [candidates, selectedMethod, approvalThreshold, voters, isDarkMode]);
+  }, [candidates, selectedMethod, approvalThreshold, voters]);
 
   const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -533,7 +529,7 @@ const VotingMethodViz: React.FC = () => {
 
   useEffect(() => {
     drawVisualization();
-  }, [isDarkMode, drawVisualization]);
+  }, [drawVisualization]);
 
   const handleGenerateVoters = useCallback(() => {
     const newVoters = generateVoters(voterCount, voterDistribution);
