@@ -788,9 +788,13 @@ const VotingMethodViz: React.FC = () => {
 
             {selectedMethod === 'approval' && (
               <div>
-                <h3 className="font-semibold mb-2">Approval Voting Settings</h3>
+                <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">
+                  Approval Voting Settings
+                </h3>
                 <div className="flex items-center gap-2">
-                  <label>Approval Threshold:</label>
+                  <label className="text-gray-900 dark:text-white">
+                    Approval Threshold:
+                  </label>
                   <input
                     type="range"
                     min="0.1"
@@ -802,7 +806,9 @@ const VotingMethodViz: React.FC = () => {
                     }
                     className="w-40"
                   />
-                  <span>{(approvalThreshold * 100).toFixed(0)}%</span>
+                  <span className="text-gray-900 dark:text-white">
+                    {(approvalThreshold * 100).toFixed(0)}%
+                  </span>
                 </div>
               </div>
             )}
