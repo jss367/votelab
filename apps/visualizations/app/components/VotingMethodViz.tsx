@@ -49,6 +49,18 @@ const VotingMethodViz: React.FC = () => {
     []
   );
 
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = (e: MediaQueryListEvent) => setIsDarkMode(e.matches);
+    mediaQuery.addEventListener('change', handler);
+    return () => mediaQuery.removeEventListener('change', handler);
+  }, []);
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [candidates, setCandidates] = useState<SpatialCandidate[]>([
     { id: '1', x: 0.3, y: 0.7, color: availableColors[0], name: 'Candidate A' },
@@ -214,7 +226,9 @@ const VotingMethodViz: React.FC = () => {
     ctx.putImageData(imageData, 0, 0);
 
     // Draw voters
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+    ctx.fillStyle = isDarkMode
+      ? 'rgba(255, 255, 255, 0.3)'
+      : 'rgba(0, 0, 0, 0.3)';
     voters.forEach((voter) => {
       ctx.beginPath();
       ctx.arc(voter.x * width, (1 - voter.y) * height, 2, 0, 2 * Math.PI);
@@ -231,13 +245,13 @@ const VotingMethodViz: React.FC = () => {
         0,
         2 * Math.PI
       );
-      ctx.fillStyle = 'white';
+      ctx.fillStyle = isDarkMode ? '#1f2937' : 'white';
       ctx.fill();
       ctx.strokeStyle = candidate.color;
       ctx.lineWidth = 3;
       ctx.stroke();
 
-      ctx.fillStyle = 'black';
+      ctx.fillStyle = isDarkMode ? 'white' : 'black';
       ctx.font = '12px sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(
@@ -248,7 +262,10 @@ const VotingMethodViz: React.FC = () => {
     });
 
     if (selectedMethod === 'approval') {
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
+      ctx.strokeStyle = isDarkMode
+        ? 'rgba(255, 255, 255, 0.2)'
+        : 'rgba(0, 0, 0, 0.2)'; // For approval circles
+
       ctx.lineWidth = 1;
       candidates.forEach((candidate) => {
         ctx.beginPath();
@@ -658,8 +675,8 @@ const VotingMethodViz: React.FC = () => {
           </div>
         </div>
       ) : (
-        <div className="mt-4 p-4 bg-gray-100 rounded-lg text-center">
-          <p className="text-gray-600 mb-2">
+        <div className="mt-4 p-4 bg-gray-100 dark:bg-gray-700 rounded-lg text-center">
+          <p className="text-gray-600 dark:text-gray-300 mb-2">
             Generate voters to see election results
           </p>
           <button
@@ -697,7 +714,9 @@ const VotingMethodViz: React.FC = () => {
                       className="px-2 py-1 border rounded w-32 bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
                     />
                     <div className="flex items-center gap-2">
-                      <label className="text-sm">X:</label>
+                      <label className="text-sm text-gray-900 dark:text-white">
+                        X:
+                      </label>
                       <input
                         type="number"
                         value={candidate.x.toFixed(2)}
@@ -711,9 +730,11 @@ const VotingMethodViz: React.FC = () => {
                         step="0.05"
                         min="0"
                         max="1"
-                        className="px-2 py-1 border rounded w-20"
+                        className="px-2 py-1 border rounded w-20 bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
                       />
-                      <label className="text-sm">Y:</label>
+                      <label className="text-sm text-gray-900 dark:text-white">
+                        Y:
+                      </label>
                       <input
                         type="number"
                         value={candidate.y.toFixed(2)}
@@ -727,7 +748,7 @@ const VotingMethodViz: React.FC = () => {
                         step="0.05"
                         min="0"
                         max="1"
-                        className="px-2 py-1 border rounded w-20"
+                        className="px-2 py-1 border rounded w-20 bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
                       />
                     </div>
                     <button
@@ -746,7 +767,7 @@ const VotingMethodViz: React.FC = () => {
                   Add Candidate
                 </button>
               </div>
-              <div className="mt-2 text-sm text-gray-600">
+              <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
                 <p>Tip: You can adjust positions by either:</p>
                 <ul className="list-disc ml-4">
                   <li>Dragging the circles on the visualization</li>
