@@ -31,9 +31,23 @@ interface Point {
   y: number;
 }
 
+interface VoterBlocConfig {
+  voterCount: number;
+  variance: number;
+}
+
 type ElectionRound = ElectionResult[];
 
-type PlacementMode = 'none' | 'voter' | 'candidate';
+type PlacementMode = 'none' | 'voter' | 'voterBloc' | 'candidate';
+
+// Box-Muller transform for normal distribution
+const generateNormalRandom = (): number => {
+  let u = 0,
+    v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+};
 
 const DetailedVotingViz = () => {
   const [candidates, setCandidates] = useState<Candidate[]>([
@@ -73,6 +87,29 @@ const DetailedVotingViz = () => {
       x: canvasX / canvas.width,
       y: 1 - canvasY / canvas.height, // Invert Y coordinate
     };
+  };
+
+  const [voterBlocConfig, setVoterBlocConfig] = useState<VoterBlocConfig>({
+    voterCount: 1000,
+    variance: 0.1,
+  });
+
+  const createVoterBloc = (centerX: number, centerY: number): Voter[] => {
+    const newVoters: Voter[] = [];
+    const { voterCount, variance } = voterBlocConfig;
+
+    for (let i = 0; i < voterCount; i++) {
+      // Generate normally distributed coordinates around the center point
+      let x: number, y: number;
+      do {
+        x = centerX + generateNormalRandom() * variance;
+        y = centerY + generateNormalRandom() * variance;
+      } while (x < 0 || x > 1 || y < 0 || y > 1); // Ensure voters are within bounds
+
+      newVoters.push({ x, y });
+    }
+
+    return newVoters;
   };
 
   const distance = (x1: number, y1: number, x2: number, y2: number): number =>
@@ -208,23 +245,18 @@ const DetailedVotingViz = () => {
       ctx.stroke();
     }
 
-    // Draw voters
-    voters.forEach((voter, index) => {
+    // Draw voters with smaller points for blocs
+    voters.forEach((voter) => {
       ctx.beginPath();
       ctx.arc(
         voter.x * CANVAS_SIZE,
         (1 - voter.y) * CANVAS_SIZE,
-        4,
+        2, // Smaller radius for better visualization of density
         0,
         2 * Math.PI
       );
-      ctx.fillStyle = '#4b5563';
+      ctx.fillStyle = 'rgba(75, 85, 99, 0.3)'; // Semi-transparent for better overlap visibility
       ctx.fill();
-      ctx.fillText(
-        `V${index + 1}`,
-        voter.x * CANVAS_SIZE + 8,
-        (1 - voter.y) * CANVAS_SIZE + 4
-      );
     });
 
     // Draw candidates
@@ -252,7 +284,7 @@ const DetailedVotingViz = () => {
         (1 - candidate.y) * CANVAS_SIZE + 20
       );
     });
-  }, [candidates, voters, placementMode]);
+  }, [candidates, voters]);
 
   useEffect(() => {
     drawCanvas();
@@ -265,6 +297,9 @@ const DetailedVotingViz = () => {
 
     if (placementMode === 'voter') {
       setVoters([...voters, { x: point.x, y: point.y }]);
+    } else if (placementMode === 'voterBloc') {
+      const newVoters = createVoterBloc(point.x, point.y);
+      setVoters([...voters, ...newVoters]);
     }
   };
 
@@ -308,37 +343,98 @@ const DetailedVotingViz = () => {
   return (
     <Card className="w-full max-w-6xl p-6 space-y-6">
       <div className="space-y-4">
-        <div className="flex gap-4">
-          <button
-            onClick={() =>
-              setPlacementMode((mode) => (mode === 'voter' ? 'none' : 'voter'))
-            }
-            className={`px-4 py-2 rounded-lg ${
-              placementMode === 'voter'
-                ? 'bg-blue-500 text-white'
-                : 'bg-gray-100 hover:bg-gray-200'
-            }`}
-          >
-            {placementMode === 'voter'
-              ? 'Finish Placing Voters'
-              : 'Place Voters'}
-          </button>
-          <button
-            onClick={() => {
-              const newBallots = generateBallots();
-              runElection(newBallots);
-            }}
-            className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
-            disabled={voters.length === 0}
-          >
-            Generate & Run Election
-          </button>
-          <button
-            onClick={() => setVoters([])}
-            className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
-          >
-            Clear Voters
-          </button>
+        <div className="flex flex-col gap-4">
+          <div className="flex gap-4">
+            <button
+              onClick={() => setPlacementMode('voter')}
+              className={`px-4 py-2 rounded-lg ${
+                placementMode === 'voter'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-100 hover:bg-gray-200'
+              }`}
+            >
+              Place Individual Voters
+            </button>
+            <button
+              onClick={() => setPlacementMode('voterBloc')}
+              className={`px-4 py-2 rounded-lg ${
+                placementMode === 'voterBloc'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-100 hover:bg-gray-200'
+              }`}
+            >
+              Place Voter Bloc
+            </button>
+            <button
+              onClick={() => setPlacementMode('none')}
+              className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+            >
+              Stop Placing
+            </button>
+          </div>
+
+          {placementMode === 'voterBloc' && (
+            <div className="flex gap-4 items-center bg-gray-50 p-4 rounded-lg">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Voters per Bloc
+                </label>
+                <input
+                  type="number"
+                  value={voterBlocConfig.voterCount}
+                  onChange={(e) =>
+                    setVoterBlocConfig((prev) => ({
+                      ...prev,
+                      voterCount: Math.max(1, parseInt(e.target.value) || 0),
+                    }))
+                  }
+                  className="mt-1 block w-32 rounded-md border-gray-300 shadow-sm"
+                  min="1"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Variance
+                </label>
+                <input
+                  type="range"
+                  min="0.01"
+                  max="0.3"
+                  step="0.01"
+                  value={voterBlocConfig.variance}
+                  onChange={(e) =>
+                    setVoterBlocConfig((prev) => ({
+                      ...prev,
+                      variance: parseFloat(e.target.value),
+                    }))
+                  }
+                  className="mt-1 block w-32"
+                />
+                <span className="text-sm text-gray-500">
+                  {voterBlocConfig.variance.toFixed(2)}
+                </span>
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-4">
+            <button
+              onClick={() => {
+                const newBallots = generateBallots();
+                runElection(newBallots);
+              }}
+              className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
+              disabled={voters.length === 0}
+            >
+              Generate & Run Election
+            </button>
+            <button
+              onClick={() => setVoters([])}
+              className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+            >
+              Clear Voters
+            </button>
+          </div>
         </div>
 
         <div className="border rounded-lg p-4">
