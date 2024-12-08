@@ -26,6 +26,11 @@ interface ElectionResult {
   status: string;
 }
 
+interface Point {
+  x: number;
+  y: number;
+}
+
 type ElectionRound = ElectionResult[];
 
 type PlacementMode = 'none' | 'voter' | 'candidate';
@@ -47,6 +52,28 @@ const DetailedVotingViz = () => {
   const [isDragging, setIsDragging] = useState<string | null>(null);
 
   const CANVAS_SIZE = 400;
+
+  const getCanvasPoint = (
+    canvas: HTMLCanvasElement,
+    clientX: number,
+    clientY: number
+  ): Point => {
+    const rect = canvas.getBoundingClientRect();
+
+    // Calculate the scaling factors between displayed size and internal size
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+
+    // Convert click coordinates to canvas coordinates
+    const canvasX = (clientX - rect.left) * scaleX;
+    const canvasY = (clientY - rect.top) * scaleY;
+
+    // Convert to normalized coordinates (0-1)
+    return {
+      x: canvasX / canvas.width,
+      y: 1 - canvasY / canvas.height, // Invert Y coordinate
+    };
+  };
 
   const distance = (x1: number, y1: number, x2: number, y2: number): number =>
     Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
@@ -232,26 +259,26 @@ const DetailedVotingViz = () => {
   }, [drawCanvas]);
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>): void => {
-    if (placementMode === 'none') return;
+    if (placementMode === 'none' || !canvasRef.current) return;
 
-    const rect = canvasRef.current!.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / CANVAS_SIZE;
-    const y = 1 - (e.clientY - rect.top) / CANVAS_SIZE;
+    const point = getCanvasPoint(canvasRef.current, e.clientX, e.clientY);
 
     if (placementMode === 'voter') {
-      setVoters([...voters, { x, y }]);
+      setVoters([...voters, { x: point.x, y: point.y }]);
     }
   };
 
   const handleCanvasMouseDown = (
     e: React.MouseEvent<HTMLCanvasElement>
   ): void => {
-    const rect = canvasRef.current!.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / CANVAS_SIZE;
-    const y = 1 - (e.clientY - rect.top) / CANVAS_SIZE;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
-    const clickedCandidate: Candidate | undefined = candidates.find(
-      (candidate) => distance(x, y, candidate.x, candidate.y) < 0.05
+    const point = getCanvasPoint(canvas, e.clientX, e.clientY);
+
+    // Find clicked candidate using normalized coordinates
+    const clickedCandidate = candidates.find(
+      (candidate) => distance(point.x, point.y, candidate.x, candidate.y) < 0.05
     );
 
     if (clickedCandidate) {
@@ -263,19 +290,14 @@ const DetailedVotingViz = () => {
   const handleCanvasMouseMove = (
     e: React.MouseEvent<HTMLCanvasElement>
   ): void => {
-    if (!isDragging) return;
+    if (!isDragging || !canvasRef.current) return;
 
-    if (!canvasRef.current) return;
-
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / CANVAS_SIZE));
-    const y = Math.max(
-      0,
-      Math.min(1, 1 - (e.clientY - rect.top) / CANVAS_SIZE)
-    );
+    const point = getCanvasPoint(canvasRef.current, e.clientX, e.clientY);
 
     setCandidates(
-      candidates.map((c) => (c.id === isDragging ? { ...c, x, y } : c))
+      candidates.map((c) =>
+        c.id === isDragging ? { ...c, x: point.x, y: point.y } : c
+      )
     );
   };
 
@@ -324,7 +346,7 @@ const DetailedVotingViz = () => {
             ref={canvasRef}
             width={CANVAS_SIZE}
             height={CANVAS_SIZE}
-            className="w-full border rounded cursor-move"
+            className="w-full aspect-square border rounded cursor-move touch-none"
             onClick={handleCanvasClick}
             onMouseDown={handleCanvasMouseDown}
             onMouseMove={handleCanvasMouseMove}
