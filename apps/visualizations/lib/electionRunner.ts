@@ -85,7 +85,6 @@ function runIRVElection(
   votes: Vote[],
   candidates: Candidate[]
 ): ElectionResults {
-  const rounds: ElectionRound[] = [];
   let remainingCandidates = [...candidates];
   const currentBallots = [...votes];
 
@@ -127,14 +126,12 @@ function runIRVElection(
 
     // Remove the losing candidate for the next round
     remainingCandidates = remainingCandidates.filter((c) => c.id !== loser[0]);
-
-    rounds.push(voteCounts);
   }
 
   // If we get here, only one candidate remains
   return {
     winner: remainingCandidates[0].id,
-    roundDetails: rounds.map((r) => `Round results: ${JSON.stringify(r)}`),
+    roundDetails: [`Winner by elimination: ${remainingCandidates[0].id}`],
     voteCounts: { [remainingCandidates[0].id]: currentBallots.length },
   };
 }
