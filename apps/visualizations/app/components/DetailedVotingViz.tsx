@@ -249,7 +249,7 @@ const DetailedVotingViz = () => {
     setElectionResults(rounds);
   };
 
-  const drawCanvas = useCallback((): void => {
+  const drawVoterPlacementCanvas = useCallback((): void => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -313,8 +313,8 @@ const DetailedVotingViz = () => {
   }, [candidates, voters]);
 
   useEffect(() => {
-    drawCanvas();
-  }, [drawCanvas]);
+    drawVoterPlacementCanvas();
+  }, [drawVoterPlacementCanvas]);
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>): void => {
     if (placementMode === 'none' || !canvasRef.current) return;
