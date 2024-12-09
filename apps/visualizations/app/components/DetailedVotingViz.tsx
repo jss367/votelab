@@ -1,5 +1,5 @@
 import { Card } from '@repo/ui';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 interface Candidate {
   id: string;
@@ -34,6 +34,11 @@ interface Point {
 interface VoterBlocConfig {
   voterCount: number;
   variance: number;
+}
+
+interface AggregatedBallot {
+  ranking: string[];
+  count: number;
 }
 
 type ElectionRound = ElectionResult[];
@@ -89,6 +94,9 @@ const DetailedVotingViz = () => {
     };
   };
 
+  const [aggregatedBallots, setAggregatedBallots] = useState<
+    AggregatedBallot[]
+  >([]);
   const [voterBlocConfig, setVoterBlocConfig] = useState<VoterBlocConfig>({
     voterCount: 1000,
     variance: 0.1,
@@ -137,6 +145,23 @@ const DetailedVotingViz = () => {
         ranking: prefs.map((p) => p.name),
       };
     });
+
+    // Aggregate ballots
+    const ballotCounts = new Map<string, number>();
+    newBallots.forEach((ballot) => {
+      const key = ballot.ranking.join(',');
+      ballotCounts.set(key, (ballotCounts.get(key) || 0) + 1);
+    });
+
+    // Convert to array of AggregatedBallot objects, sorted by count
+    const aggregated = Array.from(ballotCounts.entries())
+      .map(([key, count]) => ({
+        ranking: key.split(','),
+        count,
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    setAggregatedBallots(aggregated);
     setBallots(newBallots);
     return newBallots;
   };
@@ -451,13 +476,26 @@ const DetailedVotingViz = () => {
           />
         </div>
 
-        {ballots.length > 0 && (
+        {aggregatedBallots.length > 0 && (
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Generated Ballots</h3>
-            <div className="bg-gray-50 p-4 rounded-lg font-mono text-sm">
-              {ballots.map((ballot, i) => (
-                <div key={i}>Ranked ballot: {ballot.ranking.join(', ')}</div>
-              ))}
+            <h3 className="text-lg font-semibold">Ballot Distribution</h3>
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <div className="grid grid-cols-[1fr,auto] gap-4 font-mono text-sm">
+                <div className="font-bold">Ranking</div>
+                <div className="font-bold text-right">Count</div>
+                {aggregatedBallots.map((ballot, i) => (
+                  <React.Fragment key={i}>
+                    <div>{ballot.ranking.join(' > ')}</div>
+                    <div className="text-right">
+                      {ballot.count.toLocaleString()}
+                    </div>
+                  </React.Fragment>
+                ))}
+                <div className="border-t col-span-2 mt-2 pt-2">
+                  <strong>Total Ballots: </strong>
+                  {voters.length.toLocaleString()}
+                </div>
+              </div>
             </div>
           </div>
         )}
