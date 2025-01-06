@@ -64,7 +64,6 @@ const DetailedVotingViz = () => {
   ]);
 
   const [voters, setVoters] = useState<Voter[]>([]);
-  const [ballots, setBallots] = useState<Ballot[]>([]);
   const [electionResults, setElectionResults] = useState<
     ElectionRound[] | null
   >(null);
@@ -164,7 +163,6 @@ const DetailedVotingViz = () => {
       .sort((a, b) => b.count - a.count);
 
     setAggregatedBallots(aggregated);
-    setBallots(newBallots);
     return newBallots;
   };
 
@@ -216,7 +214,9 @@ const DetailedVotingViz = () => {
       if (leader[1] > totalVotes / 2) {
         roundResults.find((r) => r.name === leader[0])!.status = 'Elected';
         roundResults.forEach((r) => {
-          if (r.status === 'Active') r.status = 'Rejected';
+          if (r.status === 'Active') {
+            r.status = 'Rejected';
+          }
         });
         rounds.push(roundResults);
         break;
