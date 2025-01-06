@@ -15,8 +15,8 @@ import {
   generateBallotsFromPosition,
   type Ballot,
 } from '../utils/ballotGeneration';
+import { ballotCache, visualizationCache } from '../utils/cache';
 import { BallotDisplay } from './BallotDisplay';
-import { visualizationCache, ballotCache } from '../utils/cache';
 
 const CANVAS_SIZE = 300;
 
@@ -129,7 +129,10 @@ const VotingMethodComparisonGrid = () => {
   const [isDragging, setIsDragging] = useState<string | null>(null);
   const [computeProgress, setComputeProgress] = useState(0);
   const [hasComputed, setHasComputed] = useState(false);
-  const [inspectionPoint, setInspectionPoint] = useState<{ x: number; y: number } | null>(null);
+  const [inspectionPoint, setInspectionPoint] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
 
   const drawCandidates = useCallback(
     (ctx: CanvasRenderingContext2D) => {
@@ -256,7 +259,7 @@ const VotingMethodComparisonGrid = () => {
     if (!clickedCandidate) {
       // First update the inspection point
       setInspectionPoint({ x, y });
-      
+
       // Generate sample points from 2D normal distribution
       const NUM_VOTERS = 50; // Number of voters in this election
       const STD_DEV = 0.15; // Standard deviation for the normal distribution
@@ -267,21 +270,21 @@ const VotingMethodComparisonGrid = () => {
         const u2 = Math.random();
         const radius = Math.sqrt(-2 * Math.log(u1)) * STD_DEV;
         const theta = 2 * Math.PI * u2;
-        
+
         return {
           x: Math.max(0, Math.min(1, x + radius * Math.cos(theta))),
-          y: Math.max(0, Math.min(1, y + radius * Math.sin(theta)))
+          y: Math.max(0, Math.min(1, y + radius * Math.sin(theta))),
         };
       });
 
       // Generate all ballots for this election
-      const pluralityBallots = voterPoints.map(point => 
+      const pluralityBallots = voterPoints.map((point) =>
         generateBallotsFromPosition(point.x, point.y, candidates, 'plurality')
       );
-      const rankedBallots = voterPoints.map(point => 
+      const rankedBallots = voterPoints.map((point) =>
         generateBallotsFromPosition(point.x, point.y, candidates, 'ranked')
       );
-      const starBallots = voterPoints.map(point => 
+      const starBallots = voterPoints.map((point) =>
         generateBallotsFromPosition(point.x, point.y, candidates, 'star')
       );
 
@@ -289,7 +292,7 @@ const VotingMethodComparisonGrid = () => {
       const allBallots = [
         ...pluralityBallots,
         ...rankedBallots,
-        ...starBallots
+        ...starBallots,
       ];
 
       // Update the display ballots
@@ -302,7 +305,12 @@ const VotingMethodComparisonGrid = () => {
         const ctx = canvas.getContext('2d');
         if (ctx) {
           // Redraw the existing visualization
-          const existingImageData = ctx.getImageData(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+          const existingImageData = ctx.getImageData(
+            0,
+            0,
+            CANVAS_SIZE,
+            CANVAS_SIZE
+          );
           ctx.putImageData(existingImageData, 0, 0);
           // Draw candidates and inspection point on top
           drawCandidates(ctx);
@@ -317,18 +325,20 @@ const VotingMethodComparisonGrid = () => {
     setComputeProgress(0);
 
     const cacheKey = JSON.stringify(
-      candidates.map(c => ({ id: c.id, x: c.x, y: c.y }))
+      candidates.map((c) => ({ id: c.id, x: c.x, y: c.y }))
     );
 
     try {
       // Try to get cached results
       const cachedBallots = await ballotCache.get(cacheKey);
       if (cachedBallots) {
-        setDisplayBallots(cachedBallots.ballots.flatMap(b => [
-          b.pluralityBallot,
-          b.rankedBallot,
-          b.starBallot
-        ]));
+        setDisplayBallots(
+          cachedBallots.ballots.flatMap((b) => [
+            b.pluralityBallot,
+            b.rankedBallot,
+            b.starBallot,
+          ])
+        );
       }
 
       await Promise.all(
@@ -338,7 +348,7 @@ const VotingMethodComparisonGrid = () => {
 
           const vizCacheKey = `${cacheKey}_${votingMethod}`;
           const cachedViz = await visualizationCache.get(vizCacheKey);
-          
+
           if (cachedViz) {
             // Restore cached visualization
             const ctx = ref.current.getContext('2d');
@@ -356,11 +366,16 @@ const VotingMethodComparisonGrid = () => {
             await drawMethodVisualization(ref, votingMethod);
             const ctx = ref.current.getContext('2d');
             if (ctx) {
-              const imageData = ctx.getImageData(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+              const imageData = ctx.getImageData(
+                0,
+                0,
+                CANVAS_SIZE,
+                CANVAS_SIZE
+              );
               await visualizationCache.set(vizCacheKey, {
                 imageData: Array.from(imageData.data),
                 width: imageData.width,
-                height: imageData.height
+                height: imageData.height,
               });
             }
           }
@@ -371,27 +386,43 @@ const VotingMethodComparisonGrid = () => {
       if (!cachedBallots) {
         const samplePoints = Array.from({ length: 6 }, () => ({
           x: Math.random(),
-          y: Math.random()
+          y: Math.random(),
         }));
 
-        const ballotResults = samplePoints.map(point => ({
+        const ballotResults = samplePoints.map((point) => ({
           voterPosition: point,
-          pluralityBallot: generateBallotsFromPosition(point.x, point.y, candidates, 'plurality'),
-          rankedBallot: generateBallotsFromPosition(point.x, point.y, candidates, 'ranked'),
-          starBallot: generateBallotsFromPosition(point.x, point.y, candidates, 'star')
+          pluralityBallot: generateBallotsFromPosition(
+            point.x,
+            point.y,
+            candidates,
+            'plurality'
+          ),
+          rankedBallot: generateBallotsFromPosition(
+            point.x,
+            point.y,
+            candidates,
+            'ranked'
+          ),
+          starBallot: generateBallotsFromPosition(
+            point.x,
+            point.y,
+            candidates,
+            'star'
+          ),
         }));
 
         await ballotCache.set(cacheKey, { ballots: ballotResults });
 
-        setDisplayBallots(ballotResults.flatMap(b => [
-          b.pluralityBallot,
-          b.rankedBallot,
-          b.starBallot
-        ]));
+        setDisplayBallots(
+          ballotResults.flatMap((b) => [
+            b.pluralityBallot,
+            b.rankedBallot,
+            b.starBallot,
+          ])
+        );
       }
 
       setHasComputed(true);
-
     } finally {
       setIsComputing(false);
       setComputeProgress(100);
@@ -513,7 +544,7 @@ const VotingMethodComparisonGrid = () => {
     setIsComputing(false);
     setComputeProgress(0);
     setHasComputed(false);
-    
+
     // Clear caches when loading a new preset
     visualizationCache.clear();
     ballotCache.clear();
@@ -551,23 +582,26 @@ const VotingMethodComparisonGrid = () => {
 
   const [displayBallots, setDisplayBallots] = useState<Ballot[]>([]);
 
-  const drawInspectionPoint = useCallback((ctx: CanvasRenderingContext2D) => {
-    if (!inspectionPoint) return;
+  const drawInspectionPoint = useCallback(
+    (ctx: CanvasRenderingContext2D) => {
+      if (!inspectionPoint) return;
 
-    ctx.beginPath();
-    ctx.arc(
-      inspectionPoint.x * CANVAS_SIZE,
-      (1 - inspectionPoint.y) * CANVAS_SIZE,
-      4,
-      0,
-      2 * Math.PI
-    );
-    ctx.fillStyle = 'white';
-    ctx.fill();
-    ctx.strokeStyle = 'black';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  }, [inspectionPoint]);
+      ctx.beginPath();
+      ctx.arc(
+        inspectionPoint.x * CANVAS_SIZE,
+        (1 - inspectionPoint.y) * CANVAS_SIZE,
+        4,
+        0,
+        2 * Math.PI
+      );
+      ctx.fillStyle = 'white';
+      ctx.fill();
+      ctx.strokeStyle = 'black';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    },
+    [inspectionPoint]
+  );
 
   return (
     <div className="w-full max-w-6xl p-4 bg-white dark:bg-gray-800 rounded-lg shadow-lg dark:text-white">
@@ -603,9 +637,10 @@ const VotingMethodComparisonGrid = () => {
           <PresetControls />
         </div>
         <p className="text-sm text-gray-600 mt-2">
-          Drag candidates to reposition them, then click "Compute Results" to see the outcomes. 
-          Hold Shift and click anywhere to inspect ballots for that location. 
-          Each point represents an election with voter opinions normally distributed around that point.
+          Drag candidates to reposition them, then click "Compute Results" to
+          see the outcomes. Hold Shift and click anywhere to inspect ballots for
+          that location. Each point represents an election with voter opinions
+          normally distributed around that point.
         </p>
       </div>
 
@@ -659,34 +694,40 @@ const VotingMethodComparisonGrid = () => {
 
       <div className="mt-12 border-t pt-8">
         <h2 className="text-2xl font-bold mb-6">
-          {inspectionPoint 
+          {inspectionPoint
             ? `Sample Ballots at (${inspectionPoint.x.toFixed(2)}, ${inspectionPoint.y.toFixed(2)})`
             : 'Sample Ballots'}
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Plurality Section */}
           <div>
-            <h3 className="text-xl font-semibold mb-4 text-center">Plurality Voting</h3>
+            <h3 className="text-xl font-semibold mb-4 text-center">
+              Plurality Voting
+            </h3>
             <BallotDisplay
-              ballots={displayBallots.filter(b => b.type === 'plurality')}
+              ballots={displayBallots.filter((b) => b.type === 'plurality')}
               candidates={candidates}
             />
           </div>
 
           {/* Ranked Choice Section */}
           <div>
-            <h3 className="text-xl font-semibold mb-4 text-center">Ranked Choice</h3>
+            <h3 className="text-xl font-semibold mb-4 text-center">
+              Ranked Choice
+            </h3>
             <BallotDisplay
-              ballots={displayBallots.filter(b => b.type === 'ranked')}
+              ballots={displayBallots.filter((b) => b.type === 'ranked')}
               candidates={candidates}
             />
           </div>
 
           {/* STAR Voting Section */}
           <div>
-            <h3 className="text-xl font-semibold mb-4 text-center">STAR Voting</h3>
+            <h3 className="text-xl font-semibold mb-4 text-center">
+              STAR Voting
+            </h3>
             <BallotDisplay
-              ballots={displayBallots.filter(b => b.type === 'star')}
+              ballots={displayBallots.filter((b) => b.type === 'star')}
               candidates={candidates}
             />
           </div>

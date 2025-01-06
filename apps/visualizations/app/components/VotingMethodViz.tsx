@@ -123,7 +123,9 @@ const VotingMethodViz: React.FC = () => {
   );
 
   const addCandidate = useCallback(() => {
-    if (candidates.length >= availableColors.length) return;
+    if (candidates.length >= availableColors.length) {
+      return;
+    }
 
     const newId = (
       Math.max(0, ...candidates.map((c) => parseInt(c.id))) + 1
@@ -145,7 +147,9 @@ const VotingMethodViz: React.FC = () => {
 
   const removeCandidate = useCallback(
     (id: string) => {
-      if (candidates.length <= 2) return;
+      if (candidates.length <= 2) {
+        return;
+      }
       setCandidates((prev) => prev.filter((c) => c.id !== id));
     },
     [candidates]
@@ -177,7 +181,9 @@ const VotingMethodViz: React.FC = () => {
     if (isNaN(numValue)) return;
 
     const candidate = candidates.find((c) => c.id === id);
-    if (!candidate) return;
+    if (!candidate) {
+      return;
+    }
 
     updateCandidatePosition(
       id,
