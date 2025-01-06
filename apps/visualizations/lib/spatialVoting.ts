@@ -1,22 +1,19 @@
 // Import base types but define spatial-specific types
 import { Candidate, Election, Vote } from '@votelab/shared-utils';
+import { runElection } from './electionRunner';
 import { VotingMethod } from './votingMethods';
+
 export interface SpatialCandidate extends Candidate {
   x: number;
   y: number;
   color: string;
 }
 
-export interface SpatialVoter {
-  x: number;
-  y: number;
-}
-
 // Constants for spatial calculations
 export const VOTER_RADIUS = 0.15;
 export const DEFAULT_APPROVAL_THRESHOLD = 0.3;
 
-// Calculate distance between two points
+// Base utility functions
 export const distance = (
   x1: number,
   y1: number,
@@ -31,17 +28,7 @@ export const getWeight = (dist: number, radius: number): number => {
   return 1 - x * x; // Quadratic falloff for smoother weight distribution
 };
 
-// Type guard to check if candidates have spatial data
-export const isSpatialCandidate = (
-  candidate: Candidate
-): candidate is SpatialCandidate => {
-  return (
-    typeof candidate.x === 'number' &&
-    typeof candidate.y === 'number' &&
-    typeof (candidate as SpatialCandidate).color === 'string'
-  );
-};
-
+// Get voter preference order based on distances
 export const getVoterPreference = (
   voterX: number,
   voterY: number,
@@ -55,138 +42,47 @@ export const getVoterPreference = (
     .sort((a, b) => a.dist - b.dist);
 };
 
-// Convert a single spatial position into a Vote object
-export function generateVoteFromPosition(
-  voter: SpatialVoter,
+// Helper to generate simulated voters around a point
+function generateVotersAroundPoint(
+  centerX: number,
+  centerY: number,
   candidates: SpatialCandidate[],
-  approvalThreshold: number = DEFAULT_APPROVAL_THRESHOLD
-): Vote {
-  // Calculate distances to all candidates
-  const candidateDistances = candidates.map((candidate) => ({
-    id: candidate.id,
-    distance: distance(voter.x, voter.y, candidate.x, candidate.y),
-  }));
-
-  // Sort by distance to create ranking
-  const ranking = [...candidateDistances]
-    .sort((a, b) => a.distance - b.distance)
-    .map((c) => c.id);
-
-  // Determine approved candidates based on threshold
-  const approved = candidateDistances
-    .filter((c) => c.distance <= approvalThreshold)
-    .map((c) => c.id);
-
-  // If no candidates approved, approve the closest one
-  if (approved.length === 0) {
-    approved.push(ranking[0]);
-  }
-
-  return {
-    voterName: `Voter at (${voter.x.toFixed(2)}, ${voter.y.toFixed(2)})`,
-    ranking,
-    approved,
-    timestamp: new Date().toISOString(),
-  };
-}
-
-// Generate multiple votes from spatial data
-export function generateVotesFromSpatialData(
-  voters: SpatialVoter[],
-  candidates: Candidate[],
-  options: { approvalThreshold?: number } = {}
+  numVoters: number = 20,
+  variance: number = 0.1
 ): Vote[] {
-  // Validate that all candidates have spatial data
-  if (!candidates.every(isSpatialCandidate)) {
-    throw new Error(
-      'All candidates must have spatial coordinates (x, y) and color'
-    );
+  const votes: Vote[] = [];
+
+  for (let i = 0; i < numVoters; i++) {
+    // Generate normally distributed coordinates
+    let voterX: number, voterY: number;
+    do {
+      voterX = centerX + (Math.random() * 2 - 1) * variance;
+      voterY = centerY + (Math.random() * 2 - 1) * variance;
+    } while (voterX < 0 || voterX > 1 || voterY < 0 || voterY > 1);
+
+    // Get voter's preferences
+    const prefs = getVoterPreference(voterX, voterY, candidates);
+
+    // Create vote object
+    votes.push({
+      ranking: prefs.map((p) => p.id),
+      approved: prefs
+        .filter((p) => p.dist <= DEFAULT_APPROVAL_THRESHOLD)
+        .map((p) => p.id),
+      timestamp: new Date().toISOString(),
+      voterName: `Voter-${i}`,
+    });
   }
 
-  const spatialCandidates = candidates as SpatialCandidate[];
-  const { approvalThreshold = DEFAULT_APPROVAL_THRESHOLD } = options;
-
-  return voters.map((voter) =>
-    generateVoteFromPosition(voter, spatialCandidates, approvalThreshold)
-  );
+  return votes;
 }
 
-export function createElectionFromSpatialVotes(
-  title: string,
-  candidates: Candidate[],
-  voters: SpatialVoter[],
-  options: { approvalThreshold?: number } = {}
-): Election {
-  const votes = generateVotesFromSpatialData(voters, candidates, options);
-
-  return {
-    title,
-    candidates,
-    votes,
-    createdAt: new Date().toISOString(),
-  };
-}
-
-function getPairwisePreferences(
-  voterX: number,
-  voterY: number,
-  candidates: SpatialCandidate[]
-): [string, string][] {
-  const prefs = getVoterPreference(voterX, voterY, candidates);
-  const pairs: [string, string][] = [];
-
-  // Create all possible pairs in order of preference
-  for (let i = 0; i < prefs.length; i++) {
-    for (let j = i + 1; j < prefs.length; j++) {
-      pairs.push([prefs[i].id, prefs[j].id]);
-    }
-  }
-
-  return pairs;
-}
-
-function findSmithSet(
-  voterX: number,
-  voterY: number,
-  candidates: SpatialCandidate[]
-): Set<string> {
-  const pairs = getPairwisePreferences(voterX, voterY, candidates);
-  const defeats = new Map<string, Set<string>>();
-
-  // Initialize defeats map
-  candidates.forEach((c) => defeats.set(c.id, new Set<string>()));
-
-  // Record all pairwise defeats
-  pairs.forEach(([winner, loser]) => {
-    defeats.get(winner)?.add(loser);
-  });
-
-  // Find Smith set
-  const smithSet = new Set<string>(candidates.map((c) => c.id));
-  let changed = true;
-
-  while (changed) {
-    changed = false;
-    for (const candidate of smithSet) {
-      for (const other of smithSet) {
-        if (candidate !== other) {
-          // If candidate doesn't beat other, and other beats candidate
-          if (
-            !defeats.get(candidate)?.has(other) &&
-            defeats.get(other)?.has(candidate)
-          ) {
-            smithSet.delete(candidate);
-            changed = true;
-            break;
-          }
-        }
-      }
-      if (changed) break;
-    }
-  }
-
-  return smithSet;
-}
+// Type for accessing the calculators
+export type SpatialVoteCalculator<M extends VotingMethod> = M extends 'approval'
+  ? ApprovalCalculator
+  : M extends 'smithApproval'
+    ? SmithApprovalCalculator
+    : PluralityCalculator | IRVCalculator | BordaCalculator;
 
 // Define the method signatures
 type PluralityCalculator = (
@@ -219,6 +115,7 @@ type SmithApprovalCalculator = (
 
 export const spatialVoteCalculators = {
   plurality: ((x: number, y: number, candidates: SpatialCandidate[]) => {
+    // For plurality, distance-based is actually correct
     return [getVoterPreference(x, y, candidates)[0].id];
   }) as PluralityCalculator,
 
@@ -228,27 +125,45 @@ export const spatialVoteCalculators = {
     candidates: SpatialCandidate[],
     threshold: number
   ) => {
-    const prefs = getVoterPreference(x, y, candidates);
-    const approvedCandidates = prefs.filter((p) => p.dist <= threshold);
-    return approvedCandidates.length > 0
-      ? approvedCandidates.map((c) => c.id)
-      : [prefs[0].id];
+    // Generate votes with approval threshold
+    const votes = generateVotersAroundPoint(x, y, candidates);
+    const election: Election = {
+      title: 'Spatial Approval',
+      candidates,
+      votes,
+      createdAt: new Date().toISOString(),
+    };
+
+    const results = runElection('approval', votes, candidates);
+    return [results.winner];
   }) as ApprovalCalculator,
 
-  borda: ((x: number, y: number, candidates: SpatialCandidate[]) => {
-    const prefs = getVoterPreference(x, y, candidates);
-    const points = new Map<string, number>();
-
-    prefs.forEach((p, i) => {
-      points.set(p.id, candidates.length - 1 - i);
-    });
-
-    return [...points.entries()].sort((a, b) => b[1] - a[1]).map(([id]) => id);
-  }) as BordaCalculator,
-
   irv: ((x: number, y: number, candidates: SpatialCandidate[]) => {
-    return getVoterPreference(x, y, candidates).map((p) => p.id);
+    // Generate votes
+    const votes = generateVotersAroundPoint(x, y, candidates);
+    const election: Election = {
+      title: 'Spatial IRV',
+      candidates,
+      votes,
+      createdAt: new Date().toISOString(),
+    };
+
+    const results = runElection('irv', votes, candidates);
+    return [results.winner];
   }) as IRVCalculator,
+
+  borda: ((x: number, y: number, candidates: SpatialCandidate[]) => {
+    const votes = generateVotersAroundPoint(x, y, candidates);
+    const election: Election = {
+      title: 'Spatial Borda',
+      candidates,
+      votes,
+      createdAt: new Date().toISOString(),
+    };
+
+    const results = runElection('borda', votes, candidates);
+    return [results.winner];
+  }) as BordaCalculator,
 
   smithApproval: ((
     x: number,
@@ -256,15 +171,15 @@ export const spatialVoteCalculators = {
     candidates: SpatialCandidate[],
     threshold: number
   ) => {
-    const smithSet = findSmithSet(x, y, candidates);
-    const smithCandidates = candidates.filter((c) => smithSet.has(c.id));
-    return spatialVoteCalculators.approval(x, y, smithCandidates, threshold);
+    const votes = generateVotersAroundPoint(x, y, candidates);
+    const election: Election = {
+      title: 'Spatial Smith+Approval',
+      candidates,
+      votes,
+      createdAt: new Date().toISOString(),
+    };
+
+    const results = runElection('smithApproval', votes, candidates);
+    return [results.winner];
   }) as SmithApprovalCalculator,
 };
-
-// Type for accessing the calculators
-export type SpatialVoteCalculator<M extends VotingMethod> = M extends 'approval'
-  ? ApprovalCalculator
-  : M extends 'smithApproval'
-    ? SmithApprovalCalculator
-    : PluralityCalculator | IRVCalculator | BordaCalculator;

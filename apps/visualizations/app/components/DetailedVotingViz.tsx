@@ -1,6 +1,8 @@
 import { Card } from '@repo/ui';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
+import VotingMethodComparisonGrid from './VotingMethodComparisonGrid';
+
 interface Candidate {
   id: string;
   x: number;
@@ -62,7 +64,6 @@ const DetailedVotingViz = () => {
   ]);
 
   const [voters, setVoters] = useState<Voter[]>([]);
-  const [ballots, setBallots] = useState<Ballot[]>([]);
   const [electionResults, setElectionResults] = useState<
     ElectionRound[] | null
   >(null);
@@ -162,7 +163,6 @@ const DetailedVotingViz = () => {
       .sort((a, b) => b.count - a.count);
 
     setAggregatedBallots(aggregated);
-    setBallots(newBallots);
     return newBallots;
   };
 
@@ -214,7 +214,9 @@ const DetailedVotingViz = () => {
       if (leader[1] > totalVotes / 2) {
         roundResults.find((r) => r.name === leader[0])!.status = 'Elected';
         roundResults.forEach((r) => {
-          if (r.status === 'Active') r.status = 'Rejected';
+          if (r.status === 'Active') {
+            r.status = 'Rejected';
+          }
         });
         rounds.push(roundResults);
         break;
@@ -248,7 +250,7 @@ const DetailedVotingViz = () => {
     setElectionResults(rounds);
   };
 
-  const drawCanvas = useCallback((): void => {
+  const drawVoterPlacementCanvas = useCallback((): void => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -312,8 +314,8 @@ const DetailedVotingViz = () => {
   }, [candidates, voters]);
 
   useEffect(() => {
-    drawCanvas();
-  }, [drawCanvas]);
+    drawVoterPlacementCanvas();
+  }, [drawVoterPlacementCanvas]);
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>): void => {
     if (placementMode === 'none' || !canvasRef.current) return;
@@ -368,6 +370,7 @@ const DetailedVotingViz = () => {
   return (
     <Card className="w-full max-w-6xl p-6 space-y-6">
       <div className="space-y-4">
+        {/* Existing Controls */}
         <div className="flex flex-col gap-4">
           <div className="flex gap-4">
             <button
@@ -413,12 +416,12 @@ const DetailedVotingViz = () => {
                       voterCount: Math.max(1, parseInt(e.target.value) || 0),
                     }))
                   }
-                  className="mt-1 block w-32 rounded-md border-gray-300 shadow-sm"
+                  className="mt-1 block w-32 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 shadow-sm"
                   min="1"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
                   Variance
                 </label>
                 <input
@@ -435,12 +438,15 @@ const DetailedVotingViz = () => {
                   }
                   className="mt-1 block w-32"
                 />
-                <span className="text-sm text-gray-500">
+
+                <span className="text-sm text-gray-500 dark:text-gray-300">
                   {voterBlocConfig.variance.toFixed(2)}
                 </span>
               </div>
             </div>
           )}
+
+          {/* Action Buttons */}
 
           <div className="flex gap-4">
             <button
@@ -462,6 +468,7 @@ const DetailedVotingViz = () => {
           </div>
         </div>
 
+        {/* Main Canvas */}
         <div className="border rounded-lg p-4">
           <canvas
             ref={canvasRef}
@@ -476,58 +483,80 @@ const DetailedVotingViz = () => {
           />
         </div>
 
-        {aggregatedBallots.length > 0 && (
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Ballot Distribution</h3>
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <div className="grid grid-cols-[1fr,auto] gap-4 font-mono text-sm">
-                <div className="font-bold">Ranking</div>
-                <div className="font-bold text-right">Count</div>
-                {aggregatedBallots.map((ballot, i) => (
-                  <React.Fragment key={i}>
-                    <div>{ballot.ranking.join(' > ')}</div>
-                    <div className="text-right">
-                      {ballot.count.toLocaleString()}
-                    </div>
-                  </React.Fragment>
-                ))}
-                <div className="border-t col-span-2 mt-2 pt-2">
-                  <strong>Total Ballots: </strong>
-                  {voters.length.toLocaleString()}
+        {/* Results Section */}
+        <div className="space-y-8">
+          {/* Ballot Distribution */}
+          {aggregatedBallots.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Ballot Distribution</h3>
+              <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+                <div className="grid grid-cols-[1fr,auto] gap-4 font-mono text-sm text-gray-900 dark:text-gray-100">
+                  <div className="font-bold">Ranking</div>
+                  <div className="font-bold text-right">Count</div>
+                  {aggregatedBallots.map((ballot, i) => (
+                    <React.Fragment key={i}>
+                      <div>{ballot.ranking.join(' > ')}</div>
+                      <div className="text-right">
+                        {ballot.count.toLocaleString()}
+                      </div>
+                    </React.Fragment>
+                  ))}
+                  <div className="border-t border-gray-200 dark:border-gray-600 col-span-2 mt-2 pt-2">
+                    <strong>Total Ballots: </strong>
+                    {voters.length.toLocaleString()}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {electionResults && (
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Election Results</h3>
-            {electionResults.map((round, roundIndex) => (
-              <div key={roundIndex} className="bg-gray-50 p-4 rounded-lg">
-                <div className="font-semibold mb-2">
-                  {roundIndex === electionResults.length - 1
-                    ? 'FINAL RESULT'
-                    : `ROUND ${roundIndex + 1}`}
-                </div>
-                <div className="font-mono">
-                  <div className="grid grid-cols-3 gap-4 font-bold mb-1">
-                    <div>Candidate</div>
-                    <div>Votes</div>
-                    <div>Status</div>
+          {/* Election Results */}
+          {electionResults && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Election Results</h3>
+              {electionResults.map((round, roundIndex) => (
+                <div
+                  key={roundIndex}
+                  className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg"
+                >
+                  <div className="font-semibold mb-2 text-gray-900 dark:text-gray-100">
+                    {roundIndex === electionResults.length - 1
+                      ? 'FINAL RESULT'
+                      : `ROUND ${roundIndex + 1}`}
                   </div>
-                  {round.map((result, i) => (
-                    <div key={i} className="grid grid-cols-3 gap-4">
-                      <div>{result.name}</div>
-                      <div>{result.votes}</div>
-                      <div>{result.status}</div>
+                  <div className="font-mono text-gray-900 dark:text-gray-100">
+                    <div className="grid grid-cols-3 gap-4 font-bold mb-1">
+                      <div>Candidate</div>
+                      <div>Votes</div>
+                      <div>Status</div>
                     </div>
-                  ))}
+                    {round.map((result, i) => (
+                      <div key={i} className="grid grid-cols-3 gap-4">
+                        <div>{result.name}</div>
+                        <div>{result.votes}</div>
+                        <div>{result.status}</div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
+          )}
+
+          {/* Method Comparison Visualizations */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Method Comparison</h3>
+            <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                These visualizations show how different voting methods would
+                determine the winner based on where voters are centered. Each
+                point's color represents which candidate would win if voters
+                were concentrated around that location.
+              </p>
+              <VotingMethodComparisonGrid />
+            </div>
           </div>
-        )}
+        </div>
       </div>
     </Card>
   );
