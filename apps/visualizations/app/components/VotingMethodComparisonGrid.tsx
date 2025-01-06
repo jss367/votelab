@@ -16,6 +16,7 @@ import {
   type Ballot,
 } from '../utils/ballotGeneration';
 import { BallotDisplay } from './BallotDisplay';
+import { visualizationCache, ballotCache } from '../utils/cache';
 
 const CANVAS_SIZE = 300;
 
@@ -240,31 +241,82 @@ const VotingMethodComparisonGrid = () => {
     setIsComputing(true);
     setComputeProgress(0);
 
-    // Generate some sample voter positions
-    const samplePoints = Array.from({ length: 6 }, () => ({
-      x: Math.random(),
-      y: Math.random(),
-    }));
-
-    // Generate ballots for each voting method
-    const newBallots = samplePoints.flatMap((point) => [
-      generateBallotsFromPosition(point.x, point.y, candidates, 'plurality'),
-      generateBallotsFromPosition(point.x, point.y, candidates, 'ranked'),
-      generateBallotsFromPosition(point.x, point.y, candidates, 'star'),
-    ]);
-
-    setDisplayBallots(newBallots);
+    const cacheKey = JSON.stringify(
+      candidates.map(c => ({ id: c.id, x: c.x, y: c.y }))
+    );
 
     try {
+      // Try to get cached results
+      const cachedBallots = await ballotCache.get(cacheKey);
+      if (cachedBallots) {
+        setDisplayBallots(cachedBallots.ballots.flatMap(b => [
+          b.pluralityBallot,
+          b.rankedBallot,
+          b.starBallot
+        ]));
+      }
+
       await Promise.all(
         Object.entries(canvasRefs).map(async ([method, ref]) => {
           const votingMethod = method as VotingMethod;
-          if (ref.current) {
-            drawMethodVisualization(ref, votingMethod);
+          if (!ref.current) return;
+
+          const vizCacheKey = `${cacheKey}_${votingMethod}`;
+          const cachedViz = await visualizationCache.get(vizCacheKey);
+          
+          if (cachedViz) {
+            // Restore cached visualization
+            const ctx = ref.current.getContext('2d');
+            if (ctx) {
+              const imageData = new ImageData(
+                new Uint8ClampedArray(cachedViz.imageData),
+                cachedViz.width,
+                cachedViz.height
+              );
+              ctx.putImageData(imageData, 0, 0);
+              drawCandidates(ctx);
+            }
+          } else {
+            // Compute and cache new visualization...
+            await drawMethodVisualization(ref, votingMethod);
+            const ctx = ref.current.getContext('2d');
+            if (ctx) {
+              const imageData = ctx.getImageData(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+              await visualizationCache.set(vizCacheKey, {
+                imageData: Array.from(imageData.data),
+                width: imageData.width,
+                height: imageData.height
+              });
+            }
           }
         })
       );
+
+      // If we didn't have cached ballots, generate and cache them
+      if (!cachedBallots) {
+        const samplePoints = Array.from({ length: 6 }, () => ({
+          x: Math.random(),
+          y: Math.random()
+        }));
+
+        const ballotResults = samplePoints.map(point => ({
+          voterPosition: point,
+          pluralityBallot: generateBallotsFromPosition(point.x, point.y, candidates, 'plurality'),
+          rankedBallot: generateBallotsFromPosition(point.x, point.y, candidates, 'ranked'),
+          starBallot: generateBallotsFromPosition(point.x, point.y, candidates, 'star')
+        }));
+
+        await ballotCache.set(cacheKey, { ballots: ballotResults });
+
+        setDisplayBallots(ballotResults.flatMap(b => [
+          b.pluralityBallot,
+          b.rankedBallot,
+          b.starBallot
+        ]));
+      }
+
       setHasComputed(true);
+
     } finally {
       setIsComputing(false);
       setComputeProgress(100);
@@ -386,7 +438,10 @@ const VotingMethodComparisonGrid = () => {
     setIsComputing(false);
     setComputeProgress(0);
     setHasComputed(false);
-    resultCache.clear();
+    
+    // Clear caches when loading a new preset
+    visualizationCache.clear();
+    ballotCache.clear();
 
     // Clear all canvases
     Object.values(canvasRefs).forEach((ref) => {
