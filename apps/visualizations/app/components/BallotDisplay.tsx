@@ -9,22 +9,26 @@ interface BallotDisplayProps {
 export function BallotDisplay({ ballots, candidates }: BallotDisplayProps) {
   if (!ballots.length) return null;
 
-  const getCandidateName = (id: string) => 
-    candidates.find(c => c.id === id)?.name || id;
+  const getCandidateName = (id: string) =>
+    candidates.find((c) => c.id === id)?.name || id;
 
   if (ballots[0].type === 'ranked') {
     // Count frequency of each ranking
-    const rankingCounts = ballots.reduce((acc, ballot) => {
-      const key = (ballot as { rankings: string[] }).rankings
-        .map(id => getCandidateName(id))
-        .join(' > ');
-      acc[key] = (acc[key] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+    const rankingCounts = ballots.reduce(
+      (acc, ballot) => {
+        const key = (ballot as { rankings: string[] }).rankings
+          .map((id) => getCandidateName(id))
+          .join(' > ');
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>
+    );
 
     // Sort by count descending
-    const sortedRankings = Object.entries(rankingCounts)
-      .sort(([, a], [, b]) => b - a);
+    const sortedRankings = Object.entries(rankingCounts).sort(
+      ([, a], [, b]) => b - a
+    );
 
     const totalBallots = ballots.length;
 
@@ -45,7 +49,9 @@ export function BallotDisplay({ ballots, candidates }: BallotDisplayProps) {
               </div>
             ))}
             <div className="font-mono border-t mt-2 pt-2">Total Ballots:</div>
-            <div className="font-mono text-right border-t mt-2 pt-2">{totalBallots}</div>
+            <div className="font-mono text-right border-t mt-2 pt-2">
+              {totalBallots}
+            </div>
           </div>
         </div>
 
@@ -73,17 +79,17 @@ export function BallotDisplay({ ballots, candidates }: BallotDisplayProps) {
 }
 
 function calculateIRVResults(
-  ballots: Ballot[], 
+  ballots: Ballot[],
   candidates: Array<{ id: string; name: string }>
 ) {
   // Implement IRV calculation logic here
   // This should return an array of { candidate: string, votes: number, status: string }
   // showing the final round results
-  
+
   // For now, returning placeholder data
-  return candidates.map(c => ({
+  return candidates.map((c) => ({
     candidate: c.id,
     votes: 0,
-    status: 'Unknown'
+    status: 'Unknown',
   }));
-} 
+}
