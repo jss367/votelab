@@ -129,6 +129,7 @@ const VotingMethodComparisonGrid = () => {
   const [isDragging, setIsDragging] = useState<string | null>(null);
   const [computeProgress, setComputeProgress] = useState(0);
   const [hasComputed, setHasComputed] = useState(false);
+  const [inspectionPoint, setInspectionPoint] = useState<{ x: number; y: number } | null>(null);
 
   const drawCandidates = useCallback(
     (ctx: CanvasRenderingContext2D) => {
@@ -233,9 +234,83 @@ const VotingMethodComparisonGrid = () => {
       // Final update
       ctx.putImageData(imageData, 0, 0);
       drawCandidates(ctx);
+      drawInspectionPoint(ctx);
     },
-    [candidates, setComputeProgress]
+    [candidates, setComputeProgress, inspectionPoint]
   );
+
+  const handleInspectionClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (isComputing || isDragging) return;
+
+    const canvas = e.currentTarget;
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = 1 - (e.clientY - rect.top) / rect.height;
+
+    // Check if we clicked near a candidate
+    const clickedCandidate = candidates.find(
+      (candidate) => distance(x, y, candidate.x, candidate.y) < 0.05
+    );
+
+    // If we didn't click a candidate, set inspection point and generate election
+    if (!clickedCandidate) {
+      // First update the inspection point
+      setInspectionPoint({ x, y });
+      
+      // Generate sample points from 2D normal distribution
+      const NUM_VOTERS = 50; // Number of voters in this election
+      const STD_DEV = 0.15; // Standard deviation for the normal distribution
+
+      const voterPoints = Array.from({ length: NUM_VOTERS }, () => {
+        // Box-Muller transform to generate normal distribution
+        const u1 = Math.random();
+        const u2 = Math.random();
+        const radius = Math.sqrt(-2 * Math.log(u1)) * STD_DEV;
+        const theta = 2 * Math.PI * u2;
+        
+        return {
+          x: Math.max(0, Math.min(1, x + radius * Math.cos(theta))),
+          y: Math.max(0, Math.min(1, y + radius * Math.sin(theta)))
+        };
+      });
+
+      // Generate all ballots for this election
+      const pluralityBallots = voterPoints.map(point => 
+        generateBallotsFromPosition(point.x, point.y, candidates, 'plurality')
+      );
+      const rankedBallots = voterPoints.map(point => 
+        generateBallotsFromPosition(point.x, point.y, candidates, 'ranked')
+      );
+      const starBallots = voterPoints.map(point => 
+        generateBallotsFromPosition(point.x, point.y, candidates, 'star')
+      );
+
+      // Combine all ballots
+      const allBallots = [
+        ...pluralityBallots,
+        ...rankedBallots,
+        ...starBallots
+      ];
+
+      // Update the display ballots
+      setDisplayBallots(allBallots);
+
+      // Redraw all canvases to show inspection point
+      Object.entries(canvasRefs).forEach(([method, ref]) => {
+        const canvas = ref.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          // Redraw the existing visualization
+          const existingImageData = ctx.getImageData(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+          ctx.putImageData(existingImageData, 0, 0);
+          // Draw candidates and inspection point on top
+          drawCandidates(ctx);
+          drawInspectionPoint(ctx);
+        }
+      });
+    }
+  };
 
   const handleCompute = async () => {
     setIsComputing(true);
@@ -476,6 +551,24 @@ const VotingMethodComparisonGrid = () => {
 
   const [displayBallots, setDisplayBallots] = useState<Ballot[]>([]);
 
+  const drawInspectionPoint = useCallback((ctx: CanvasRenderingContext2D) => {
+    if (!inspectionPoint) return;
+
+    ctx.beginPath();
+    ctx.arc(
+      inspectionPoint.x * CANVAS_SIZE,
+      (1 - inspectionPoint.y) * CANVAS_SIZE,
+      4,
+      0,
+      2 * Math.PI
+    );
+    ctx.fillStyle = 'white';
+    ctx.fill();
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }, [inspectionPoint]);
+
   return (
     <div className="w-full max-w-6xl p-4 bg-white dark:bg-gray-800 rounded-lg shadow-lg dark:text-white">
       <div className="mb-6">
@@ -510,9 +603,9 @@ const VotingMethodComparisonGrid = () => {
           <PresetControls />
         </div>
         <p className="text-sm text-gray-600 mt-2">
-          Drag candidates to reposition them, then click &#34;Compute
-          Results&#34; to see the outcomes. Each point represents an election
-          with voter opinions normally distributed around that point.
+          Drag candidates to reposition them, then click "Compute Results" to see the outcomes. 
+          Hold Shift and click anywhere to inspect ballots for that location. 
+          Each point represents an election with voter opinions normally distributed around that point.
         </p>
       </div>
 
@@ -524,8 +617,14 @@ const VotingMethodComparisonGrid = () => {
               ref={ref}
               width={CANVAS_SIZE}
               height={CANVAS_SIZE}
-              className="border rounded w-full cursor-move touch-none"
-              onMouseDown={handleMouseDown}
+              className="border rounded w-full cursor-crosshair touch-none"
+              onMouseDown={(e) => {
+                if (e.shiftKey) {
+                  handleInspectionClick(e);
+                } else {
+                  handleMouseDown(e);
+                }
+              }}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
@@ -559,15 +658,38 @@ const VotingMethodComparisonGrid = () => {
       </div>
 
       <div className="mt-12 border-t pt-8">
-        <h2 className="text-2xl font-bold mb-6">Sample Ballots</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {displayBallots.map((ballot, index) => (
+        <h2 className="text-2xl font-bold mb-6">
+          {inspectionPoint 
+            ? `Sample Ballots at (${inspectionPoint.x.toFixed(2)}, ${inspectionPoint.y.toFixed(2)})`
+            : 'Sample Ballots'}
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {/* Plurality Section */}
+          <div>
+            <h3 className="text-xl font-semibold mb-4 text-center">Plurality Voting</h3>
             <BallotDisplay
-              key={index}
-              ballot={ballot}
+              ballots={displayBallots.filter(b => b.type === 'plurality')}
               candidates={candidates}
             />
-          ))}
+          </div>
+
+          {/* Ranked Choice Section */}
+          <div>
+            <h3 className="text-xl font-semibold mb-4 text-center">Ranked Choice</h3>
+            <BallotDisplay
+              ballots={displayBallots.filter(b => b.type === 'ranked')}
+              candidates={candidates}
+            />
+          </div>
+
+          {/* STAR Voting Section */}
+          <div>
+            <h3 className="text-xl font-semibold mb-4 text-center">STAR Voting</h3>
+            <BallotDisplay
+              ballots={displayBallots.filter(b => b.type === 'star')}
+              candidates={candidates}
+            />
+          </div>
         </div>
       </div>
     </div>
