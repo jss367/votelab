@@ -11,6 +11,11 @@ import {
   spatialVoteCalculators,
 } from '../../lib/spatialVoting';
 import { VotingMethod } from '../../lib/votingMethods';
+import {
+  generateBallotsFromPosition,
+  type Ballot,
+} from '../utils/ballotGeneration';
+import { BallotDisplay } from './BallotDisplay';
 
 const CANVAS_SIZE = 300;
 
@@ -235,6 +240,21 @@ const VotingMethodComparisonGrid = () => {
     setIsComputing(true);
     setComputeProgress(0);
 
+    // Generate some sample voter positions
+    const samplePoints = Array.from({ length: 6 }, () => ({
+      x: Math.random(),
+      y: Math.random(),
+    }));
+
+    // Generate ballots for each voting method
+    const newBallots = samplePoints.flatMap((point) => [
+      generateBallotsFromPosition(point.x, point.y, candidates, 'plurality'),
+      generateBallotsFromPosition(point.x, point.y, candidates, 'ranked'),
+      generateBallotsFromPosition(point.x, point.y, candidates, 'star'),
+    ]);
+
+    setDisplayBallots(newBallots);
+
     try {
       await Promise.all(
         Object.entries(canvasRefs).map(async ([method, ref]) => {
@@ -399,6 +419,8 @@ const VotingMethodComparisonGrid = () => {
     </div>
   );
 
+  const [displayBallots, setDisplayBallots] = useState<Ballot[]>([]);
+
   return (
     <div className="w-full max-w-6xl p-4 bg-white dark:bg-gray-800 rounded-lg shadow-lg dark:text-white">
       <div className="mb-6">
@@ -479,6 +501,19 @@ const VotingMethodComparisonGrid = () => {
             )}
           </div>
         ))}
+      </div>
+
+      <div className="mt-12 border-t pt-8">
+        <h2 className="text-2xl font-bold mb-6">Sample Ballots</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {displayBallots.map((ballot, index) => (
+            <BallotDisplay
+              key={index}
+              ballot={ballot}
+              candidates={candidates}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
