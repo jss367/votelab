@@ -488,7 +488,7 @@ const DetailedVotingViz = () => {
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Ballot Distribution</h3>
               <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-                <div className="grid grid-cols-[1fr,auto] gap-4 font-mono text-sm">
+                <div className="grid grid-cols-[1fr,auto] gap-4 font-mono text-sm text-gray-900 dark:text-gray-100">
                   <div className="font-bold">Ranking</div>
                   <div className="font-bold text-right">Count</div>
                   {aggregatedBallots.map((ballot, i) => (
@@ -499,7 +499,7 @@ const DetailedVotingViz = () => {
                       </div>
                     </React.Fragment>
                   ))}
-                  <div className="border-t col-span-2 mt-2 pt-2">
+                  <div className="border-t border-gray-200 dark:border-gray-600 col-span-2 mt-2 pt-2">
                     <strong>Total Ballots: </strong>
                     {voters.length.toLocaleString()}
                   </div>
@@ -517,12 +517,12 @@ const DetailedVotingViz = () => {
                   key={roundIndex}
                   className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg"
                 >
-                  <div className="font-semibold mb-2">
+                  <div className="font-semibold mb-2 text-gray-900 dark:text-gray-100">
                     {roundIndex === electionResults.length - 1
                       ? 'FINAL RESULT'
                       : `ROUND ${roundIndex + 1}`}
                   </div>
-                  <div className="font-mono">
+                  <div className="font-mono text-gray-900 dark:text-gray-100">
                     <div className="grid grid-cols-3 gap-4 font-bold mb-1">
                       <div>Candidate</div>
                       <div>Votes</div>
