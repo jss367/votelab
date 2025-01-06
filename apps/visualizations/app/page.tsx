@@ -1,11 +1,11 @@
-"use client"
+'use client';
 
-import { VotingMethodViz } from './components/VotingMethodViz';
+import ElectionViz from './components/ElectionViz';
 
 export default function Home() {
-    return (
-        <main className="flex min-h-screen flex-col items-center justify-between p-24">
-            <VotingMethodViz />
-        </main>
-    )
+  return (
+    <main className="container mx-auto p-4">
+      <ElectionViz />
+    </main>
+  );
 }
