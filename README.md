@@ -2,6 +2,9 @@
 
 This is a monorepo of different voting applications. The monorepo is built using Turborepo.
 
+At the moment, I'm focused on these voting methods: Plurality, Approval, IRV
+To add: Borda, Smith Approval, and Condorcet, STAR
+
 ## Testing
 
 There are multiple test commands across different packages:
