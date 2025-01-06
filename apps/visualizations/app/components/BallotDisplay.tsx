@@ -38,11 +38,11 @@ export function BallotDisplay({ ballots, candidates }: BallotDisplayProps) {
           <div className="grid grid-cols-2 gap-x-8 gap-y-2">
             <div className="font-mono">Ranking</div>
             <div className="font-mono text-right">Count</div>
-            {sortedRankings.map(([ranking, count]) => (
-              <>
+            {sortedRankings.map(([ranking, count], index) => (
+              <div key={ranking + index} className="flex justify-between">
                 <div className="font-mono">{ranking}</div>
                 <div className="font-mono text-right">{count}</div>
-              </>
+              </div>
             ))}
             <div className="font-mono border-t mt-2 pt-2">Total Ballots:</div>
             <div className="font-mono text-right border-t mt-2 pt-2">{totalBallots}</div>
@@ -57,11 +57,11 @@ export function BallotDisplay({ ballots, candidates }: BallotDisplayProps) {
             <div className="font-mono text-right">Votes</div>
             <div className="font-mono">Status</div>
             {results.map(({ candidate, votes, status }) => (
-              <>
+              <React.Fragment key={candidate}>
                 <div className="font-mono">{getCandidateName(candidate)}</div>
                 <div className="font-mono text-right">{votes}</div>
                 <div className="font-mono">{status}</div>
-              </>
+              </React.Fragment>
             ))}
           </div>
         </div>
