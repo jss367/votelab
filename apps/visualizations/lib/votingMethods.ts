@@ -5,6 +5,7 @@ export const methods = {
   borda: 'Borda Count',
   irv: 'Instant Runoff',
   smithApproval: 'Smith Set + Approval',
+  condorcet: 'Condorcet',
 };
 
 export const methodDescriptions = {
@@ -17,6 +18,8 @@ export const methodDescriptions = {
   irv: 'Voters rank by distance. If no majority, eliminate last place and retry with remaining candidates.',
   smithApproval:
     'First finds candidates who beat all others outside their set in pairwise matchups (Smith set), then uses approval voting among them.',
+  condorcet:
+    'Finds the Condorcet winner, which is the candidate that beats all others in pairwise matchups.',
 };
 
 // Utility functions

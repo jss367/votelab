@@ -1,5 +1,4 @@
-// Import base types but define spatial-specific types
-import { Candidate, Election, Vote } from '@votelab/shared-utils';
+import { Candidate, Vote } from '@votelab/shared-utils';
 import { runElection } from './electionRunner';
 import { VotingMethod } from './votingMethods';
 
@@ -9,23 +8,40 @@ export interface SpatialCandidate extends Candidate {
   color: string;
 }
 
-// Constants for spatial calculations
+interface VoterDistribution {
+  mean: { x: number; y: number };
+  variance: number;
+  count: number;
+}
+
+interface ElectionResults {
+  winner: string | string[];
+  roundDetails: string[];
+  voteCounts: Record<string, number>;
+}
+
+// Constants
 export const VOTER_RADIUS = 0.15;
 export const DEFAULT_APPROVAL_THRESHOLD = 0.3;
+export const DEFAULT_VOTER_COUNT = 1000;
+export const DEFAULT_VARIANCE = 0.1;
+
+// Box-Muller transform for normal distribution
+const randn_bm = (): number => {
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+};
 
 // Base utility functions
-export const distance = (
-  x1: number,
-  y1: number,
-  x2: number,
-  y2: number
-): number => Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+export const distance = (x1: number, y1: number, x2: number, y2: number): number => 
+  Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
 
-// Calculate weighted vote based on distance
 export const getWeight = (dist: number, radius: number): number => {
   if (dist >= radius) return 0;
   const x = dist / radius;
-  return 1 - x * x; // Quadratic falloff for smoother weight distribution
+  return 1 - x * x; // Quadratic falloff
 };
 
 // Get voter preference order based on distances
@@ -42,144 +58,140 @@ export const getVoterPreference = (
     .sort((a, b) => a.dist - b.dist);
 };
 
-// Helper to generate simulated voters around a point
-function generateVotersAroundPoint(
-  centerX: number,
-  centerY: number,
-  candidates: SpatialCandidate[],
-  numVoters: number = 20,
-  variance: number = 0.1
-): Vote[] {
-  const votes: Vote[] = [];
-
-  for (let i = 0; i < numVoters; i++) {
-    // Generate normally distributed coordinates
-    let voterX: number, voterY: number;
+// Generate normally distributed voters around a point
+function generateVoterDistribution(params: VoterDistribution): Array<{x: number, y: number}> {
+  const voters = [];
+  
+  for (let i = 0; i < params.count; i++) {
+    let x: number, y: number;
     do {
-      voterX = centerX + (Math.random() * 2 - 1) * variance;
-      voterY = centerY + (Math.random() * 2 - 1) * variance;
-    } while (voterX < 0 || voterX > 1 || voterY < 0 || voterY > 1);
-
-    // Get voter's preferences
-    const prefs = getVoterPreference(voterX, voterY, candidates);
-
-    // Create vote object
-    votes.push({
-      ranking: prefs.map((p) => p.id),
-      approved: prefs
-        .filter((p) => p.dist <= DEFAULT_APPROVAL_THRESHOLD)
-        .map((p) => p.id),
-      timestamp: new Date().toISOString(),
-      voterName: `Voter-${i}`,
-    });
+      x = params.mean.x + (randn_bm() * params.variance);
+      y = params.mean.y + (randn_bm() * params.variance);
+    } while (x < 0 || x > 1 || y < 0 || y > 1);
+    
+    voters.push({ x, y });
   }
-
-  return votes;
+  
+  return voters;
 }
 
-// Type for accessing the calculators
-export type SpatialVoteCalculator<M extends VotingMethod> = M extends 'approval'
-  ? ApprovalCalculator
-  : M extends 'smithApproval'
-    ? SmithApprovalCalculator
-    : PluralityCalculator | IRVCalculator | BordaCalculator;
-
-// Define the method signatures
-type PluralityCalculator = (
-  x: number,
-  y: number,
-  candidates: SpatialCandidate[]
-) => string[];
-type ApprovalCalculator = (
-  x: number,
-  y: number,
+// Run a full election simulation for a point on the map
+function simulateElectionAtPoint(
+  point: { x: number; y: number },
   candidates: SpatialCandidate[],
-  threshold: number
-) => string[];
-type IRVCalculator = (
-  x: number,
-  y: number,
-  candidates: SpatialCandidate[]
-) => string[];
-type BordaCalculator = (
-  x: number,
-  y: number,
-  candidates: SpatialCandidate[]
-) => string[];
-type SmithApprovalCalculator = (
-  x: number,
-  y: number,
-  candidates: SpatialCandidate[],
-  threshold: number
-) => string[];
+  method: VotingMethod,
+  voterParams: Omit<VoterDistribution, 'mean'> = { 
+    count: DEFAULT_VOTER_COUNT, 
+    variance: DEFAULT_VARIANCE 
+  }
+): string[] {
+  // Generate voter distribution centered at this point
+  const voters = generateVoterDistribution({
+    mean: point,
+    ...voterParams
+  });
+  
+  // Generate ballots for each voter based on their position
+  const votes = voters.map(voter => {
+    const prefs = getVoterPreference(voter.x, voter.y, candidates);
+    
+    return {
+      ranking: prefs.map(p => p.id),
+      approved: method === 'approval' ? 
+        prefs
+          .filter(p => p.dist <= DEFAULT_APPROVAL_THRESHOLD)
+          .map(p => p.id) : 
+        [],
+      timestamp: new Date().toISOString(),
+      voterName: `sim-voter-${Math.random()}`
+    };
+  });
 
+  // Run election
+  const results = method === 'condorcet' ?
+    runCondorcetElection(votes, candidates) :
+    runElection(method, votes, candidates);
+
+  return Array.isArray(results.winner) ? results.winner : [results.winner];
+}
+
+// Condorcet implementation
+function runCondorcetElection(votes: Vote[], candidates: Candidate[]): ElectionResults {
+  // Create pairwise preference matrix
+  const preferences: Record<string, Record<string, number>> = {};
+  candidates.forEach(c1 => {
+    preferences[c1.id] = {};
+    candidates.forEach(c2 => {
+      if (c1.id !== c2.id) {
+        preferences[c1.id][c2.id] = 0;
+      }
+    });
+  });
+
+  // Count pairwise preferences
+  votes.forEach(vote => {
+    for (let i = 0; i < vote.ranking.length; i++) {
+      for (let j = i + 1; j < vote.ranking.length; j++) {
+        preferences[vote.ranking[i]][vote.ranking[j]]++;
+      }
+    }
+  });
+
+  // Find Condorcet winner (if exists)
+  let condorcetWinner: string | null = null;
+  candidateLoop: for (const c1 of candidates) {
+    let isWinner = true;
+    for (const c2 of candidates) {
+      if (c1.id === c2.id) continue;
+      if (preferences[c1.id][c2.id] <= preferences[c2.id][c1.id]) {
+        isWinner = false;
+        break;
+      }
+    }
+    if (isWinner) {
+      condorcetWinner = c1.id;
+      break candidateLoop;
+    }
+  }
+
+  // If no Condorcet winner, fall back to IRV
+  if (!condorcetWinner) {
+    return runElection('irv', votes, candidates);
+  }
+
+  return {
+    winner: condorcetWinner,
+    roundDetails: ['Condorcet winner found'],
+    voteCounts: { [condorcetWinner]: votes.length }
+  };
+}
+
+// Method calculator types
+type BaseCalculator = (x: number, y: number, candidates: SpatialCandidate[]) => string[];
+type ThresholdCalculator = (x: number, y: number, candidates: SpatialCandidate[], threshold: number) => string[];
+
+export type SpatialVoteCalculator<M extends VotingMethod> = 
+  M extends 'approval' | 'smithApproval' ? ThresholdCalculator : BaseCalculator;
+
+// The actual calculators
 export const spatialVoteCalculators = {
-  plurality: ((x: number, y: number, candidates: SpatialCandidate[]) => {
-    // For plurality, distance-based is actually correct
-    return [getVoterPreference(x, y, candidates)[0].id];
-  }) as PluralityCalculator,
-
-  approval: ((
-    x: number,
-    y: number,
-    candidates: SpatialCandidate[],
-    threshold: number
-  ) => {
-    // Generate votes with approval threshold
-    const votes = generateVotersAroundPoint(x, y, candidates);
-    const election: Election = {
-      title: 'Spatial Approval',
-      candidates,
-      votes,
-      createdAt: new Date().toISOString(),
-    };
-
-    const results = runElection('approval', votes, candidates);
-    return [results.winner];
-  }) as ApprovalCalculator,
-
-  irv: ((x: number, y: number, candidates: SpatialCandidate[]) => {
-    // Generate votes
-    const votes = generateVotersAroundPoint(x, y, candidates);
-    const election: Election = {
-      title: 'Spatial IRV',
-      candidates,
-      votes,
-      createdAt: new Date().toISOString(),
-    };
-
-    const results = runElection('irv', votes, candidates);
-    return [results.winner];
-  }) as IRVCalculator,
-
-  borda: ((x: number, y: number, candidates: SpatialCandidate[]) => {
-    const votes = generateVotersAroundPoint(x, y, candidates);
-    const election: Election = {
-      title: 'Spatial Borda',
-      candidates,
-      votes,
-      createdAt: new Date().toISOString(),
-    };
-
-    const results = runElection('borda', votes, candidates);
-    return [results.winner];
-  }) as BordaCalculator,
-
-  smithApproval: ((
-    x: number,
-    y: number,
-    candidates: SpatialCandidate[],
-    threshold: number
-  ) => {
-    const votes = generateVotersAroundPoint(x, y, candidates);
-    const election: Election = {
-      title: 'Spatial Smith+Approval',
-      candidates,
-      votes,
-      createdAt: new Date().toISOString(),
-    };
-
-    const results = runElection('smithApproval', votes, candidates);
-    return [results.winner];
-  }) as SmithApprovalCalculator,
-};
+  plurality: ((x, y, candidates) => 
+    simulateElectionAtPoint({x, y}, candidates, 'plurality')
+  ) as BaseCalculator,
+    
+  approval: ((x, y, candidates, threshold) =>
+    simulateElectionAtPoint({x, y}, candidates, 'approval')
+  ) as ThresholdCalculator,
+    
+  irv: ((x, y, candidates) =>
+    simulateElectionAtPoint({x, y}, candidates, 'irv')
+  ) as BaseCalculator,
+    
+  condorcet: ((x, y, candidates) =>
+    simulateElectionAtPoint({x, y}, candidates, 'condorcet')
+  ) as BaseCalculator,
+    
+  borda: ((x, y, candidates) =>
+    simulateElectionAtPoint({x, y}, candidates, 'borda')
+  ) as BaseCalculator
+} as const;
