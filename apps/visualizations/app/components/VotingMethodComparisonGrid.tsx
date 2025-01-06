@@ -344,7 +344,9 @@ const VotingMethodComparisonGrid = () => {
       await Promise.all(
         Object.entries(canvasRefs).map(async ([method, ref]) => {
           const votingMethod = method as VotingMethod;
-          if (!ref.current) return;
+          if (!ref.current) {
+            return;
+          }
 
           const vizCacheKey = `${cacheKey}_${votingMethod}`;
           const cachedViz = await visualizationCache.get(vizCacheKey);
