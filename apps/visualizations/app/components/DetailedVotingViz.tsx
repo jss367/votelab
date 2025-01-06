@@ -402,9 +402,9 @@ const DetailedVotingViz = () => {
 
           {/* Voter Bloc Controls */}
           {placementMode === 'voterBloc' && (
-            <div className="flex gap-4 items-center bg-gray-50 p-4 rounded-lg">
+            <div className="flex gap-4 items-center bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
               <div>
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
                   Voters per Bloc
                 </label>
                 <input
@@ -416,7 +416,7 @@ const DetailedVotingViz = () => {
                       voterCount: Math.max(1, parseInt(e.target.value) || 0),
                     }))
                   }
-                  className="mt-1 block w-32 rounded-md border-gray-300 shadow-sm"
+                  className="mt-1 block w-32 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 shadow-sm"
                   min="1"
                 />
               </div>
