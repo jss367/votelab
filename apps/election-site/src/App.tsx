@@ -1,5 +1,3 @@
-import type { DropResult } from '@hello-pangea/dnd';
-import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd';
 import {
   Button,
   Card,
@@ -18,9 +16,10 @@ import {
   getFirestore,
   updateDoc,
 } from 'firebase/firestore';
-import { Check, Circle, Copy, Grip, Plus, Trash2 } from 'lucide-react';
+import { Copy, Plus } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import ElectionResults from './ElectionResults';
+import RankedApprovalList from './RankedApprovalList';
 import { Candidate, Election, Vote } from './types';
 
 // Firebase config
@@ -60,10 +59,8 @@ function App() {
   const loadElection = useCallback(async (id: string) => {
     try {
       setLoading(true);
-      setError(''); // Clear any existing errors
+      setError('');
       const electionDoc = await getDoc(doc(db, 'elections', id));
-
-      console.log('Election document exists:', electionDoc.exists());
 
       if (electionDoc.exists()) {
         const data = electionDoc.data() as Election;
@@ -124,12 +121,10 @@ function App() {
         candidates: candidates || [],
         votes: [],
         createdAt: new Date().toISOString(),
-        submissionsClosed: !isOpen, // If isOpen is true, submissions are not closed
-        votingOpen: !isOpen, // If isOpen is true, voting is not open yet
+        submissionsClosed: !isOpen,
+        votingOpen: !isOpen,
         createdBy: creatorName.trim(),
       };
-
-      console.log('Attempting to create election with data:', electionData); // Move logging here
 
       const docRef = await addDoc(collection(db, 'elections'), electionData);
       const votingUrl = `${window.location.origin}${window.location.pathname}?id=${docRef.id}`;
@@ -146,23 +141,19 @@ function App() {
   };
 
   const closeSubmissions = async () => {
-    if (!electionId) return;
+    if (!electionId) {
+      return;
+    }
 
     try {
       setLoading(true);
       const electionRef = doc(db, 'elections', electionId);
-
-      console.log('Current candidates before closing:', candidates);
-
       await updateDoc(electionRef, {
         submissionsClosed: true,
         votingOpen: true,
-        candidates: candidates, // Explicitly set the current candidates
+        candidates: candidates,
       });
-
-      console.log('Closing submissions for election:', electionId);
       await loadElection(electionId);
-      console.log('Election data after loading:', election);
     } catch (err) {
       setError('Error closing submissions');
       console.error(err);
@@ -172,7 +163,9 @@ function App() {
   };
 
   const closeVoting = async () => {
-    if (!electionId) return;
+    if (!electionId) {
+      return;
+    }
 
     try {
       setLoading(true);
@@ -240,27 +233,6 @@ function App() {
     const newApproved = new Set(approvedCandidates);
     newApproved.delete(id);
     setApprovedCandidates(newApproved);
-  };
-
-  const toggleApproval = (id: string) => {
-    const newApproved = new Set(approvedCandidates);
-    if (newApproved.has(id)) {
-      newApproved.delete(id);
-    } else {
-      newApproved.add(id);
-    }
-    setApprovedCandidates(newApproved);
-  };
-
-  const handleDragEnd = (result: DropResult) => {
-    if (!result.destination) {
-      return;
-    }
-
-    const items = Array.from(candidates);
-    const [reorderedItem] = items.splice(result.source.index, 1);
-    items.splice(result.destination.index, 0, reorderedItem);
-    setCandidates(items);
   };
 
   if (loading) {
@@ -374,50 +346,16 @@ function App() {
                   </div>
                 </div>
 
-                {/* Draggable candidate list */}
-                <DragDropContext onDragEnd={handleDragEnd}>
-                  <Droppable droppableId="candidates">
-                    {(provided) => (
-                      <div
-                        {...provided.droppableProps}
-                        ref={provided.innerRef}
-                        className="space-y-2"
-                      >
-                        {candidates.map((candidate, index) => (
-                          <Draggable
-                            key={candidate.id}
-                            draggableId={candidate.id}
-                            index={index}
-                          >
-                            {(provided) => (
-                              <div
-                                ref={provided.innerRef}
-                                {...provided.draggableProps}
-                                className="flex items-center gap-3 p-3 bg-slate-100 rounded-lg border border-slate-200 shadow-sm"
-                              >
-                                <span {...provided.dragHandleProps}>
-                                  <Grip className="w-4 h-4 text-slate-400" />
-                                </span>
-                                <span className="flex-grow font-medium text-slate-700">
-                                  {candidate.name}
-                                </span>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => removeCandidate(candidate.id)}
-                                  className="text-slate-500 hover:text-destructive"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </div>
-                            )}
-                          </Draggable>
-                        ))}
-                        {provided.placeholder}
-                      </div>
-                    )}
-                  </Droppable>
-                </DragDropContext>
+                {/* Candidate list */}
+                <RankedApprovalList
+                  candidates={candidates}
+                  onChange={({ ranking }) => {
+                    setCandidates(ranking);
+                    // Don't update approvedCandidates during creation
+                  }}
+                  onRemove={removeCandidate}
+                  showApprovalLine={false}
+                />
 
                 {/* Create election button and share URLs */}
                 {(candidates.length > 0 || isOpen) && (
@@ -466,9 +404,9 @@ function App() {
                 {!election.submissionsClosed && (
                   <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                     <p className="text-yellow-800">
-                      This election is in the submission period.
+                      This election is in the submission period.{' '}
                       {election.votingOpen
-                        ? 'You can add candidates and vote. '
+                        ? 'You can add candidates and vote.'
                         : 'You can add candidates. Voting will begin when the submission period ends.'}
                     </p>
                     {election.createdBy === voterName && (
@@ -523,69 +461,19 @@ function App() {
                         1. Drag to rank the candidates in your preferred order
                       </p>
                       <p>
-                        2. Click the checkmark to approve candidates you'd be
-                        happy with
+                        2. Drag the blue line to set your approval threshold -
+                        candidates above the line are approved
                       </p>
                     </div>
 
-                    <DragDropContext onDragEnd={handleDragEnd}>
-                      <Droppable droppableId="voting">
-                        {(provided) => (
-                          <div
-                            {...provided.droppableProps}
-                            ref={provided.innerRef}
-                            className="space-y-2"
-                          >
-                            {candidates.map((candidate, index) => (
-                              <Draggable
-                                key={candidate.id}
-                                draggableId={candidate.id}
-                                index={index}
-                              >
-                                {(provided) => (
-                                  <div
-                                    ref={provided.innerRef}
-                                    {...provided.draggableProps}
-                                    {...provided.dragHandleProps}
-                                    className="flex items-center gap-3 p-3 bg-slate-100 rounded-lg border border-slate-200 shadow-sm"
-                                  >
-                                    <span className="w-6 font-medium text-slate-500">
-                                      {index + 1}.
-                                    </span>
-                                    <span className="flex-grow font-medium text-slate-700">
-                                      {candidate.name}
-                                    </span>
-                                    <Button
-                                      variant={
-                                        approvedCandidates.has(candidate.id)
-                                          ? 'default'
-                                          : 'outline'
-                                      }
-                                      size="sm"
-                                      onClick={() =>
-                                        toggleApproval(candidate.id)
-                                      }
-                                      className={
-                                        approvedCandidates.has(candidate.id)
-                                          ? 'bg-green-600 hover:bg-green-700'
-                                          : 'text-slate-500'
-                                      }
-                                    >
-                                      {approvedCandidates.has(candidate.id) ? (
-                                        <Check className="w-4 h-4" />
-                                      ) : (
-                                        <Circle className="w-4 h-4" />
-                                      )}
-                                    </Button>
-                                  </div>
-                                )}
-                              </Draggable>
-                            ))}
-                            {provided.placeholder}
-                          </div>
-                        )}
-                      </Droppable>
-                    </DragDropContext>
+                    <RankedApprovalList
+                      candidates={candidates}
+                      onChange={({ ranking, approved }) => {
+                        setCandidates(ranking);
+                        setApprovedCandidates(new Set(approved));
+                      }}
+                      showApprovalLine={true}
+                    />
 
                     {election.createdBy === voterName &&
                       election.votingOpen && (

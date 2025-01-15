@@ -6,19 +6,20 @@ import {
   CardTitle,
   Input,
 } from '@repo/ui';
-import { formatDistanceToNow } from 'date-fns';
 import { arrayUnion, doc, updateDoc } from 'firebase/firestore';
 import { useState } from 'react';
 import { Candidate, Election } from './types';
 
 interface CandidateSubmissionProps {
   election: Election;
+  electionId: string; // Need to pass this separately since it's not in Election type
   db: any;
   onSubmit: () => void;
 }
 
 const CandidateSubmission: React.FC<CandidateSubmissionProps> = ({
   election,
+  electionId,
   db,
   onSubmit,
 }) => {
@@ -27,10 +28,8 @@ const CandidateSubmission: React.FC<CandidateSubmissionProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const canSubmit =
-    !election.isClosed &&
-    (!election.submissionDeadline ||
-      new Date(election.submissionDeadline) > new Date());
+  // Check if submissions are allowed
+  const canSubmit = !election.submissionsClosed;
 
   const submitCandidate = async () => {
     if (!name.trim() || !submitterName.trim()) {
@@ -45,13 +44,7 @@ const CandidateSubmission: React.FC<CandidateSubmissionProps> = ({
         name: name.trim(),
       };
 
-      const submission: CandidateSubmission = {
-        candidateId: newCandidate.id,
-        submittedBy: submitterName.trim(),
-        submittedAt: new Date().toISOString(),
-      };
-
-      const electionRef = doc(db, 'elections', election.id);
+      const electionRef = doc(db, 'elections', electionId);
       await updateDoc(electionRef, {
         candidates: arrayUnion(newCandidate),
       });
@@ -85,13 +78,6 @@ const CandidateSubmission: React.FC<CandidateSubmissionProps> = ({
           </div>
         ) : (
           <div className="space-y-4">
-            {election.submissionDeadline && (
-              <p className="text-sm text-muted-foreground">
-                Submissions close in{' '}
-                {formatDistanceToNow(new Date(election.submissionDeadline))}
-              </p>
-            )}
-
             <Input
               placeholder="Candidate Name"
               value={name}
