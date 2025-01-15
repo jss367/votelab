@@ -105,17 +105,24 @@ function App() {
       return;
     }
 
+    if (!electionTitle.trim()) {
+      setError('Please enter an election title');
+      return;
+    }
+
     try {
       setLoading(true);
       const electionData: Election = {
-        title: electionTitle,
-        candidates: candidates,
+        title: electionTitle.trim(),
+        candidates: candidates || [],
         votes: [],
         createdAt: new Date().toISOString(),
         submissionsClosed: !isOpen, // If isOpen is true, submissions are not closed
         votingOpen: !isOpen, // If isOpen is true, voting is not open yet
-        createdBy: creatorName,
+        createdBy: creatorName.trim(),
       };
+
+      console.log('Attempting to create election with data:', electionData); // Move logging here
 
       const docRef = await addDoc(collection(db, 'elections'), electionData);
       const votingUrl = `${window.location.origin}${window.location.pathname}?id=${docRef.id}`;
@@ -125,7 +132,7 @@ function App() {
       setElectionId(docRef.id);
     } catch (err) {
       setError('Error creating election');
-      console.error(err);
+      console.error('Election creation error:', err);
     } finally {
       setLoading(false);
     }
@@ -422,7 +429,7 @@ function App() {
                     <p className="text-yellow-800">
                       This election is in the submission period.
                       {election.votingOpen
-                        ? 'You can add candidates and vote.'
+                        ? 'You can add candidates and vote. '
                         : 'You can add candidates. Voting will begin when the submission period ends.'}
                     </p>
                     {election.createdBy === voterName && (
