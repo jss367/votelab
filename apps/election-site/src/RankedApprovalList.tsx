@@ -1,6 +1,6 @@
 import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd';
 import { Button } from '@repo/ui';
-import { Grip, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Grip, Trash2 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 
 interface RankedApprovalListProps {
@@ -10,24 +10,29 @@ interface RankedApprovalListProps {
     approved: string[];
   }) => void;
   onRemove?: (id: string) => void;
-  showApprovalLine?: boolean; // New prop to control approval line visibility
+  showApprovalLine?: boolean;
 }
 
 const RankedApprovalList: React.FC<RankedApprovalListProps> = ({
   candidates,
   onChange,
   onRemove,
-  showApprovalLine = false, // Default to false
+  showApprovalLine = false,
 }) => {
   const [items, setItems] = useState(candidates);
-  const [approvalLine, setApprovalLine] = useState(candidates.length);
+  const [approvalLine, setApprovalLine] = useState(
+    Math.floor(candidates.length / 2)
+  );
   const [isDraggingLine, setIsDraggingLine] = useState(false);
+  const [dragStartY, setDragStartY] = useState(0);
+  const [lastSnapIndex, setLastSnapIndex] = useState(
+    Math.floor(candidates.length / 2)
+  );
 
   useEffect(() => {
     setItems(candidates);
   }, [candidates]);
 
-  // Handle candidate reordering
   const onDragEnd = (result: any) => {
     if (!result.destination) return;
 
@@ -43,66 +48,69 @@ const RankedApprovalList: React.FC<RankedApprovalListProps> = ({
         : [],
     });
   };
-  // Handle mouse/touch events for approval line
-  const handleMouseDown = (e: React.MouseEvent, index: number) => {
+
+  const handleApprovalLineStart = (e: React.MouseEvent, index: number) => {
     e.preventDefault();
     setIsDraggingLine(true);
-    setApprovalLine(index);
-    onChange({
-      ranking: items,
-      approved: items.slice(0, index).map((c) => c.id),
-    });
+    setDragStartY(e.clientY);
+    setLastSnapIndex(index);
   };
 
-  const handleMouseMove = (e: MouseEvent) => {
+  const handleApprovalLineMove = (e: MouseEvent) => {
     if (!isDraggingLine) return;
 
-    // Get container bounds
     const container = document.getElementById('candidate-list');
     if (!container) return;
 
     const bounds = container.getBoundingClientRect();
     const itemElements = Array.from(container.children);
+    const mouseY = e.clientY;
 
-    // Find closest item to mouse position
-    let closestIndex = 0;
+    // Find the closest snap point (item boundary)
+    let closestIndex = lastSnapIndex;
     let closestDistance = Infinity;
 
-    for (let i = 0; i < itemElements.length; i++) {
-      const item = itemElements[i];
+    itemElements.forEach((item, index) => {
       const itemBounds = item.getBoundingClientRect();
       const itemCenter = itemBounds.top + itemBounds.height / 2;
-      const distance = Math.abs(itemCenter - e.clientY);
+      const distance = Math.abs(itemCenter - mouseY);
 
-      if (distance < closestDistance) {
+      // Add a "snap zone" threshold
+      if (distance < closestDistance && distance < 30) {
+        // 30px snap threshold
         closestDistance = distance;
-        closestIndex = i;
+        closestIndex = index;
       }
-    }
-
-    setApprovalLine(closestIndex);
-    onChange({
-      ranking: items, // Use the state items array, not DOM elements
-      approved: items.slice(0, closestIndex).map((item) => item.id),
     });
+
+    // Only update if we've moved to a new snap point
+    if (closestIndex !== lastSnapIndex) {
+      setLastSnapIndex(closestIndex);
+      setApprovalLine(closestIndex);
+      onChange({
+        ranking: items,
+        approved: items.slice(0, closestIndex).map((item) => item.id),
+      });
+    }
   };
 
-  const handleMouseUp = () => {
+  const handleApprovalLineEnd = () => {
     setIsDraggingLine(false);
   };
 
   useEffect(() => {
     if (isDraggingLine) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
+      document.addEventListener('mousemove', handleApprovalLineMove);
+      document.addEventListener('mouseup', handleApprovalLineEnd);
       return () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
+        document.removeEventListener('mousemove', handleApprovalLineMove);
+        document.removeEventListener('mouseup', handleApprovalLineEnd);
       };
     }
-  }, [isDraggingLine]);
+  }, [isDraggingLine, lastSnapIndex]);
+
   return (
-    <div className="relative w-full" onMouseLeave={handleMouseUp}>
+    <div className="relative w-full" onMouseLeave={handleApprovalLineEnd}>
       <DragDropContext onDragEnd={onDragEnd}>
         <Droppable droppableId="candidates">
           {(provided) => (
@@ -116,11 +124,27 @@ const RankedApprovalList: React.FC<RankedApprovalListProps> = ({
                 <React.Fragment key={candidate.id}>
                   {showApprovalLine && index === approvalLine && (
                     <div
-                      className="h-1 bg-blue-400 my-3 cursor-ns-resize relative group"
-                      onMouseDown={(e) => handleMouseDown(e, index)}
+                      className={`relative h-8 -my-4 group cursor-ns-resize ${
+                        isDraggingLine ? 'z-50' : 'z-10'
+                      }`}
+                      onMouseDown={(e) => handleApprovalLineStart(e, index)}
                     >
-                      <div className="absolute right-0 bg-blue-500 text-white text-xs px-2 py-1 rounded -top-8 opacity-0 group-hover:opacity-100 transition-opacity">
-                        Drag to move approval line
+                      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1 bg-blue-400 shadow-md" />
+                      <div className="absolute right-0 top-1/2 -translate-y-1/2 bg-blue-500 text-white text-sm px-3 py-1 rounded-md shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <div className="flex items-center gap-2">
+                          <ArrowUp className="w-4 h-4" />
+                          <span>Approved</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <ArrowDown className="w-4 h-4" />
+                          <span>Not Approved</span>
+                        </div>
+                      </div>
+                      <div className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                        <div className="w-2 h-2 rounded-full bg-blue-500" />
+                        <span className="text-sm font-medium text-blue-600 bg-white px-2 py-0.5 rounded shadow-sm">
+                          Approval Line
+                        </span>
                       </div>
                     </div>
                   )}
@@ -130,12 +154,12 @@ const RankedApprovalList: React.FC<RankedApprovalListProps> = ({
                         ref={provided.innerRef}
                         {...provided.draggableProps}
                         data-candidate-id={candidate.id}
-                        className={`flex items-center gap-3 p-3 rounded-lg border shadow-sm transition-colors
-                            ${
-                              showApprovalLine && index < approvalLine
-                                ? 'bg-green-50 border-green-200'
-                                : 'bg-slate-50 border-slate-200'
-                            }`}
+                        className={`flex items-center gap-3 p-3 rounded-lg border shadow-sm transition-all duration-200
+                          ${
+                            showApprovalLine && index < approvalLine
+                              ? 'bg-green-50 border-green-200 hover:bg-green-100'
+                              : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+                          }`}
                       >
                         <div className="flex items-center gap-3 flex-grow">
                           <span {...provided.dragHandleProps}>
@@ -166,11 +190,12 @@ const RankedApprovalList: React.FC<RankedApprovalListProps> = ({
               {provided.placeholder}
               {showApprovalLine && approvalLine === items.length && (
                 <div
-                  className="h-1 bg-blue-400 my-3 cursor-ns-resize group"
-                  onMouseDown={(e) => handleMouseDown(e, items.length)}
+                  className="relative h-8 -my-4 group cursor-ns-resize"
+                  onMouseDown={(e) => handleApprovalLineStart(e, items.length)}
                 >
-                  <div className="absolute right-0 bg-blue-500 text-white text-xs px-2 py-1 rounded -top-8 opacity-0 group-hover:opacity-100 transition-opacity">
-                    Drag to move approval line
+                  <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1 bg-blue-400 shadow-md" />
+                  <div className="absolute right-0 top-1/2 -translate-y-1/2 bg-blue-500 text-white text-sm px-3 py-1 rounded-md shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    Drag to set approval threshold
                   </div>
                 </div>
               )}
