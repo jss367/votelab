@@ -1,7 +1,7 @@
 {
     "extends": "@repo/typescript-config/react-library.json",
     "compilerOptions": {
-        "moduleResolution": "bundler",
+        "moduleResolution": "node16",
         "module": "ESNext",
         "declaration": true,
         "declarationDir": "./dist",

@@ -11,5 +11,12 @@ export default defineConfig({
   bundle: true,
   splitting: false,
   tsconfig: 'tsconfig.json',
-  external: ['react', 'react-dom', '@radix-ui/*'],
+  external: [
+    'react',
+    'react-dom',
+    '@radix-ui/react-slot',
+    'class-variance-authority',
+    'clsx',
+    'tailwind-merge',
+  ],
 });
