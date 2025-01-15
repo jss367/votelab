@@ -1,4 +1,4 @@
-import { Button, Input, Select } from '@/components/ui/';
+import { Button, Input, Select } from '@repo/ui';
 import { Plus, Settings2, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { CustomField, FieldType } from './types';

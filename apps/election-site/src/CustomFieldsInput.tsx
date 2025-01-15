@@ -1,4 +1,4 @@
-import { Input } from '@/components/ui/';
+import { Input } from '@repo/ui';
 import { CustomField, CustomFieldValue } from './types';
 
 interface CustomFieldsInputProps {
@@ -16,7 +16,9 @@ const CustomFieldsInput = ({
 }: CustomFieldsInputProps) => {
   const updateFieldValue = (fieldId: string, value: string) => {
     const field = fields.find((f) => f.id === fieldId);
-    if (!field) return;
+    if (!field) {
+      return;
+    }
 
     let parsedValue: string | number | Date | null = value;
 
@@ -40,7 +42,9 @@ const CustomFieldsInput = ({
 
   const getValue = (fieldId: string): string => {
     const fieldValue = values.find((v) => v.fieldId === fieldId);
-    if (!fieldValue) return '';
+    if (!fieldValue) {
+      return '';
+    }
 
     if (fieldValue.value instanceof Date) {
       return fieldValue.value.toISOString().split('T')[0];

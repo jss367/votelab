@@ -1,16 +1,13 @@
-// import { Card, CardContent, CardHeader, CardTitle } from "@repo/ui/components/ui/card";
 import { Card, CardContent, CardHeader, CardTitle } from '@repo/ui';
 import type { CandidateScore } from '@votelab/shared-utils';
 import {
   calculateSmithSet,
-  Candidate,
-  Election,
   getHeadToHeadVictories,
   getOrdinalSuffix,
   getPairwiseResults,
-  PairwiseResult,
   selectWinner,
-  Vote,
+  type Election,
+  type PairwiseResult,
 } from '@votelab/shared-utils';
 import {
   CheckCircle2,
@@ -22,64 +19,45 @@ import {
   Users,
 } from 'lucide-react';
 import React from 'react';
+import ApprovalVotes from './ApprovalVotes';
 
 const formatDescription = (description: string) => {
-  // Split the description into parts by line breaks or marking phrases
   const parts = description.split(/\n|(?=Ranked by)/);
-
-  // Filter out empty strings and trim each part
   return parts.filter((part) => part.trim()).map((part) => part.trim());
 };
 
-interface ApprovalVotesProps {
+interface CustomFieldDisplayProps {
+  candidate: CandidateScore;
   election: Election;
 }
 
-interface ApprovalCount {
-  name: string;
-  count: number;
-  percentage: string;
-}
-
-const ApprovalVotes: React.FC<ApprovalVotesProps> = ({ election }) => {
-  const approvalCounts: ApprovalCount[] = election.candidates
-    .map((candidate: Candidate) => ({
-      name: candidate.name,
-      count: election.votes.filter((vote: Vote) =>
-        vote.approved.includes(candidate.id)
-      ).length,
-      percentage: (
-        (election.votes.filter((vote: Vote) =>
-          vote.approved.includes(candidate.id)
-        ).length /
-          election.votes.length) *
-        100
-      ).toFixed(1),
-    }))
-    .sort((a: ApprovalCount, b: ApprovalCount) => b.count - a.count);
+const CustomFieldDisplay: React.FC<CustomFieldDisplayProps> = ({
+  candidate,
+  election,
+}) => {
+  const foundCandidate = election.candidates.find(
+    (c) => c.name === candidate.name
+  );
+  if (!foundCandidate?.customFields?.length || !election.customFields?.length) {
+    return null;
+  }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      {approvalCounts.map((candidate: ApprovalCount) => (
-        <Card
-          key={candidate.name}
-          className="hover:shadow-lg transition-shadow duration-200"
-        >
-          <CardContent className="pt-6">
-            <div className="text-center space-y-2">
-              <p className="font-bold text-lg text-slate-900">
-                {candidate.name}
-              </p>
-              <p className="text-3xl font-bold text-blue-600">
-                {candidate.count}
-              </p>
-              <p className="text-sm text-slate-500">
-                {candidate.percentage}% of voters approved
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+    <div className="grid grid-cols-2 gap-2 mt-3 p-3 rounded-md bg-white/50">
+      {foundCandidate.customFields.map((field) => {
+        const fieldDef = election.customFields?.find(
+          (f) => f.id === field.fieldId
+        );
+        if (!fieldDef) {
+          return null;
+        }
+        return (
+          <div key={field.fieldId} className="text-sm">
+            <span className="font-medium text-slate-700">{fieldDef.name}:</span>{' '}
+            <span className="text-slate-600">{field.value?.toString()}</span>
+          </div>
+        );
+      })}
     </div>
   );
 };
@@ -138,7 +116,7 @@ const ElectionResults: React.FC<{ election: Election }> = ({ election }) => {
 
       {/* Results Grid */}
       <div className="grid gap-6">
-        {rankedCandidates.map((candidate: CandidateScore, index: number) => {
+        {rankedCandidates.map((candidate: CandidateScore) => {
           const isFirstPlace = candidate.rank === 1;
           const hasTie = candidate.isTied;
           const descriptionParts = formatDescription(candidate.description);
@@ -219,6 +197,9 @@ const ElectionResults: React.FC<{ election: Election }> = ({ election }) => {
                     </div>
                   </div>
                 </div>
+
+                {/* Custom Fields */}
+                <CustomFieldDisplay candidate={candidate} election={election} />
 
                 {/* Details */}
                 <div

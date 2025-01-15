@@ -227,12 +227,27 @@ function App() {
       return;
     }
 
+    // Validate required fields
+    if (election?.customFields) {
+      const missingRequired = election.customFields
+        .filter((field) => field.required)
+        .some(
+          (field) =>
+            !newCandidateFields.find((f) => f.fieldId === field.id && f.value)
+        );
+
+      if (missingRequired) {
+        setError('Please fill in all required fields');
+        return;
+      }
+    }
+
     try {
       setLoading(true);
       const newCand: Candidate = {
         id: Date.now().toString(),
         name: newCandidate.trim(),
-        customFields: [], // Initialize empty custom fields
+        customFields: newCandidateFields,
       };
 
       const electionRef = doc(db, 'elections', electionId);
@@ -242,6 +257,7 @@ function App() {
 
       await loadElection(electionId);
       setNewCandidate('');
+      setNewCandidateFields([]); // Reset custom fields after adding
     } catch (err) {
       setError('Error adding candidate');
       console.error(err);
@@ -249,7 +265,6 @@ function App() {
       setLoading(false);
     }
   };
-
   const removeCandidate = (id: string) => {
     setCandidates(candidates.filter((c) => c.id !== id));
     const newApproved = new Set(approvedCandidates);
@@ -367,17 +382,13 @@ function App() {
                     placeholder="Candidate Name"
                     className="w-full"
                   />
-                  {election?.customFields &&
-                    election.customFields.length > 0 && (
-                      <CustomFieldsInput
-                        fields={election.customFields}
-                        values={[]}
-                        onChange={(values) => {
-                          // Handle custom field values when adding a new candidate
-                          setNewCandidateFields(values);
-                        }}
-                      />
-                    )}
+                  {customFields.length > 0 && (
+                    <CustomFieldsInput
+                      fields={customFields}
+                      values={newCandidateFields}
+                      onChange={setNewCandidateFields}
+                    />
+                  )}
                   <Button onClick={addCandidate} className="w-full">
                     Add Candidate
                   </Button>
@@ -488,7 +499,16 @@ function App() {
                       </Button>
                     </div>
 
-                    {/* Show existing candidates from the election */}
+                    {election.customFields &&
+                      election.customFields.length > 0 && (
+                        <CustomFieldsInput
+                          fields={election.customFields}
+                          values={newCandidateFields}
+                          onChange={setNewCandidateFields}
+                        />
+                      )}
+
+                    {/* Show existing candidates */}
                     <div className="mt-4">
                       <h3 className="text-sm font-medium text-slate-900 mb-2">
                         Current Candidates:
@@ -499,7 +519,30 @@ function App() {
                             key={candidate.id}
                             className="p-2 bg-slate-50 rounded-md border border-slate-200"
                           >
-                            {candidate.name}
+                            <div className="font-medium">{candidate.name}</div>
+                            {candidate.customFields &&
+                              candidate.customFields.length > 0 && (
+                                <div className="mt-1 text-sm text-slate-600">
+                                  {candidate.customFields.map((field) => {
+                                    const fieldDef =
+                                      election.customFields?.find(
+                                        (f) => f.id === field.fieldId
+                                      );
+                                    if (!fieldDef) return null;
+                                    return (
+                                      <span
+                                        key={field.fieldId}
+                                        className="inline-block mr-3"
+                                      >
+                                        <span className="font-medium">
+                                          {fieldDef.name}:
+                                        </span>{' '}
+                                        {field.value?.toString()}
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              )}
                           </div>
                         ))}
                       </div>
