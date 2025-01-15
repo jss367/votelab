@@ -9,7 +9,7 @@ import {
   getFirestore,
   updateDoc,
 } from 'firebase/firestore';
-import { Copy, Plus } from 'lucide-react';
+import { Copy } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import CustomFieldsInput from './CustomFieldsInput';
 import CustomFieldsManager from './CustomFieldsManager';
@@ -572,10 +572,16 @@ function App() {
                         value={newCandidate}
                         onChange={(e) => setNewCandidate(e.target.value)}
                         placeholder="Add a new candidate..."
-                        onKeyPress={(e) => e.key === 'Enter' && addCandidate()}
+                        onKeyPress={(e) =>
+                          e.key === 'Enter' && addExistingElectionCandidate()
+                        }
                       />
-                      <Button onClick={addCandidate} variant="secondary">
-                        <Plus className="w-4 h-4" />
+                      <Button
+                        onClick={addExistingElectionCandidate}
+                        variant="secondary"
+                        className="px-3"
+                      >
+                        Add
                       </Button>
                     </div>
 
