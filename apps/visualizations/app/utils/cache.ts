@@ -15,7 +15,7 @@ export function createCache<T>(prefix: string) {
         const response = await fetch(
           `/api/cache?key=${encodeURIComponent(getKey(key))}`
         );
-        
+
         if (!response.ok) {
           return null;
         }
@@ -73,13 +73,13 @@ export function createCache<T>(prefix: string) {
       } catch (error) {
         console.error('Cache clear error:', error);
       }
-    }
+    },
   };
 }
 
 // Create specific caches for our use cases
 interface VisualizationResult {
-  imageData: number[];  // Convert ImageData to array for storage
+  imageData: number[]; // Convert ImageData to array for storage
   width: number;
   height: number;
 }
@@ -94,4 +94,4 @@ interface BallotResult {
 }
 
 export const visualizationCache = createCache<VisualizationResult>('viz');
-export const ballotCache = createCache<BallotResult>('ballots'); 
+export const ballotCache = createCache<BallotResult>('ballots');
