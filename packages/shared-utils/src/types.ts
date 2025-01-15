@@ -20,15 +20,35 @@ export interface Election {
   createdAt: string;
 }
 
+export interface PairwiseResult {
+  candidate1: string;
+  candidate2: string;
+  candidate1Votes: number;
+  candidate2Votes: number;
+}
+
 export interface Victory {
   winner: string;
   loser: string;
   margin: number;
 }
 
-export interface PairwiseResult {
-  candidate1: string;
-  candidate2: string;
-  candidate1Votes: number;
-  candidate2Votes: number;
+export interface HeadToHeadVictory {
+  winner: string;
+  loser: string;
+  margin: number;
+}
+
+export interface CandidateMetrics {
+  approval: number;
+  headToHead: number;
+  margin: number;
+}
+
+export interface CandidateScore {
+  name: string;
+  rank: number;
+  isTied: boolean;
+  metrics: CandidateMetrics;
+  description: string;
 }

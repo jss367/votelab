@@ -1,45 +1,41 @@
-export interface Candidate {
-  id: string;
-  name: string;
+import type { Election } from '@votelab/shared-utils';
+
+export interface CandidateSubmission {
+  candidateId: string;
+  submittedBy: string;
+  submittedAt: string;
 }
 
-export interface Vote {
-  voterName: string;
-  ranking: string[];
-  approved: string[];
-  timestamp: string;
+export interface RunningElection extends Election {
+  allowNewCandidates: boolean;
+  submissionDeadline: string | null;
+  votingOpen: boolean;
+  creatorId: string;
 }
 
-export interface Election {
-  title: string;
-  candidates: Candidate[];
-  votes: Vote[];
-  createdAt: string;
+export enum ElectionPhase {
+  ACCEPTING_CANDIDATES = 'accepting_candidates',
+  CANDIDATES_LOCKED = 'candidates_locked',
+  VOTING = 'voting',
+  COMPLETED = 'completed',
 }
 
-export interface PairwiseResult {
-  candidate1: string;
-  candidate2: string;
-  candidate1Votes: number;
-  candidate2Votes: number;
-}
+// Helper function to determine current election phase
+export const getElectionPhase = (election: RunningElection): ElectionPhase => {
+  const now = new Date();
 
-export interface HeadToHeadVictory {
-  winner: string;
-  loser: string;
-  margin: number;
-}
+  if (!election.allowNewCandidates) {
+    return election.votingOpen ? ElectionPhase.VOTING : ElectionPhase.COMPLETED;
+  }
 
-export interface CandidateMetrics {
-  approval: number;
-  headToHead: number;
-  margin: number;
-}
+  if (
+    election.submissionDeadline &&
+    new Date(election.submissionDeadline) <= now
+  ) {
+    return election.votingOpen ? ElectionPhase.VOTING : ElectionPhase.COMPLETED;
+  }
 
-export interface CandidateScore {
-  name: string;
-  rank: number;
-  isTied: boolean;
-  metrics: CandidateMetrics;
-  description: string;
-}
+  return election.votingOpen
+    ? ElectionPhase.VOTING
+    : ElectionPhase.ACCEPTING_CANDIDATES;
+};

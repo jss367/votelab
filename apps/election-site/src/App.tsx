@@ -9,6 +9,7 @@ import {
   Input,
 } from '@repo/ui';
 import { Candidate, Election, Vote } from '@votelab/shared-utils';
+import { addDays } from 'date-fns';
 import { initializeApp } from 'firebase/app';
 import {
   addDoc,
@@ -22,6 +23,7 @@ import {
 import { Check, Circle, Copy, Grip, Plus, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import ElectionResults from './ElectionResults';
+import { RunningElection } from './types';
 
 // Firebase config
 const firebaseConfig = {
@@ -54,6 +56,9 @@ function App() {
   const [error, setError] = useState('');
   const [shareUrl, setShareUrl] = useState('');
   const [resultsUrl, setResultsUrl] = useState('');
+  const [isOpenElection, setIsOpenElection] = useState(false);
+  const [submissionDays, setSubmissionDays] = useState<number>(7);
+  const [manualClose, setManualClose] = useState(true);
 
   const loadElection = useCallback(async (id: string) => {
     try {
@@ -100,26 +105,35 @@ function App() {
   const createElection = async () => {
     try {
       setLoading(true);
-      const electionData: Election = {
+      const now = new Date();
+      const deadline = manualClose
+        ? null
+        : addDays(now, submissionDays).toISOString();
+
+      const electionData: RunningElection = {
         title: electionTitle,
         candidates: candidates,
         votes: [],
-        createdAt: new Date().toISOString(),
+        createdAt: now.toISOString(),
+        allowNewCandidates: isOpenElection,
+        submissionDeadline: deadline,
+        votingOpen: !isOpenElection, // If not open, it's closed by default
+        creatorId: 'user-id',
       };
 
       const docRef = await addDoc(collection(db, 'elections'), electionData);
       const votingUrl = `${window.location.origin}${window.location.pathname}?id=${docRef.id}`;
       const resultsUrl = `${window.location.origin}${window.location.pathname}?id=${docRef.id}&view=results`;
       setShareUrl(votingUrl);
-      setResultsUrl(resultsUrl); // Store the results URL in state
+      setResultsUrl(resultsUrl);
       setElectionId(docRef.id);
     } catch (err) {
-      // ... error handling
+      setError('Error creating election');
+      console.error(err);
     } finally {
       setLoading(false);
     }
   };
-
   const submitVote = async () => {
     if (!voterName.trim() || !electionId) {
       setError('Please enter your name');
