@@ -249,13 +249,13 @@ function App() {
         <Card className="shadow-lg border-slate-200">
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl font-bold text-slate-900">
-              {mode === 'results'
-                ? `Results: ${election?.title || 'Loading...'}`
-                : 'Rank and Approve Vote'}
+              Rank and Approve Vote
             </CardTitle>
-            {election?.title && mode !== 'results' && (
-              <p className="text-slate-500 text-sm">{election.title}</p>
-            )}
+            <CardTitle className="text-4xl font-bold text-slate-900">
+              {mode === 'results'
+                ? election?.title || 'Loading...'
+                : election?.title || 'Create New Election'}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {error && (
