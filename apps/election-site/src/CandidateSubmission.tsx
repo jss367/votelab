@@ -1,7 +1,15 @@
-import { useState } from 'react';
-import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
-import { Button, Card, CardContent, CardHeader, CardTitle, Input } from '@repo/ui';
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Input,
+} from '@repo/ui';
 import { formatDistanceToNow } from 'date-fns';
+import { arrayUnion, doc, updateDoc } from 'firebase/firestore';
+import { useState } from 'react';
+import { Candidate, Election } from './types';
 
 interface CandidateSubmissionProps {
   election: Election;
@@ -12,15 +20,17 @@ interface CandidateSubmissionProps {
 const CandidateSubmission: React.FC<CandidateSubmissionProps> = ({
   election,
   db,
-  onSubmit
+  onSubmit,
 }) => {
   const [name, setName] = useState('');
   const [submitterName, setSubmitterName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const canSubmit = !election.isClosed && 
-    (!election.submissionDeadline || new Date(election.submissionDeadline) > new Date());
+  const canSubmit =
+    !election.isClosed &&
+    (!election.submissionDeadline ||
+      new Date(election.submissionDeadline) > new Date());
 
   const submitCandidate = async () => {
     if (!name.trim() || !submitterName.trim()) {
@@ -94,7 +104,7 @@ const CandidateSubmission: React.FC<CandidateSubmissionProps> = ({
               onChange={(e) => setSubmitterName(e.target.value)}
             />
 
-            <Button 
+            <Button
               onClick={submitCandidate}
               disabled={loading || !name.trim() || !submitterName.trim()}
               className="w-full"

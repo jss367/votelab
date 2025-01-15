@@ -1,16 +1,32 @@
-import type { Election } from '@votelab/shared-utils';
-
 export interface CandidateSubmission {
   candidateId: string;
   submittedBy: string;
   submittedAt: string;
 }
 
-export interface RunningElection extends Election {
-  allowNewCandidates: boolean;
-  submissionDeadline: string | null;
+export interface Candidate {
+  id: string;
+  name: string;
+  x?: number;
+  y?: number;
+  color?: string;
+}
+
+export interface Vote {
+  voterName: string;
+  ranking: string[];
+  approved: string[];
+  timestamp: string;
+}
+
+export interface Election {
+  title: string;
+  candidates: Candidate[];
+  votes: Vote[];
+  createdAt: string;
+  submissionsClosed: boolean;
   votingOpen: boolean;
-  creatorId: string;
+  createdBy: string;
 }
 
 export enum ElectionPhase {

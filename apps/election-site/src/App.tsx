@@ -8,8 +8,6 @@ import {
   CardTitle,
   Input,
 } from '@repo/ui';
-import { Candidate, Election, Vote } from '@votelab/shared-utils';
-import { addDays } from 'date-fns';
 import { initializeApp } from 'firebase/app';
 import {
   addDoc,
@@ -23,7 +21,7 @@ import {
 import { Check, Circle, Copy, Grip, Plus, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import ElectionResults from './ElectionResults';
-import { RunningElection } from './types';
+import { Candidate, Election, Vote } from './types';
 
 // Firebase config
 const firebaseConfig = {
@@ -45,6 +43,8 @@ function App() {
   const [mode, setMode] = useState<Mode>('home');
   const [electionId, setElectionId] = useState<string | null>(null);
   const [electionTitle, setElectionTitle] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const [creatorName, setCreatorName] = useState('');
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [newCandidate, setNewCandidate] = useState('');
   const [approvedCandidates, setApprovedCandidates] = useState<Set<string>>(
@@ -56,9 +56,6 @@ function App() {
   const [error, setError] = useState('');
   const [shareUrl, setShareUrl] = useState('');
   const [resultsUrl, setResultsUrl] = useState('');
-  const [isOpenElection, setIsOpenElection] = useState(false);
-  const [submissionDays, setSubmissionDays] = useState<number>(7);
-  const [manualClose, setManualClose] = useState(true);
 
   const loadElection = useCallback(async (id: string) => {
     try {
@@ -103,22 +100,21 @@ function App() {
   }, [mode, electionId, loadElection]);
 
   const createElection = async () => {
+    if (!creatorName.trim()) {
+      setError('Please enter your name');
+      return;
+    }
+
     try {
       setLoading(true);
-      const now = new Date();
-      const deadline = manualClose
-        ? null
-        : addDays(now, submissionDays).toISOString();
-
-      const electionData: RunningElection = {
+      const electionData: Election = {
         title: electionTitle,
         candidates: candidates,
         votes: [],
-        createdAt: now.toISOString(),
-        allowNewCandidates: isOpenElection,
-        submissionDeadline: deadline,
-        votingOpen: !isOpenElection, // If not open, it's closed by default
-        creatorId: 'user-id',
+        createdAt: new Date().toISOString(),
+        submissionsClosed: false,
+        votingOpen: isOpen, // Use isOpen to set initial votingOpen state
+        createdBy: creatorName,
       };
 
       const docRef = await addDoc(collection(db, 'elections'), electionData);
@@ -134,9 +130,33 @@ function App() {
       setLoading(false);
     }
   };
+
+  const closeSubmissions = async () => {
+    if (!electionId) return;
+
+    try {
+      setLoading(true);
+      const electionRef = doc(db, 'elections', electionId);
+      await updateDoc(electionRef, {
+        submissionsClosed: true,
+      });
+      await loadElection(electionId);
+    } catch (err) {
+      setError('Error closing submissions');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const submitVote = async () => {
     if (!voterName.trim() || !electionId) {
       setError('Please enter your name');
+      return;
+    }
+
+    if (election?.votingOpen && !election?.submissionsClosed) {
+      setError('Voting will begin after the submission period is closed');
       return;
     }
 
@@ -198,11 +218,8 @@ function App() {
     }
 
     const items = Array.from(candidates);
-    const reorderedItem =
-      result.source.index >= 0 ? items[result.source.index] : null;
-    if (!reorderedItem) return;
+    const [reorderedItem] = items.splice(result.source.index, 1);
     items.splice(result.destination.index, 0, reorderedItem);
-
     setCandidates(items);
   };
 
@@ -235,6 +252,7 @@ function App() {
               </div>
             )}
 
+            {/* Home mode */}
             {mode === 'home' && (
               <div className="space-y-4">
                 <Button
@@ -247,15 +265,35 @@ function App() {
               </div>
             )}
 
+            {/* Create mode */}
             {mode === 'create' && (
               <div className="space-y-6">
                 <div className="space-y-4">
+                  <Input
+                    value={creatorName}
+                    onChange={(e) => setCreatorName(e.target.value)}
+                    placeholder="Your Name"
+                    className="w-full"
+                  />
                   <Input
                     value={electionTitle}
                     onChange={(e) => setElectionTitle(e.target.value)}
                     placeholder="Election Title"
                     className="w-full"
                   />
+
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="isOpen"
+                      checked={isOpen}
+                      onChange={(e) => setIsOpen(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                    <label htmlFor="isOpen" className="text-sm text-gray-700">
+                      Allow voters to add candidates during submission period
+                    </label>
+                  </div>
 
                   <div className="flex gap-2">
                     <Input
@@ -271,6 +309,7 @@ function App() {
                   </div>
                 </div>
 
+                {/* Draggable candidate list */}
                 <DragDropContext onDragEnd={handleDragEnd}>
                   <Droppable droppableId="candidates">
                     {(provided) => (
@@ -315,6 +354,7 @@ function App() {
                   </Droppable>
                 </DragDropContext>
 
+                {/* Create election button and share URLs */}
                 {candidates.length > 0 && (
                   <Button className="w-full" size="lg" onClick={createElection}>
                     Create Election
@@ -354,14 +394,49 @@ function App() {
               </div>
             )}
 
+            {/* Vote mode */}
             {mode === 'vote' && election && (
               <div className="space-y-6">
+                {election.votingOpen && !election.submissionsClosed && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                    <p className="text-yellow-800">
+                      This election is in the submission period. You can add
+                      candidates before voting begins.
+                    </p>
+                    {election.createdBy === voterName && (
+                      <Button
+                        onClick={closeSubmissions}
+                        variant="secondary"
+                        className="mt-2"
+                      >
+                        Close Submission Period
+                      </Button>
+                    )}
+                  </div>
+                )}
+
                 <Input
                   value={voterName}
                   onChange={(e) => setVoterName(e.target.value)}
                   placeholder="Your Name"
                   className="w-full"
                 />
+
+                {election.votingOpen && !election.submissionsClosed && (
+                  <div className="space-y-4">
+                    <div className="flex gap-2">
+                      <Input
+                        value={newCandidate}
+                        onChange={(e) => setNewCandidate(e.target.value)}
+                        placeholder="Add a new candidate..."
+                        onKeyPress={(e) => e.key === 'Enter' && addCandidate()}
+                      />
+                      <Button onClick={addCandidate} variant="secondary">
+                        <Plus className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
                 <div className="space-y-4">
                   <div className="text-sm text-slate-500 space-y-1">
@@ -443,6 +518,7 @@ function App() {
               </div>
             )}
 
+            {/* Success mode */}
             {mode === 'success' && (
               <div className="text-center py-6 space-y-4">
                 <h2 className="text-xl font-bold text-slate-900">
@@ -452,6 +528,7 @@ function App() {
               </div>
             )}
 
+            {/* Results mode */}
             {mode === 'results' && election && (
               <ElectionResults election={election} />
             )}
@@ -461,5 +538,4 @@ function App() {
     </div>
   );
 }
-
 export default App;
