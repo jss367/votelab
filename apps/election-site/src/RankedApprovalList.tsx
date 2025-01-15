@@ -48,7 +48,9 @@ const RankedApprovalList: React.FC<RankedApprovalListProps> = ({
     const destinationIndex = result.destination.index;
 
     const newItems = Array.from(items);
-    const [removed] = newItems.splice(sourceIndex, 1);
+    const [removed] = newItems.splice(sourceIndex, 1) as [
+      { id: string; name: string },
+    ];
     newItems.splice(destinationIndex, 0, removed);
 
     setItems(newItems);
