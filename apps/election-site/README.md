@@ -1,6 +1,6 @@
 # rank-and-approve-voting
 
-The code for my rank and approve voting firebase app
+The code for a Rank and Approve Voting Firebase app
 
 ## Testing (Run locally)
 
