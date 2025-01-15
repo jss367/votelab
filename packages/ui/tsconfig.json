@@ -3,6 +3,8 @@
     "compilerOptions": {
         "moduleResolution": "node16",
         "module": "node16",
+        "declaration": true,
+        "declarationDir": "./dist",
         "jsx": "react-jsx",
         "outDir": "dist",
         "baseUrl": ".",
