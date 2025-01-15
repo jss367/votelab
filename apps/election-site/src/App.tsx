@@ -112,8 +112,8 @@ function App() {
         candidates: candidates,
         votes: [],
         createdAt: new Date().toISOString(),
-        submissionsClosed: false,
-        votingOpen: isOpen, // Use isOpen to set initial votingOpen state
+        submissionsClosed: !isOpen, // If isOpen is true, submissions are not closed
+        votingOpen: !isOpen, // If isOpen is true, voting is not open yet
         createdBy: creatorName,
       };
 
@@ -174,8 +174,8 @@ function App() {
       return;
     }
 
-    if (election?.votingOpen && !election?.submissionsClosed) {
-      setError('Voting will begin after the submission period is closed');
+    if (!election?.votingOpen) {
+      setError('Voting is not currently open for this election');
       return;
     }
 
@@ -422,8 +422,8 @@ function App() {
                     <p className="text-yellow-800">
                       This election is in the submission period.
                       {election.votingOpen
-                        ? 'You can add candidates before voting begins.'
-                        : 'Waiting for the submission period to end before voting can begin.'}
+                        ? 'You can add candidates and vote.'
+                        : 'You can add candidates. Voting will begin when the submission period ends.'}
                     </p>
                     {election.createdBy === voterName && (
                       <Button
@@ -452,8 +452,8 @@ function App() {
                   className="w-full"
                 />
 
-                {/* Candidate submission form - only show during submission period */}
-                {!election.submissionsClosed && election.votingOpen && (
+                {/* Candidate submission form - show during submission period */}
+                {!election.submissionsClosed && (
                   <div className="space-y-4">
                     <div className="flex gap-2">
                       <Input
@@ -469,8 +469,8 @@ function App() {
                   </div>
                 )}
 
-                {/* Voting interface - only show when voting is open */}
-                {election.votingOpen && (
+                {/* Voting interface - show when submissions are closed or voting is open */}
+                {(election.submissionsClosed || election.votingOpen) && (
                   <>
                     <div className="text-sm text-slate-500 space-y-1">
                       <p>
@@ -541,21 +541,22 @@ function App() {
                       </Droppable>
                     </DragDropContext>
 
-                    {election.createdBy === voterName && (
-                      <Button
-                        onClick={closeVoting}
-                        variant="secondary"
-                        className="w-full"
-                      >
-                        Close Voting
-                      </Button>
-                    )}
+                    {election.createdBy === voterName &&
+                      election.votingOpen && (
+                        <Button
+                          onClick={closeVoting}
+                          variant="secondary"
+                          className="w-full"
+                        >
+                          Close Voting
+                        </Button>
+                      )}
 
                     <Button
                       className="w-full"
                       size="lg"
                       onClick={submitVote}
-                      disabled={!voterName.trim()}
+                      disabled={!voterName.trim() || !election.votingOpen}
                     >
                       Submit Vote
                     </Button>
