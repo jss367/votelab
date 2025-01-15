@@ -359,6 +359,21 @@ function App() {
                   )}
                 </div>
 
+                {/* Add candidate input */}
+                <div className="space-y-4">
+                  <div className="flex gap-2">
+                    <Input
+                      value={newCandidate}
+                      onChange={(e) => setNewCandidate(e.target.value)}
+                      placeholder="Add a new candidate..."
+                      onKeyPress={(e) => e.key === 'Enter' && addCandidate()}
+                    />
+                    <Button onClick={addCandidate} variant="secondary">
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+
                 {/* Draggable candidate list */}
                 <DragDropContext onDragEnd={handleDragEnd}>
                   <Droppable droppableId="candidates">
