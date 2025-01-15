@@ -144,7 +144,6 @@ function App() {
       await updateDoc(electionRef, {
         submissionsClosed: true,
         votingOpen: true,
-        candidates: candidates,
       });
       await loadElection(electionId);
     } catch (err) {
@@ -210,14 +209,31 @@ function App() {
     }
   };
 
-  const addCandidate = () => {
-    if (newCandidate.trim()) {
+  const addCandidate = async () => {
+    if (!newCandidate.trim() || !electionId) {
+      return;
+    }
+
+    try {
+      setLoading(true);
       const newCand: Candidate = {
         id: Date.now().toString(),
         name: newCandidate.trim(),
       };
-      setCandidates([...candidates, newCand]);
+
+      const electionRef = doc(db, 'elections', electionId);
+      await updateDoc(electionRef, {
+        candidates: arrayUnion(newCand),
+      });
+
+      // Reload the election to get the updated candidates list
+      await loadElection(electionId);
       setNewCandidate('');
+    } catch (err) {
+      setError('Error adding candidate');
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -445,11 +461,28 @@ function App() {
                         <Plus className="w-4 h-4" />
                       </Button>
                     </div>
+
+                    {/* Show existing candidates from the election */}
+                    <div className="mt-4">
+                      <h3 className="text-sm font-medium text-slate-900 mb-2">
+                        Current Candidates:
+                      </h3>
+                      <div className="space-y-2">
+                        {election.candidates.map((candidate) => (
+                          <div
+                            key={candidate.id}
+                            className="p-2 bg-slate-50 rounded-md border border-slate-200"
+                          >
+                            {candidate.name}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 )}
 
                 {/* Voting interface - show when submissions are closed or voting is open */}
-                {(election.submissionsClosed || election.votingOpen) && (
+                {election.votingOpen && (
                   <>
                     <div className="text-sm text-slate-500 space-y-1">
                       <p>
