@@ -44,11 +44,3 @@ export interface CandidateMetrics {
   headToHead: number;
   margin: number;
 }
-
-export interface CandidateScore {
-  name: string;
-  rank: number;
-  isTied: boolean;
-  metrics: CandidateMetrics;
-  description: string;
-}
