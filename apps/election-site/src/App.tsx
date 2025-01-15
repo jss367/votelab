@@ -223,6 +223,9 @@ function App() {
   };
 
   const addCandidate = async () => {
+    console.log('Add Candidate clicked');
+    console.log('newCandidate:', newCandidate);
+    console.log('electionId:', electionId);
     if (!newCandidate.trim() || !electionId) {
       return;
     }
@@ -265,6 +268,76 @@ function App() {
       setLoading(false);
     }
   };
+
+  const addLocalCandidate = () => {
+    console.log('Adding local candidate in creation mode');
+    console.log('Current newCandidate:', newCandidate);
+
+    if (!newCandidate.trim()) {
+      setError('Please enter a candidate name');
+      return;
+    }
+
+    const newCand = {
+      id: Date.now().toString(),
+      name: newCandidate.trim(),
+      customFields: newCandidateFields,
+    };
+
+    console.log('Adding new candidate:', newCand);
+    setCandidates([...candidates, newCand]);
+    setNewCandidate('');
+    setNewCandidateFields([]);
+    console.log('Updated candidates list:', [...candidates, newCand]);
+  };
+
+  const addExistingElectionCandidate = async () => {
+    console.log('Adding candidate to existing election');
+    if (!newCandidate.trim() || !electionId) {
+      console.log('Validation failed:', { newCandidate, electionId });
+      setError('Please enter a candidate name');
+      return;
+    }
+
+    // Validate required fields
+    if (election?.customFields) {
+      const missingRequired = election.customFields
+        .filter((field) => field.required)
+        .some(
+          (field) =>
+            !newCandidateFields.find((f) => f.fieldId === field.id && f.value)
+        );
+
+      if (missingRequired) {
+        setError('Please fill in all required fields');
+        return;
+      }
+    }
+
+    try {
+      setLoading(true);
+      const newCand = {
+        id: Date.now().toString(),
+        name: newCandidate.trim(),
+        customFields: newCandidateFields,
+      };
+
+      const electionRef = doc(db, 'elections', electionId);
+      await updateDoc(electionRef, {
+        candidates: arrayUnion(newCand),
+      });
+
+      await loadElection(electionId);
+      setNewCandidate('');
+      setNewCandidateFields([]);
+    } catch (err) {
+      console.error('Error adding candidate:', err);
+      setError('Error adding candidate');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const removeCandidate = (id: string) => {
     setCandidates(candidates.filter((c) => c.id !== id));
     const newApproved = new Set(approvedCandidates);
@@ -389,7 +462,14 @@ function App() {
                       onChange={setNewCandidateFields}
                     />
                   )}
-                  <Button onClick={addCandidate} className="w-full">
+                  <Button
+                    onClick={
+                      mode === 'create'
+                        ? addLocalCandidate
+                        : addExistingElectionCandidate
+                    }
+                    className="w-full"
+                  >
                     Add Candidate
                   </Button>
                 </div>
