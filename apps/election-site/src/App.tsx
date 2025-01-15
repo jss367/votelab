@@ -9,11 +9,19 @@ import {
   getFirestore,
   updateDoc,
 } from 'firebase/firestore';
-import { Copy, Plus } from 'lucide-react';
+import { Copy } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
+import CustomFieldsInput from './CustomFieldsInput';
+import CustomFieldsManager from './CustomFieldsManager';
 import ElectionResults from './ElectionResults';
 import RankedApprovalList from './RankedApprovalList';
-import { Candidate, Election, Vote } from './types';
+import {
+  Candidate,
+  CustomField,
+  CustomFieldValue,
+  Election,
+  Vote,
+} from './types';
 
 // Firebase config
 const firebaseConfig = {
@@ -48,6 +56,10 @@ function App() {
   const [error, setError] = useState('');
   const [shareUrl, setShareUrl] = useState('');
   const [resultsUrl, setResultsUrl] = useState('');
+  const [customFields, setCustomFields] = useState<CustomField[]>([]);
+  const [newCandidateFields, setNewCandidateFields] = useState<
+    CustomFieldValue[]
+  >([]);
 
   const loadElection = useCallback(async (id: string) => {
     try {
@@ -117,6 +129,7 @@ function App() {
         submissionsClosed: !isOpen,
         votingOpen: !isOpen,
         createdBy: creatorName.trim(),
+        customFields: customFields,
       };
 
       const docRef = await addDoc(collection(db, 'elections'), electionData);
@@ -210,8 +223,26 @@ function App() {
   };
 
   const addCandidate = async () => {
+    console.log('Add Candidate clicked');
+    console.log('newCandidate:', newCandidate);
+    console.log('electionId:', electionId);
     if (!newCandidate.trim() || !electionId) {
       return;
+    }
+
+    // Validate required fields
+    if (election?.customFields) {
+      const missingRequired = election.customFields
+        .filter((field) => field.required)
+        .some(
+          (field) =>
+            !newCandidateFields.find((f) => f.fieldId === field.id && f.value)
+        );
+
+      if (missingRequired) {
+        setError('Please fill in all required fields');
+        return;
+      }
     }
 
     try {
@@ -219,6 +250,7 @@ function App() {
       const newCand: Candidate = {
         id: Date.now().toString(),
         name: newCandidate.trim(),
+        customFields: newCandidateFields,
       };
 
       const electionRef = doc(db, 'elections', electionId);
@@ -226,12 +258,81 @@ function App() {
         candidates: arrayUnion(newCand),
       });
 
-      // Reload the election to get the updated candidates list
       await loadElection(electionId);
       setNewCandidate('');
+      setNewCandidateFields([]); // Reset custom fields after adding
     } catch (err) {
       setError('Error adding candidate');
       console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addLocalCandidate = () => {
+    console.log('Adding local candidate in creation mode');
+    console.log('Current newCandidate:', newCandidate);
+
+    if (!newCandidate.trim()) {
+      setError('Please enter a candidate name');
+      return;
+    }
+
+    const newCand = {
+      id: Date.now().toString(),
+      name: newCandidate.trim(),
+      customFields: newCandidateFields,
+    };
+
+    console.log('Adding new candidate:', newCand);
+    setCandidates([...candidates, newCand]);
+    setNewCandidate('');
+    setNewCandidateFields([]);
+    console.log('Updated candidates list:', [...candidates, newCand]);
+  };
+
+  const addExistingElectionCandidate = async () => {
+    console.log('Adding candidate to existing election');
+    if (!newCandidate.trim() || !electionId) {
+      console.log('Validation failed:', { newCandidate, electionId });
+      setError('Please enter a candidate name');
+      return;
+    }
+
+    // Validate required fields
+    if (election?.customFields) {
+      const missingRequired = election.customFields
+        .filter((field) => field.required)
+        .some(
+          (field) =>
+            !newCandidateFields.find((f) => f.fieldId === field.id && f.value)
+        );
+
+      if (missingRequired) {
+        setError('Please fill in all required fields');
+        return;
+      }
+    }
+
+    try {
+      setLoading(true);
+      const newCand = {
+        id: Date.now().toString(),
+        name: newCandidate.trim(),
+        customFields: newCandidateFields,
+      };
+
+      const electionRef = doc(db, 'elections', electionId);
+      await updateDoc(electionRef, {
+        candidates: arrayUnion(newCand),
+      });
+
+      await loadElection(electionId);
+      setNewCandidate('');
+      setNewCandidateFields([]);
+    } catch (err) {
+      console.error('Error adding candidate:', err);
+      setError('Error adding candidate');
     } finally {
       setLoading(false);
     }
@@ -341,20 +442,36 @@ function App() {
                     </div>
                   )}
                 </div>
+                <CustomFieldsManager
+                  fields={customFields}
+                  onChange={setCustomFields}
+                />
 
                 {/* Add candidate input */}
                 <div className="space-y-4">
-                  <div className="flex gap-2">
-                    <Input
-                      value={newCandidate}
-                      onChange={(e) => setNewCandidate(e.target.value)}
-                      placeholder="Add a new candidate..."
-                      onKeyPress={(e) => e.key === 'Enter' && addCandidate()}
+                  <Input
+                    value={newCandidate}
+                    onChange={(e) => setNewCandidate(e.target.value)}
+                    placeholder="Candidate Name"
+                    className="w-full"
+                  />
+                  {customFields.length > 0 && (
+                    <CustomFieldsInput
+                      fields={customFields}
+                      values={newCandidateFields}
+                      onChange={setNewCandidateFields}
                     />
-                    <Button onClick={addCandidate} variant="secondary">
-                      <Plus className="w-4 h-4" />
-                    </Button>
-                  </div>
+                  )}
+                  <Button
+                    onClick={
+                      mode === 'create'
+                        ? addLocalCandidate
+                        : addExistingElectionCandidate
+                    }
+                    className="w-full"
+                  >
+                    Add Candidate
+                  </Button>
                 </div>
 
                 {/* Candidate list */}
@@ -455,14 +572,29 @@ function App() {
                         value={newCandidate}
                         onChange={(e) => setNewCandidate(e.target.value)}
                         placeholder="Add a new candidate..."
-                        onKeyPress={(e) => e.key === 'Enter' && addCandidate()}
+                        onKeyPress={(e) =>
+                          e.key === 'Enter' && addExistingElectionCandidate()
+                        }
                       />
-                      <Button onClick={addCandidate} variant="secondary">
-                        <Plus className="w-4 h-4" />
+                      <Button
+                        onClick={addExistingElectionCandidate}
+                        variant="secondary"
+                        className="px-3"
+                      >
+                        Add
                       </Button>
                     </div>
 
-                    {/* Show existing candidates from the election */}
+                    {election.customFields &&
+                      election.customFields.length > 0 && (
+                        <CustomFieldsInput
+                          fields={election.customFields}
+                          values={newCandidateFields}
+                          onChange={setNewCandidateFields}
+                        />
+                      )}
+
+                    {/* Show existing candidates */}
                     <div className="mt-4">
                       <h3 className="text-sm font-medium text-slate-900 mb-2">
                         Current Candidates:
@@ -473,7 +605,30 @@ function App() {
                             key={candidate.id}
                             className="p-2 bg-slate-50 rounded-md border border-slate-200"
                           >
-                            {candidate.name}
+                            <div className="font-medium">{candidate.name}</div>
+                            {candidate.customFields &&
+                              candidate.customFields.length > 0 && (
+                                <div className="mt-1 text-sm text-slate-600">
+                                  {candidate.customFields.map((field) => {
+                                    const fieldDef =
+                                      election.customFields?.find(
+                                        (f) => f.id === field.fieldId
+                                      );
+                                    if (!fieldDef) return null;
+                                    return (
+                                      <span
+                                        key={field.fieldId}
+                                        className="inline-block mr-3"
+                                      >
+                                        <span className="font-medium">
+                                          {fieldDef.name}:
+                                        </span>{' '}
+                                        {field.value?.toString()}
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              )}
                           </div>
                         ))}
                       </div>

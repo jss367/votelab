@@ -34,7 +34,9 @@ const RankedApprovalList: React.FC<RankedApprovalListProps> = ({
   }, [candidates]);
 
   const onDragEnd = (result: any) => {
-    if (!result.destination) return;
+    if (!result.destination) {
+      return;
+    }
 
     const newItems = Array.from(items);
     const [reorderedItem] = newItems.splice(result.source.index, 1);
@@ -57,10 +59,14 @@ const RankedApprovalList: React.FC<RankedApprovalListProps> = ({
   };
 
   const handleApprovalLineMove = (e: MouseEvent) => {
-    if (!isDraggingLine) return;
+    if (!isDraggingLine) {
+      return;
+    }
 
     const container = document.getElementById('candidate-list');
-    if (!container) return;
+    if (!container) {
+      return;
+    }
 
     const bounds = container.getBoundingClientRect();
     const itemElements = Array.from(container.children);
