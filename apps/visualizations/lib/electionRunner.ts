@@ -14,15 +14,16 @@ export type ElectionMethod =
   | 'condorcet'
   | 'smithApproval';
 
-type ElectionRound = ElectionResult[];
-
 export const methodDescriptions = {
   plurality: "Each voter's first choice gets one vote. Most votes wins.",
   approval: 'Each approved candidate gets one vote. Most votes wins.',
   irv: 'Eliminate last-place candidate and redistribute their votes until majority reached.',
-  borda: 'Points assigned by rank (n-1 for 1st, n-2 for 2nd, etc). Most points wins.',
-  condorcet: 'Winner must beat all other candidates in head-to-head comparisons. Falls back to IRV if no such winner exists.',
-  smithApproval: 'Find smallest set of candidates who beat all others, then use approval voting among them.',
+  borda:
+    'Points assigned by rank (n-1 for 1st, n-2 for 2nd, etc). Most points wins.',
+  condorcet:
+    'Winner must beat all other candidates in head-to-head comparisons. Falls back to IRV if no such winner exists.',
+  smithApproval:
+    'Find smallest set of candidates who beat all others, then use approval voting among them.',
 };
 
 interface ElectionResults {
@@ -31,7 +32,10 @@ interface ElectionResults {
   voteCounts: Record<string, number>;
 }
 
-function runPluralityElection(votes: Vote[], candidates: Candidate[]): ElectionResults {
+function runPluralityElection(
+  votes: Vote[],
+  candidates: Candidate[]
+): ElectionResults {
   const voteCounts: Record<string, number> = {};
   candidates.forEach((c) => (voteCounts[c.id] = 0));
 
@@ -53,7 +57,10 @@ function runPluralityElection(votes: Vote[], candidates: Candidate[]): ElectionR
   };
 }
 
-function runApprovalElection(votes: Vote[], candidates: Candidate[]): ElectionResults {
+function runApprovalElection(
+  votes: Vote[],
+  candidates: Candidate[]
+): ElectionResults {
   const voteCounts: Record<string, number> = {};
   candidates.forEach((c) => (voteCounts[c.id] = 0));
 
@@ -75,7 +82,10 @@ function runApprovalElection(votes: Vote[], candidates: Candidate[]): ElectionRe
   };
 }
 
-function runBordaElection(votes: Vote[], candidates: Candidate[]): ElectionResults {
+function runBordaElection(
+  votes: Vote[],
+  candidates: Candidate[]
+): ElectionResults {
   const voteCounts: Record<string, number> = {};
   candidates.forEach((c) => (voteCounts[c.id] = 0));
 
@@ -99,7 +109,10 @@ function runBordaElection(votes: Vote[], candidates: Candidate[]): ElectionResul
   };
 }
 
-function runIRVElection(votes: Vote[], candidates: Candidate[]): ElectionResults {
+function runIRVElection(
+  votes: Vote[],
+  candidates: Candidate[]
+): ElectionResults {
   let remainingCandidates = [...candidates];
   const currentBallots = [...votes];
   const rounds: string[] = [];
@@ -149,12 +162,15 @@ function runIRVElection(votes: Vote[], candidates: Candidate[]): ElectionResults
   };
 }
 
-function runCondorcetElection(votes: Vote[], candidates: Candidate[]): ElectionResults {
+function runCondorcetElection(
+  votes: Vote[],
+  candidates: Candidate[]
+): ElectionResults {
   // Create pairwise preference matrix
   const preferences: Record<string, Record<string, number>> = {};
-  candidates.forEach(c1 => {
+  candidates.forEach((c1) => {
     preferences[c1.id] = {};
-    candidates.forEach(c2 => {
+    candidates.forEach((c2) => {
       if (c1.id !== c2.id) {
         preferences[c1.id][c2.id] = 0;
       }
@@ -162,7 +178,7 @@ function runCondorcetElection(votes: Vote[], candidates: Candidate[]): ElectionR
   });
 
   // Count pairwise preferences
-  votes.forEach(vote => {
+  votes.forEach((vote) => {
     for (let i = 0; i < vote.ranking.length; i++) {
       for (let j = i + 1; j < vote.ranking.length; j++) {
         preferences[vote.ranking[i]][vote.ranking[j]]++;
@@ -195,7 +211,7 @@ function runCondorcetElection(votes: Vote[], candidates: Candidate[]): ElectionR
     return {
       winner: condorcetWinner,
       roundDetails: details,
-      voteCounts: { [condorcetWinner]: votes.length }
+      voteCounts: { [condorcetWinner]: votes.length },
     };
   }
 
@@ -204,7 +220,7 @@ function runCondorcetElection(votes: Vote[], candidates: Candidate[]): ElectionR
   const irvResult = runIRVElection(votes, candidates);
   return {
     ...irvResult,
-    roundDetails: [...details, ...irvResult.roundDetails]
+    roundDetails: [...details, ...irvResult.roundDetails],
   };
 }
 

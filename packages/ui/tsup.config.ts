@@ -8,8 +8,15 @@ export default defineConfig({
   },
   sourcemap: true,
   clean: true,
-  bundle: true, // Bundle all code into one file
+  bundle: true,
   splitting: false,
   tsconfig: 'tsconfig.json',
-  external: [],
+  external: [
+    'react',
+    'react-dom',
+    '@radix-ui/react-slot',
+    'class-variance-authority',
+    'clsx',
+    'tailwind-merge',
+  ],
 });

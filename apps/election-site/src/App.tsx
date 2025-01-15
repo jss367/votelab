@@ -614,7 +614,9 @@ function App() {
                                       election.customFields?.find(
                                         (f) => f.id === field.fieldId
                                       );
-                                    if (!fieldDef) return null;
+                                    if (!fieldDef) {
+                                      return null;
+                                    }
                                     return (
                                       <span
                                         key={field.fieldId}

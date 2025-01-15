@@ -1,4 +1,9 @@
-import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd';
+import {
+  DragDropContext,
+  Draggable,
+  Droppable,
+  DropResult,
+} from '@hello-pangea/dnd';
 import { Button } from '@repo/ui';
 import { ArrowDown, ArrowUp, Grip, Trash2 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
@@ -19,7 +24,8 @@ const RankedApprovalList: React.FC<RankedApprovalListProps> = ({
   onRemove,
   showApprovalLine = false,
 }) => {
-  const [items, setItems] = useState(candidates);
+  const [items, setItems] =
+    useState<Array<{ id: string; name: string }>>(candidates);
   const [approvalLine, setApprovalLine] = useState(
     Math.floor(candidates.length / 2)
   );
@@ -33,14 +39,19 @@ const RankedApprovalList: React.FC<RankedApprovalListProps> = ({
     setItems(candidates);
   }, [candidates]);
 
-  const onDragEnd = (result: any) => {
+  const onDragEnd = (result: DropResult) => {
     if (!result.destination) {
       return;
     }
 
+    const sourceIndex = result.source.index;
+    const destinationIndex = result.destination.index;
+
     const newItems = Array.from(items);
-    const [reorderedItem] = newItems.splice(result.source.index, 1);
-    newItems.splice(result.destination.index, 0, reorderedItem);
+    const [removed] = newItems.splice(sourceIndex, 1) as [
+      { id: string; name: string },
+    ];
+    newItems.splice(destinationIndex, 0, removed);
 
     setItems(newItems);
     onChange({
@@ -68,11 +79,9 @@ const RankedApprovalList: React.FC<RankedApprovalListProps> = ({
       return;
     }
 
-    const bounds = container.getBoundingClientRect();
     const itemElements = Array.from(container.children);
     const mouseY = e.clientY;
 
-    // Find the closest snap point (item boundary)
     let closestIndex = lastSnapIndex;
     let closestDistance = Infinity;
 
@@ -81,15 +90,12 @@ const RankedApprovalList: React.FC<RankedApprovalListProps> = ({
       const itemCenter = itemBounds.top + itemBounds.height / 2;
       const distance = Math.abs(itemCenter - mouseY);
 
-      // Add a "snap zone" threshold
       if (distance < closestDistance && distance < 30) {
-        // 30px snap threshold
         closestDistance = distance;
         closestIndex = index;
       }
     });
 
-    // Only update if we've moved to a new snap point
     if (closestIndex !== lastSnapIndex) {
       setLastSnapIndex(closestIndex);
       setApprovalLine(closestIndex);

@@ -28,15 +28,20 @@ export const DEFAULT_VARIANCE = 0.1;
 
 // Box-Muller transform for normal distribution
 const randn_bm = (): number => {
-  let u = 0, v = 0;
+  let u = 0,
+    v = 0;
   while (u === 0) u = Math.random();
   while (v === 0) v = Math.random();
   return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
 };
 
 // Base utility functions
-export const distance = (x1: number, y1: number, x2: number, y2: number): number => 
-  Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+export const distance = (
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number
+): number => Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
 
 export const getWeight = (dist: number, radius: number): number => {
   if (dist >= radius) return 0;
@@ -59,19 +64,21 @@ export const getVoterPreference = (
 };
 
 // Generate normally distributed voters around a point
-function generateVoterDistribution(params: VoterDistribution): Array<{x: number, y: number}> {
+function generateVoterDistribution(
+  params: VoterDistribution
+): Array<{ x: number; y: number }> {
   const voters = [];
-  
+
   for (let i = 0; i < params.count; i++) {
     let x: number, y: number;
     do {
-      x = params.mean.x + (randn_bm() * params.variance);
-      y = params.mean.y + (randn_bm() * params.variance);
+      x = params.mean.x + randn_bm() * params.variance;
+      y = params.mean.y + randn_bm() * params.variance;
     } while (x < 0 || x > 1 || y < 0 || y > 1);
-    
+
     voters.push({ x, y });
   }
-  
+
   return voters;
 }
 
@@ -80,48 +87,53 @@ function simulateElectionAtPoint(
   point: { x: number; y: number },
   candidates: SpatialCandidate[],
   method: VotingMethod,
-  voterParams: Omit<VoterDistribution, 'mean'> = { 
-    count: DEFAULT_VOTER_COUNT, 
-    variance: DEFAULT_VARIANCE 
+  voterParams: Omit<VoterDistribution, 'mean'> = {
+    count: DEFAULT_VOTER_COUNT,
+    variance: DEFAULT_VARIANCE,
   }
 ): string[] {
   // Generate voter distribution centered at this point
   const voters = generateVoterDistribution({
     mean: point,
-    ...voterParams
+    ...voterParams,
   });
-  
+
   // Generate ballots for each voter based on their position
-  const votes = voters.map(voter => {
+  const votes = voters.map((voter) => {
     const prefs = getVoterPreference(voter.x, voter.y, candidates);
-    
+
     return {
-      ranking: prefs.map(p => p.id),
-      approved: method === 'approval' ? 
-        prefs
-          .filter(p => p.dist <= DEFAULT_APPROVAL_THRESHOLD)
-          .map(p => p.id) : 
-        [],
+      ranking: prefs.map((p) => p.id),
+      approved:
+        method === 'approval'
+          ? prefs
+              .filter((p) => p.dist <= DEFAULT_APPROVAL_THRESHOLD)
+              .map((p) => p.id)
+          : [],
       timestamp: new Date().toISOString(),
-      voterName: `sim-voter-${Math.random()}`
+      voterName: `sim-voter-${Math.random()}`,
     };
   });
 
   // Run election
-  const results = method === 'condorcet' ?
-    runCondorcetElection(votes, candidates) :
-    runElection(method, votes, candidates);
+  const results =
+    method === 'condorcet'
+      ? runCondorcetElection(votes, candidates)
+      : runElection(method, votes, candidates);
 
   return Array.isArray(results.winner) ? results.winner : [results.winner];
 }
 
 // Condorcet implementation
-function runCondorcetElection(votes: Vote[], candidates: Candidate[]): ElectionResults {
+function runCondorcetElection(
+  votes: Vote[],
+  candidates: Candidate[]
+): ElectionResults {
   // Create pairwise preference matrix
   const preferences: Record<string, Record<string, number>> = {};
-  candidates.forEach(c1 => {
+  candidates.forEach((c1) => {
     preferences[c1.id] = {};
-    candidates.forEach(c2 => {
+    candidates.forEach((c2) => {
       if (c1.id !== c2.id) {
         preferences[c1.id][c2.id] = 0;
       }
@@ -129,7 +141,7 @@ function runCondorcetElection(votes: Vote[], candidates: Candidate[]): ElectionR
   });
 
   // Count pairwise preferences
-  votes.forEach(vote => {
+  votes.forEach((vote) => {
     for (let i = 0; i < vote.ranking.length; i++) {
       for (let j = i + 1; j < vote.ranking.length; j++) {
         preferences[vote.ranking[i]][vote.ranking[j]]++;
@@ -162,36 +174,55 @@ function runCondorcetElection(votes: Vote[], candidates: Candidate[]): ElectionR
   return {
     winner: condorcetWinner,
     roundDetails: ['Condorcet winner found'],
-    voteCounts: { [condorcetWinner]: votes.length }
+    voteCounts: { [condorcetWinner]: votes.length },
   };
 }
 
 // Method calculator types
-type BaseCalculator = (x: number, y: number, candidates: SpatialCandidate[]) => string[];
-type ThresholdCalculator = (x: number, y: number, candidates: SpatialCandidate[], threshold: number) => string[];
+type BaseCalculator = (
+  x: number,
+  y: number,
+  candidates: SpatialCandidate[]
+) => string[];
+type ThresholdCalculator = (
+  x: number,
+  y: number,
+  candidates: SpatialCandidate[],
+  threshold: number
+) => string[];
 
-export type SpatialVoteCalculator<M extends VotingMethod> = 
-  M extends 'approval' | 'smithApproval' ? ThresholdCalculator : BaseCalculator;
+export type SpatialVoteCalculator<M extends VotingMethod> = M extends
+  | 'approval'
+  | 'smithApproval'
+  ? ThresholdCalculator
+  : BaseCalculator;
 
 // The actual calculators
 export const spatialVoteCalculators = {
-  plurality: ((x, y, candidates) => 
-    simulateElectionAtPoint({x, y}, candidates, 'plurality')
-  ) as BaseCalculator,
-    
-  approval: ((x, y, candidates, threshold) =>
-    simulateElectionAtPoint({x, y}, candidates, 'approval')
-  ) as ThresholdCalculator,
-    
+  plurality: ((x, y, candidates) =>
+    simulateElectionAtPoint(
+      { x, y },
+      candidates,
+      'plurality'
+    )) as BaseCalculator,
+
+  approval: ((x, y, candidates) =>
+    simulateElectionAtPoint(
+      { x, y },
+      candidates,
+      'approval'
+    )) as ThresholdCalculator,
+
   irv: ((x, y, candidates) =>
-    simulateElectionAtPoint({x, y}, candidates, 'irv')
-  ) as BaseCalculator,
-    
+    simulateElectionAtPoint({ x, y }, candidates, 'irv')) as BaseCalculator,
+
   condorcet: ((x, y, candidates) =>
-    simulateElectionAtPoint({x, y}, candidates, 'condorcet')
-  ) as BaseCalculator,
-    
+    simulateElectionAtPoint(
+      { x, y },
+      candidates,
+      'condorcet'
+    )) as BaseCalculator,
+
   borda: ((x, y, candidates) =>
-    simulateElectionAtPoint({x, y}, candidates, 'borda')
-  ) as BaseCalculator
+    simulateElectionAtPoint({ x, y }, candidates, 'borda')) as BaseCalculator,
 } as const;
