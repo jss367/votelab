@@ -448,12 +448,12 @@ function App() {
                 />
 
                 {/* Add candidate input */}
-                <div className="space-y-4">
+                <div className="space-y-4 p-4 bg-slate-100 rounded-lg border border-slate-200">
                   <Input
                     value={newCandidate}
                     onChange={(e) => setNewCandidate(e.target.value)}
                     placeholder="Candidate Name"
-                    className="w-full"
+                    className="w-full bg-white"
                   />
                   {customFields.length > 0 && (
                     <CustomFieldsInput
@@ -469,6 +469,7 @@ function App() {
                         : addExistingElectionCandidate
                     }
                     className="w-full"
+                    size="lg"
                   >
                     Add Candidate
                   </Button>

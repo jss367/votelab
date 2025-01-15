@@ -1,11 +1,5 @@
 import { Candidate, Election, Vote } from '@votelab/shared-utils';
 
-interface ElectionResult {
-  name: string;
-  votes: number;
-  status: string;
-}
-
 export type ElectionMethod =
   | 'plurality'
   | 'approval'
