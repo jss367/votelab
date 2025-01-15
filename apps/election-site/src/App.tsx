@@ -11,9 +11,17 @@ import {
 } from 'firebase/firestore';
 import { Copy, Plus } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
+import CustomFieldsInput from './CustomFieldsInput';
+import CustomFieldsManager from './CustomFieldsManager';
 import ElectionResults from './ElectionResults';
 import RankedApprovalList from './RankedApprovalList';
-import { Candidate, Election, Vote } from './types';
+import {
+  Candidate,
+  CustomField,
+  CustomFieldValue,
+  Election,
+  Vote,
+} from './types';
 
 // Firebase config
 const firebaseConfig = {
@@ -48,6 +56,10 @@ function App() {
   const [error, setError] = useState('');
   const [shareUrl, setShareUrl] = useState('');
   const [resultsUrl, setResultsUrl] = useState('');
+  const [customFields, setCustomFields] = useState<CustomField[]>([]);
+  const [newCandidateFields, setNewCandidateFields] = useState<
+    CustomFieldValue[]
+  >([]);
 
   const loadElection = useCallback(async (id: string) => {
     try {
@@ -117,6 +129,7 @@ function App() {
         submissionsClosed: !isOpen,
         votingOpen: !isOpen,
         createdBy: creatorName.trim(),
+        customFields: customFields,
       };
 
       const docRef = await addDoc(collection(db, 'elections'), electionData);
@@ -219,6 +232,7 @@ function App() {
       const newCand: Candidate = {
         id: Date.now().toString(),
         name: newCandidate.trim(),
+        customFields: [], // Initialize empty custom fields
       };
 
       const electionRef = doc(db, 'elections', electionId);
@@ -226,7 +240,6 @@ function App() {
         candidates: arrayUnion(newCand),
       });
 
-      // Reload the election to get the updated candidates list
       await loadElection(electionId);
       setNewCandidate('');
     } catch (err) {
@@ -341,20 +354,33 @@ function App() {
                     </div>
                   )}
                 </div>
+                <CustomFieldsManager
+                  fields={customFields}
+                  onChange={setCustomFields}
+                />
 
                 {/* Add candidate input */}
                 <div className="space-y-4">
-                  <div className="flex gap-2">
-                    <Input
-                      value={newCandidate}
-                      onChange={(e) => setNewCandidate(e.target.value)}
-                      placeholder="Add a new candidate..."
-                      onKeyPress={(e) => e.key === 'Enter' && addCandidate()}
-                    />
-                    <Button onClick={addCandidate} variant="secondary">
-                      <Plus className="w-4 h-4" />
-                    </Button>
-                  </div>
+                  <Input
+                    value={newCandidate}
+                    onChange={(e) => setNewCandidate(e.target.value)}
+                    placeholder="Candidate Name"
+                    className="w-full"
+                  />
+                  {election?.customFields &&
+                    election.customFields.length > 0 && (
+                      <CustomFieldsInput
+                        fields={election.customFields}
+                        values={[]}
+                        onChange={(values) => {
+                          // Handle custom field values when adding a new candidate
+                          setNewCandidateFields(values);
+                        }}
+                      />
+                    )}
+                  <Button onClick={addCandidate} className="w-full">
+                    Add Candidate
+                  </Button>
                 </div>
 
                 {/* Candidate list */}
