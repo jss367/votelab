@@ -8,7 +8,6 @@ import {
   CardTitle,
   Input,
 } from '@repo/ui';
-import { Candidate, Election, Vote } from '@votelab/shared-utils';
 import { initializeApp } from 'firebase/app';
 import {
   addDoc,
@@ -22,6 +21,7 @@ import {
 import { Check, Circle, Copy, Grip, Plus, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import ElectionResults from './ElectionResults';
+import { Candidate, Election, Vote } from './types';
 
 // Firebase config
 const firebaseConfig = {
@@ -43,6 +43,8 @@ function App() {
   const [mode, setMode] = useState<Mode>('home');
   const [electionId, setElectionId] = useState<string | null>(null);
   const [electionTitle, setElectionTitle] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const [creatorName, setCreatorName] = useState('');
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [newCandidate, setNewCandidate] = useState('');
   const [approvedCandidates, setApprovedCandidates] = useState<Set<string>>(
@@ -60,8 +62,15 @@ function App() {
       setLoading(true);
       setError(''); // Clear any existing errors
       const electionDoc = await getDoc(doc(db, 'elections', id));
+
+      console.log('Election document exists:', electionDoc.exists());
+
       if (electionDoc.exists()) {
         const data = electionDoc.data() as Election;
+
+        console.log('Election data:', data);
+        console.log('Candidates:', data.candidates);
+
         setElection(data);
         setCandidates(data.candidates);
       } else {
@@ -98,23 +107,83 @@ function App() {
   }, [mode, electionId, loadElection]);
 
   const createElection = async () => {
+    if (!creatorName.trim()) {
+      setError('Please enter your name');
+      return;
+    }
+
+    if (!electionTitle.trim()) {
+      setError('Please enter an election title');
+      return;
+    }
+
     try {
       setLoading(true);
       const electionData: Election = {
-        title: electionTitle,
-        candidates: candidates,
+        title: electionTitle.trim(),
+        candidates: candidates || [],
         votes: [],
         createdAt: new Date().toISOString(),
+        submissionsClosed: !isOpen, // If isOpen is true, submissions are not closed
+        votingOpen: !isOpen, // If isOpen is true, voting is not open yet
+        createdBy: creatorName.trim(),
       };
+
+      console.log('Attempting to create election with data:', electionData); // Move logging here
 
       const docRef = await addDoc(collection(db, 'elections'), electionData);
       const votingUrl = `${window.location.origin}${window.location.pathname}?id=${docRef.id}`;
       const resultsUrl = `${window.location.origin}${window.location.pathname}?id=${docRef.id}&view=results`;
       setShareUrl(votingUrl);
-      setResultsUrl(resultsUrl); // Store the results URL in state
+      setResultsUrl(resultsUrl);
       setElectionId(docRef.id);
     } catch (err) {
-      // ... error handling
+      setError('Error creating election');
+      console.error('Election creation error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const closeSubmissions = async () => {
+    if (!electionId) return;
+
+    try {
+      setLoading(true);
+      const electionRef = doc(db, 'elections', electionId);
+
+      console.log('Current candidates before closing:', candidates);
+
+      await updateDoc(electionRef, {
+        submissionsClosed: true,
+        votingOpen: true,
+        candidates: candidates, // Explicitly set the current candidates
+      });
+
+      console.log('Closing submissions for election:', electionId);
+      await loadElection(electionId);
+      console.log('Election data after loading:', election);
+    } catch (err) {
+      setError('Error closing submissions');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const closeVoting = async () => {
+    if (!electionId) return;
+
+    try {
+      setLoading(true);
+      const electionRef = doc(db, 'elections', electionId);
+      await updateDoc(electionRef, {
+        votingOpen: false,
+      });
+      await loadElection(electionId);
+    } catch (err) {
+      setError('Error closing voting');
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -123,6 +192,11 @@ function App() {
   const submitVote = async () => {
     if (!voterName.trim() || !electionId) {
       setError('Please enter your name');
+      return;
+    }
+
+    if (!election?.votingOpen) {
+      setError('Voting is not currently open for this election');
       return;
     }
 
@@ -184,11 +258,8 @@ function App() {
     }
 
     const items = Array.from(candidates);
-    const reorderedItem =
-      result.source.index >= 0 ? items[result.source.index] : null;
-    if (!reorderedItem) return;
+    const [reorderedItem] = items.splice(result.source.index, 1);
     items.splice(result.destination.index, 0, reorderedItem);
-
     setCandidates(items);
   };
 
@@ -221,6 +292,7 @@ function App() {
               </div>
             )}
 
+            {/* Home mode */}
             {mode === 'home' && (
               <div className="space-y-4">
                 <Button
@@ -233,9 +305,16 @@ function App() {
               </div>
             )}
 
+            {/* Create mode */}
             {mode === 'create' && (
               <div className="space-y-6">
                 <div className="space-y-4">
+                  <Input
+                    value={creatorName}
+                    onChange={(e) => setCreatorName(e.target.value)}
+                    placeholder="Your Name"
+                    className="w-full"
+                  />
                   <Input
                     value={electionTitle}
                     onChange={(e) => setElectionTitle(e.target.value)}
@@ -243,13 +322,51 @@ function App() {
                     className="w-full"
                   />
 
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="isOpen"
+                      checked={isOpen}
+                      onChange={(e) => setIsOpen(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                    <label htmlFor="isOpen" className="text-sm text-gray-700">
+                      Allow voters to add candidates during submission period
+                    </label>
+                  </div>
+                  {isOpen && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+                      <p className="font-medium mb-2">
+                        Tip for Closing Submissions:
+                      </p>
+                      <p>
+                        After creating the election, you can close the
+                        submission period by:
+                      </p>
+                      <ul className="list-disc list-inside mt-1">
+                        <li>
+                          Using the same name you used to create the election
+                        </li>
+                        <li>
+                          Clicking the "Close Submission Period & Start Voting"
+                          button
+                        </li>
+                        <li>
+                          This will prevent new candidates from being added
+                        </li>
+                      </ul>
+                    </div>
+                  )}
+                </div>
+
+                {/* Add candidate input */}
+                <div className="space-y-4">
                   <div className="flex gap-2">
                     <Input
                       value={newCandidate}
                       onChange={(e) => setNewCandidate(e.target.value)}
-                      placeholder="Add a candidate..."
+                      placeholder="Add a new candidate..."
                       onKeyPress={(e) => e.key === 'Enter' && addCandidate()}
-                      className="flex-1"
                     />
                     <Button onClick={addCandidate} variant="secondary">
                       <Plus className="w-4 h-4" />
@@ -257,6 +374,7 @@ function App() {
                   </div>
                 </div>
 
+                {/* Draggable candidate list */}
                 <DragDropContext onDragEnd={handleDragEnd}>
                   <Droppable droppableId="candidates">
                     {(provided) => (
@@ -301,7 +419,8 @@ function App() {
                   </Droppable>
                 </DragDropContext>
 
-                {candidates.length > 0 && (
+                {/* Create election button and share URLs */}
+                {(candidates.length > 0 || isOpen) && (
                   <Button className="w-full" size="lg" onClick={createElection}>
                     Create Election
                   </Button>
@@ -340,8 +459,38 @@ function App() {
               </div>
             )}
 
+            {/* Vote mode */}
             {mode === 'vote' && election && (
               <div className="space-y-6">
+                {/* Status Banner */}
+                {!election.submissionsClosed && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <p className="text-yellow-800">
+                      This election is in the submission period.
+                      {election.votingOpen
+                        ? 'You can add candidates and vote. '
+                        : 'You can add candidates. Voting will begin when the submission period ends.'}
+                    </p>
+                    {election.createdBy === voterName && (
+                      <Button
+                        onClick={closeSubmissions}
+                        variant="secondary"
+                        className="mt-2"
+                      >
+                        Close Submission Period & Start Voting
+                      </Button>
+                    )}
+                  </div>
+                )}
+
+                {election.submissionsClosed && !election.votingOpen && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <p className="text-red-800">
+                      Voting for this election has ended.
+                    </p>
+                  </div>
+                )}
+
                 <Input
                   value={voterName}
                   onChange={(e) => setVoterName(e.target.value)}
@@ -349,95 +498,120 @@ function App() {
                   className="w-full"
                 />
 
-                <div className="space-y-4">
-                  <div className="text-sm text-slate-500 space-y-1">
-                    <p>
-                      1. Drag to rank the candidates in your preferred order
-                    </p>
-                    <p>
-                      2. Click the checkmark to approve candidates you'd be
-                      happy with
-                    </p>
+                {/* Candidate submission form - show during submission period */}
+                {!election.submissionsClosed && (
+                  <div className="space-y-4">
+                    <div className="flex gap-2">
+                      <Input
+                        value={newCandidate}
+                        onChange={(e) => setNewCandidate(e.target.value)}
+                        placeholder="Add a new candidate..."
+                        onKeyPress={(e) => e.key === 'Enter' && addCandidate()}
+                      />
+                      <Button onClick={addCandidate} variant="secondary">
+                        <Plus className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
+                )}
 
-                  <DragDropContext onDragEnd={handleDragEnd}>
-                    <Droppable droppableId="voting">
-                      {(provided) => (
-                        <div
-                          {...provided.droppableProps}
-                          ref={provided.innerRef}
-                          className="space-y-2"
-                        >
-                          {candidates.map((candidate, index) => (
-                            <Draggable
-                              key={candidate.id}
-                              draggableId={candidate.id}
-                              index={index}
-                            >
-                              {(provided) => (
-                                <div
-                                  ref={provided.innerRef}
-                                  {...provided.draggableProps}
-                                  {...provided.dragHandleProps}
-                                  className="flex items-center gap-3 p-3 bg-slate-100 rounded-lg border border-slate-200 shadow-sm"
-                                >
-                                  <span className="w-6 font-medium text-slate-500">
-                                    {index + 1}.
-                                  </span>
-                                  <span className="flex-grow font-medium text-slate-700">
-                                    {candidate.name}
-                                  </span>
-                                  <Button
-                                    variant={
-                                      approvedCandidates.has(candidate.id)
-                                        ? 'default'
-                                        : 'outline'
-                                    }
-                                    size="sm"
-                                    onClick={() => toggleApproval(candidate.id)}
-                                    className={
-                                      approvedCandidates.has(candidate.id)
-                                        ? 'bg-green-600 hover:bg-green-700'
-                                        : 'text-slate-500'
-                                    }
+                {/* Voting interface - show when submissions are closed or voting is open */}
+                {(election.submissionsClosed || election.votingOpen) && (
+                  <>
+                    <div className="text-sm text-slate-500 space-y-1">
+                      <p>
+                        1. Drag to rank the candidates in your preferred order
+                      </p>
+                      <p>
+                        2. Click the checkmark to approve candidates you'd be
+                        happy with
+                      </p>
+                    </div>
+
+                    <DragDropContext onDragEnd={handleDragEnd}>
+                      <Droppable droppableId="voting">
+                        {(provided) => (
+                          <div
+                            {...provided.droppableProps}
+                            ref={provided.innerRef}
+                            className="space-y-2"
+                          >
+                            {candidates.map((candidate, index) => (
+                              <Draggable
+                                key={candidate.id}
+                                draggableId={candidate.id}
+                                index={index}
+                              >
+                                {(provided) => (
+                                  <div
+                                    ref={provided.innerRef}
+                                    {...provided.draggableProps}
+                                    {...provided.dragHandleProps}
+                                    className="flex items-center gap-3 p-3 bg-slate-100 rounded-lg border border-slate-200 shadow-sm"
                                   >
-                                    {approvedCandidates.has(candidate.id) ? (
-                                      <Check className="w-4 h-4" />
-                                    ) : (
-                                      <Circle className="w-4 h-4" />
-                                    )}
-                                  </Button>
-                                </div>
-                              )}
-                            </Draggable>
-                          ))}
-                          {provided.placeholder}
-                        </div>
+                                    <span className="w-6 font-medium text-slate-500">
+                                      {index + 1}.
+                                    </span>
+                                    <span className="flex-grow font-medium text-slate-700">
+                                      {candidate.name}
+                                    </span>
+                                    <Button
+                                      variant={
+                                        approvedCandidates.has(candidate.id)
+                                          ? 'default'
+                                          : 'outline'
+                                      }
+                                      size="sm"
+                                      onClick={() =>
+                                        toggleApproval(candidate.id)
+                                      }
+                                      className={
+                                        approvedCandidates.has(candidate.id)
+                                          ? 'bg-green-600 hover:bg-green-700'
+                                          : 'text-slate-500'
+                                      }
+                                    >
+                                      {approvedCandidates.has(candidate.id) ? (
+                                        <Check className="w-4 h-4" />
+                                      ) : (
+                                        <Circle className="w-4 h-4" />
+                                      )}
+                                    </Button>
+                                  </div>
+                                )}
+                              </Draggable>
+                            ))}
+                            {provided.placeholder}
+                          </div>
+                        )}
+                      </Droppable>
+                    </DragDropContext>
+
+                    {election.createdBy === voterName &&
+                      election.votingOpen && (
+                        <Button
+                          onClick={closeVoting}
+                          variant="secondary"
+                          className="w-full"
+                        >
+                          Close Voting
+                        </Button>
                       )}
-                    </Droppable>
-                  </DragDropContext>
-                </div>
 
-                <Button
-                  className="w-full"
-                  size="lg"
-                  onClick={submitVote}
-                  disabled={!voterName.trim()}
-                >
-                  Submit Vote
-                </Button>
+                    <Button
+                      className="w-full"
+                      size="lg"
+                      onClick={submitVote}
+                      disabled={!voterName.trim() || !election.votingOpen}
+                    >
+                      Submit Vote
+                    </Button>
+                  </>
+                )}
               </div>
             )}
 
-            {mode === 'success' && (
-              <div className="text-center py-6 space-y-4">
-                <h2 className="text-xl font-bold text-slate-900">
-                  Vote Submitted!
-                </h2>
-                <p className="text-slate-500">Thank you for voting.</p>
-              </div>
-            )}
-
+            {/* Results mode */}
             {mode === 'results' && election && (
               <ElectionResults election={election} />
             )}

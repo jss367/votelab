@@ -4,7 +4,7 @@ The code for my rank and approve voting firebase app
 
 ## Testing (Run locally)
 
-- `npm start` - might be `npm run dev` now...
+- `npm run dev`
 
 Runs the app in the development mode.\
 Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
