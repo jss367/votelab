@@ -374,7 +374,7 @@ function App() {
                 </DragDropContext>
 
                 {/* Create election button and share URLs */}
-                {candidates.length > 0 && (
+                {(candidates.length > 0 || isOpen) && (
                   <Button className="w-full" size="lg" onClick={createElection}>
                     Create Election
                   </Button>
