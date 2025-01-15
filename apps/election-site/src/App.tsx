@@ -1,11 +1,4 @@
-import {
-  Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  Input,
-} from '@repo/ui';
+import { Button, Card, CardContent, CardHeader, Input } from '@repo/ui';
 import { initializeApp } from 'firebase/app';
 import {
   addDoc,
@@ -247,15 +240,17 @@ function App() {
     <div className="min-h-screen bg-slate-50 py-8">
       <div className="max-w-6xl mx-auto px-4">
         <Card className="shadow-lg border-slate-200">
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold text-slate-900">
-              Rank and Approve Vote
-            </CardTitle>
-            <CardTitle className="text-4xl font-bold text-slate-900">
-              {mode === 'results'
-                ? election?.title || 'Loading...'
-                : election?.title || 'Create New Election'}
-            </CardTitle>
+          <CardHeader className="space-y-3">
+            <div>
+              <h1 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
+                Rank and Approve Vote
+              </h1>
+              <h2 className="text-3xl font-medium text-slate-500 mt-1">
+                {mode === 'results'
+                  ? election?.title || 'Loading...'
+                  : election?.title || 'Create New Election'}
+              </h2>
+            </div>
           </CardHeader>
           <CardContent>
             {error && (
