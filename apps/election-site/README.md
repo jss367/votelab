@@ -14,6 +14,8 @@ You may also see any lint errors in the console.
 
 ## Push to production
 
+You'll need to push from the specific app - election-site or visualization
+
 Build the production version:
 
 - `npm run build`
