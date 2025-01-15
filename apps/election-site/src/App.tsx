@@ -62,8 +62,15 @@ function App() {
       setLoading(true);
       setError(''); // Clear any existing errors
       const electionDoc = await getDoc(doc(db, 'elections', id));
+
+      console.log('Election document exists:', electionDoc.exists());
+
       if (electionDoc.exists()) {
         const data = electionDoc.data() as Election;
+
+        console.log('Election data:', data);
+        console.log('Candidates:', data.candidates);
+
         setElection(data);
         setCandidates(data.candidates);
       } else {
@@ -144,7 +151,8 @@ function App() {
     try {
       setLoading(true);
       const electionRef = doc(db, 'elections', electionId);
-      console.log('Closing submissions for election:', electionId);
+
+      console.log('Current candidates before closing:', candidates);
 
       await updateDoc(electionRef, {
         submissionsClosed: true,
@@ -152,7 +160,7 @@ function App() {
         candidates: candidates, // Explicitly set the current candidates
       });
 
-      console.log('Candidates before loading:', candidates);
+      console.log('Closing submissions for election:', electionId);
       await loadElection(electionId);
       console.log('Election data after loading:', election);
     } catch (err) {
