@@ -69,8 +69,8 @@ const CustomFieldsManager = ({
 
               <Select
                 value={field.type}
-                onValueChange={(value: FieldType) =>
-                  updateField(field.id, { type: value })
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                  updateField(field.id, { type: e.target.value as FieldType })
                 }
                 className="w-32"
               >

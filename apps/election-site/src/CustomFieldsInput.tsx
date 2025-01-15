@@ -47,9 +47,13 @@ const CustomFieldsInput = ({
     }
 
     if (fieldValue.value instanceof Date) {
-      return fieldValue.value.toISOString().split('T')[0];
+      // Ensure we have a valid date before splitting
+      const isoString = fieldValue.value.toISOString();
+      const datePart = isoString.split('T')[0];
+      return datePart || ''; // Provide empty string fallback
     }
 
+    // Handle null/undefined case
     return fieldValue.value?.toString() || '';
   };
 
