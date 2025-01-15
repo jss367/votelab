@@ -248,7 +248,7 @@ function App() {
               <h2 className="text-3xl font-medium text-slate-500 mt-1">
                 {mode === 'results'
                   ? election?.title || 'Loading...'
-                  : election?.title || 'Create New Election'}
+                  : election?.title || ''}
               </h2>
             </div>
           </CardHeader>
