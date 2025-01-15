@@ -144,11 +144,17 @@ function App() {
     try {
       setLoading(true);
       const electionRef = doc(db, 'elections', electionId);
+      console.log('Closing submissions for election:', electionId);
+
       await updateDoc(electionRef, {
         submissionsClosed: true,
-        votingOpen: true, // Automatically open voting when submissions close
+        votingOpen: true,
+        candidates: candidates, // Explicitly set the current candidates
       });
+
+      console.log('Candidates before loading:', candidates);
       await loadElection(electionId);
+      console.log('Election data after loading:', election);
     } catch (err) {
       setError('Error closing submissions');
       console.error(err);
@@ -320,19 +326,29 @@ function App() {
                       Allow voters to add candidates during submission period
                     </label>
                   </div>
-
-                  <div className="flex gap-2">
-                    <Input
-                      value={newCandidate}
-                      onChange={(e) => setNewCandidate(e.target.value)}
-                      placeholder="Add a candidate..."
-                      onKeyPress={(e) => e.key === 'Enter' && addCandidate()}
-                      className="flex-1"
-                    />
-                    <Button onClick={addCandidate} variant="secondary">
-                      <Plus className="w-4 h-4" />
-                    </Button>
-                  </div>
+                  {isOpen && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+                      <p className="font-medium mb-2">
+                        Tip for Closing Submissions:
+                      </p>
+                      <p>
+                        After creating the election, you can close the
+                        submission period by:
+                      </p>
+                      <ul className="list-disc list-inside mt-1">
+                        <li>
+                          Using the same name you used to create the election
+                        </li>
+                        <li>
+                          Clicking the "Close Submission Period & Start Voting"
+                          button
+                        </li>
+                        <li>
+                          This will prevent new candidates from being added
+                        </li>
+                      </ul>
+                    </div>
+                  )}
                 </div>
 
                 {/* Draggable candidate list */}
