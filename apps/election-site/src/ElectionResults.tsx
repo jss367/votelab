@@ -6,7 +6,6 @@ import {
   getOrdinalSuffix,
   getPairwiseResults,
   selectWinner,
-  type Election,
   type PairwiseResult,
 } from '@votelab/shared-utils';
 import {
@@ -20,6 +19,7 @@ import {
 } from 'lucide-react';
 import React from 'react';
 import ApprovalVotes from './ApprovalVotes';
+import type { Election } from './types';
 
 const formatDescription = (description: string) => {
   const parts = description.split(/\n|(?=Ranked by)/);
