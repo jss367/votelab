@@ -94,7 +94,7 @@ function App() {
     if (id) {
       setElectionId(id);
       loadElection(id);
-      if (view === 'results') {
+      if (view?.toLowerCase() === 'results') {
         setMode('results');
       } else {
         setMode('vote');
