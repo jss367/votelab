@@ -30,4 +30,12 @@ export const distance = (
   y2: number
 ): number => Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
 
-export type VotingMethod = 'plurality' | 'approval' | 'irv' | 'star'; // TODO: Add borda, smithApproval, condorcet
+// Union type representing all implemented voting methods.
+// STAR voting isn't supported yet, so it is omitted.
+export type VotingMethod =
+  | 'plurality'
+  | 'approval'
+  | 'borda'
+  | 'irv'
+  | 'smithApproval'
+  | 'condorcet';
