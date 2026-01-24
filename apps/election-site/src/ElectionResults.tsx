@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@repo/ui';
+import { Card, CardContent, CardHeader, CardTitle, Tooltip } from '@repo/ui';
 import type { CandidateScore } from '@votelab/shared-utils';
 import {
   calculateSmithSet,
@@ -24,6 +24,27 @@ import type { Election } from './types';
 const formatDescription = (description: string) => {
   const parts = description.split(/\n|(?=Ranked by)/);
   return parts.filter((part) => part.trim()).map((part) => part.trim());
+};
+
+// Helper function to truncate filenames intelligently
+const truncateFilename = (filename: string) => {
+  // If it's a downloading file pattern, clean it up
+  if (filename.startsWith('Downloading ')) {
+    // Extract just the main filename without version and metadata
+    const match = filename.match(/Downloading ([^-]+)-[\d.]+.*?(?:\s|$)/);
+    if (match) {
+      return `Downloading ${match[1]}`;
+    }
+  }
+
+  // Truncate in middle
+  if (filename.length > 60) {
+    const start = filename.slice(0, 45);
+    const end = filename.slice(-10);
+    return `${start}...${end}`;
+  }
+
+  return filename;
 };
 
 interface CustomFieldDisplayProps {
@@ -107,7 +128,9 @@ const ElectionResults: React.FC<{ election: Election }> = ({ election }) => {
     <div className="space-y-8 p-4 md:p-8 max-w-7xl mx-auto">
       {/* Header */}
       <div className="text-center space-y-4">
-        <h1 className="text-3xl font-bold text-slate-900">{election.title}</h1>
+        <h1 className="text-3xl font-bold text-slate-900 line-clamp-2">
+          {election.title}
+        </h1>
         <div className="flex items-center justify-center gap-2 text-slate-600">
           <Users className="w-5 h-5" />
           <span className="text-lg">{election.votes.length} total votes</span>
@@ -132,15 +155,15 @@ const ElectionResults: React.FC<{ election: Election }> = ({ election }) => {
                   : 'bg-gradient-to-br from-slate-50 to-gray-50'
               } rounded-xl shadow-lg border border-slate-200 overflow-hidden`}
             >
-              <div className="p-6 space-y-4">
-                {/* Header */}
-                <div className="flex items-start justify-between">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
+              <div className="p-6">
+                {/* Header with fixed height */}
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 min-h-[100px]">
+                  <div className="space-y-1 flex-shrink">
+                    <div className="flex items-start gap-2">
                       {isFirstPlace && (
-                        <Medal className="w-6 h-6 text-yellow-500" />
+                        <Medal className="w-6 h-6 text-yellow-500 flex-shrink-0" />
                       )}
-                      <h2 className="text-2xl font-bold text-slate-900">
+                      <h2 className="text-xl sm:text-2xl font-bold text-slate-900 line-clamp-2">
                         {candidate.name}
                       </h2>
                     </div>
@@ -159,51 +182,38 @@ const ElectionResults: React.FC<{ election: Election }> = ({ election }) => {
                     </p>
                   </div>
 
-                  {/* Metrics Grid */}
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="text-center space-y-1">
-                      <div className="flex items-center justify-center">
-                        <CheckCircle2 className="w-5 h-5 text-blue-500" />
-                      </div>
-                      <p className="text-2xl font-bold text-slate-900">
-                        {candidate.metrics.approval}
-                      </p>
-                      <p className="text-xs text-slate-500">Approval Votes</p>
-                    </div>
-
-                    <div className="text-center space-y-1">
-                      <div className="flex items-center justify-center">
-                        {candidate.metrics.headToHead >= 0 ? (
+                  {/* Metrics Grid with fixed width */}
+                  <div className="grid grid-cols-3 gap-4 flex-shrink-0 w-full sm:w-auto">
+                    <MetricBox
+                      icon={<CheckCircle2 className="w-5 h-5 text-blue-500" />}
+                      value={candidate.metrics.approval}
+                      label="Approval Votes"
+                    />
+                    <MetricBox
+                      icon={
+                        candidate.metrics.headToHead >= 0 ? (
                           <TrendingUp className="w-5 h-5 text-green-500" />
                         ) : (
                           <TrendingDown className="w-5 h-5 text-red-500" />
-                        )}
-                      </div>
-                      <p className="text-2xl font-bold text-slate-900">
-                        {candidate.metrics.headToHead > 0 ? '+' : ''}
-                        {candidate.metrics.headToHead}
-                      </p>
-                      <p className="text-xs text-slate-500">Net H2H</p>
-                    </div>
-
-                    <div className="text-center space-y-1">
-                      <div className="flex items-center justify-center">
-                        <Users className="w-5 h-5 text-purple-500" />
-                      </div>
-                      <p className="text-2xl font-bold text-slate-900">
-                        {candidate.metrics.margin.toFixed(2)}
-                      </p>
-                      <p className="text-xs text-slate-500">Avg Margin</p>
-                    </div>
+                        )
+                      }
+                      value={`${candidate.metrics.headToHead > 0 ? '+' : ''}${candidate.metrics.headToHead}`}
+                      label="Net H2H"
+                    />
+                    <MetricBox
+                      icon={<Users className="w-5 h-5 text-purple-500" />}
+                      value={candidate.metrics.margin.toFixed(2)}
+                      label="Avg Margin"
+                    />
                   </div>
                 </div>
 
-                {/* Custom Fields */}
+                {/* Custom Fields Display */}
                 <CustomFieldDisplay candidate={candidate} election={election} />
 
-                {/* Details */}
+                {/* Description with consistent padding */}
                 <div
-                  className={`space-y-2 font-mono rounded-lg p-4 ${
+                  className={`mt-6 p-4 font-mono rounded-lg ${
                     isFirstPlace
                       ? hasTie
                         ? 'bg-yellow-100/50 text-yellow-800'
@@ -211,11 +221,9 @@ const ElectionResults: React.FC<{ election: Election }> = ({ election }) => {
                       : 'bg-slate-100/50 text-slate-700'
                   }`}
                 >
-                  {descriptionParts.map((part, idx) => (
-                    <p key={idx} className="text-sm">
-                      {part}
-                    </p>
-                  ))}
+                  <p className="text-sm whitespace-pre-line">
+                    {descriptionParts.join('\n')}
+                  </p>
                 </div>
               </div>
             </div>
@@ -278,7 +286,7 @@ const ElectionResults: React.FC<{ election: Election }> = ({ election }) => {
           <CardContent>
             <p className="text-sm text-purple-900 mb-4">
               The Smith set contains the smallest group of candidates who
-              collectively beat all other candidates.
+              collectively beat all other candidates.{' '}
               {smithSet.length === 1
                 ? 'This candidate was selected for final ranking:'
                 : `These ${smithSet.length} candidates were selected for final ranking:`}
@@ -319,26 +327,44 @@ const ElectionResults: React.FC<{ election: Election }> = ({ election }) => {
               >
                 <CardContent className="pt-6">
                   <div className="grid grid-cols-[1fr,auto,1fr] gap-4 items-center">
-                    <div className="text-center space-y-2">
-                      <p className="font-bold text-lg text-slate-900 line-clamp-2 min-h-[3rem]">
-                        {result.candidate1}
-                      </p>
-                      <p className="text-3xl font-bold text-blue-600">
-                        {result.candidate1Votes}
-                      </p>
-                      <p className="text-sm text-slate-500">votes</p>
+                    <div className="text-center flex flex-col justify-between h-full">
+                      <div className="min-h-[4.5rem] flex items-center justify-center">
+                        <Tooltip content={result.candidate1}>
+                          <p className="font-bold text-sm sm:text-base text-slate-900 line-clamp-3 px-1">
+                            {truncateFilename(result.candidate1)}
+                          </p>
+                        </Tooltip>
+                      </div>
+                      <div className="mt-2">
+                        <p className="text-2xl sm:text-3xl font-bold text-blue-600">
+                          {result.candidate1Votes}
+                        </p>
+                        <p className="text-xs sm:text-sm text-slate-500">
+                          votes
+                        </p>
+                      </div>
                     </div>
 
-                    <div className="text-2xl font-bold text-slate-400">VS</div>
+                    <div className="text-xl font-bold text-slate-400 self-center">
+                      VS
+                    </div>
 
-                    <div className="text-center space-y-2">
-                      <p className="font-bold text-lg text-slate-900 line-clamp-2 min-h-[3rem]">
-                        {result.candidate2}
-                      </p>
-                      <p className="text-3xl font-bold text-blue-600">
-                        {result.candidate2Votes}
-                      </p>
-                      <p className="text-sm text-slate-500">votes</p>
+                    <div className="text-center flex flex-col justify-between h-full">
+                      <div className="min-h-[4.5rem] flex items-center justify-center">
+                        <Tooltip content={result.candidate2}>
+                          <p className="font-bold text-sm sm:text-base text-slate-900 line-clamp-3 px-1">
+                            {truncateFilename(result.candidate2)}
+                          </p>
+                        </Tooltip>
+                      </div>
+                      <div className="mt-2">
+                        <p className="text-2xl sm:text-3xl font-bold text-blue-600">
+                          {result.candidate2Votes}
+                        </p>
+                        <p className="text-xs sm:text-sm text-slate-500">
+                          votes
+                        </p>
+                      </div>
                     </div>
                   </div>
 
@@ -363,5 +389,20 @@ const ElectionResults: React.FC<{ election: Election }> = ({ election }) => {
     </div>
   );
 };
+
+// Helper component for metrics
+const MetricBox: React.FC<{
+  icon: React.ReactNode;
+  value: string | number;
+  label: string;
+}> = ({ icon, value, label }) => (
+  <div className="text-center space-y-1">
+    <div className="flex items-center justify-center">{icon}</div>
+    <p className="text-xl sm:text-2xl font-bold text-slate-900 line-clamp-1">
+      {value}
+    </p>
+    <p className="text-xs text-slate-500 line-clamp-1">{label}</p>
+  </div>
+);
 
 export default ElectionResults;
