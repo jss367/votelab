@@ -1,3 +1,5 @@
+import { Ballot } from './ballotGeneration';
+
 interface CacheEntry<T> {
   data: T;
   timestamp: number;
@@ -8,6 +10,23 @@ const CACHE_VERSION = 1;
 
 export function createCache<T>(prefix: string) {
   const getKey = (key: string) => `${prefix}_${key}`;
+
+  const clear = async (key?: string) => {
+    try {
+      await fetch('/api/cache', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          key: key ? getKey(key) : `${prefix}_`,
+          data: null,
+        }),
+      });
+    } catch (error) {
+      console.error('Cache clear error:', error);
+    }
+  };
 
   return {
     get: async (key: string): Promise<T | null> => {
@@ -24,7 +43,7 @@ export function createCache<T>(prefix: string) {
         const cached = data as CacheEntry<T>;
 
         if (cached.version !== CACHE_VERSION) {
-          await this.clear(key);
+          await clear(key);
           return null;
         }
 
@@ -58,22 +77,7 @@ export function createCache<T>(prefix: string) {
       }
     },
 
-    clear: async (key?: string) => {
-      try {
-        await fetch('/api/cache', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            key: key ? getKey(key) : `${prefix}_`,
-            data: null,
-          }),
-        });
-      } catch (error) {
-        console.error('Cache clear error:', error);
-      }
-    },
+    clear,
   };
 }
 
@@ -87,9 +91,9 @@ interface VisualizationResult {
 interface BallotResult {
   ballots: Array<{
     voterPosition: { x: number; y: number };
-    pluralityBallot: any;
-    rankedBallot: any;
-    starBallot: any;
+    pluralityBallot: Ballot;
+    rankedBallot: Ballot;
+    starBallot: Ballot;
   }>;
 }
 

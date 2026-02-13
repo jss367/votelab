@@ -212,12 +212,9 @@ const VotingMethodViz: React.FC = () => {
         const voterY = 1 - y / height;
 
         // Use spatialVoteCalculators for all methods
-        const winnerIds = spatialVoteCalculators[selectedMethod](
-          voterX,
-          voterY,
-          candidates,
-          selectedMethod === 'approval' ? approvalThreshold : 0
-        );
+        const winnerIds = selectedMethod === 'approval'
+          ? spatialVoteCalculators.approval(voterX, voterY, candidates, approvalThreshold)
+          : spatialVoteCalculators[selectedMethod](voterX, voterY, candidates);
         const winnerId = winnerIds[0]; // Take first winner
 
         const winnerColor =

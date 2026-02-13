@@ -30,4 +30,4 @@ export const distance = (
   y2: number
 ): number => Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
 
-export type VotingMethod = 'plurality' | 'approval' | 'irv' | 'star'; // TODO: Add borda, smithApproval, condorcet
+export type VotingMethod = 'plurality' | 'approval' | 'irv' | 'borda' | 'condorcet'; // TODO: Add star, smithApproval

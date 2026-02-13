@@ -22,15 +22,21 @@ export const metadata: Metadata = {
 function Navigation() {
   return (
     <nav className="p-4 bg-white shadow">
-      <div className="container mx-auto">
-        <Link href="/" className="mr-4 hover:underline">
+      <div className="container mx-auto flex flex-wrap gap-x-4 gap-y-1">
+        <Link href="/" className="hover:underline">
           Original Visualization
         </Link>
-        <Link href="/comparison" className="mr-4 hover:underline">
+        <Link href="/comparison" className="hover:underline">
           Method Comparison
         </Link>
         <Link href="/detailed" className="hover:underline">
           Detailed Analysis
+        </Link>
+        <Link href="/distortion" className="hover:underline">
+          Distortion Map
+        </Link>
+        <Link href="/paradoxes" className="hover:underline">
+          Voting Paradoxes
         </Link>
       </div>
     </nav>

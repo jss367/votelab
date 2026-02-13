@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  DEFAULT_APPROVAL_THRESHOLD,
   SpatialCandidate,
   spatialVoteCalculators,
 } from '../../lib/spatialVoting';
@@ -18,7 +19,7 @@ const ElectionViz = () => {
   const [isComputing, setIsComputing] = useState(false);
 
   const drawVisualization = useCallback(
-    async (method: keyof typeof methods, canvas: HTMLCanvasElement) => {
+    async (method: keyof typeof spatialVoteCalculators, canvas: HTMLCanvasElement) => {
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
@@ -47,8 +48,9 @@ const ElectionViz = () => {
           const py = 1 - y / CANVAS_SIZE;
 
           // Get winner at this point
-          const calculator = spatialVoteCalculators[method];
-          const winners = calculator(px, py, candidates);
+          const winners = method === 'approval'
+            ? spatialVoteCalculators.approval(px, py, candidates, DEFAULT_APPROVAL_THRESHOLD)
+            : spatialVoteCalculators[method](px, py, candidates);
           const winnerId = winners[0];
           const color = candidateColors[winnerId];
 
@@ -107,10 +109,10 @@ const ElectionViz = () => {
     setIsComputing(true);
     try {
       await Promise.all(
-        Object.entries(methods).map(([method]) => {
+        Object.keys(spatialVoteCalculators).map((method) => {
           const canvas = canvasRefs.current[method];
           if (canvas) {
-            return drawVisualization(method as keyof typeof methods, canvas);
+            return drawVisualization(method as keyof typeof spatialVoteCalculators, canvas);
           }
         })
       );
