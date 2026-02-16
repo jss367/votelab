@@ -1,3 +1,6 @@
+import type { VotingMethod } from '@votelab/shared-utils';
+export type { VotingMethod };
+
 export interface CandidateSubmission {
   candidateId: string;
   submittedBy: string;
@@ -36,6 +39,7 @@ export interface CustomFieldValue {
 
 export interface Election {
   title: string;
+  votingMethod?: VotingMethod;  // optional for backward compat with existing elections
   candidates: Candidate[];
   votes: Vote[];
   createdAt: string;

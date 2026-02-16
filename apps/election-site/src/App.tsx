@@ -11,9 +11,11 @@ import {
 } from 'firebase/firestore';
 import { Copy } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
+import BallotInput from './BallotInput';
 import CustomFieldsInput from './CustomFieldsInput';
 import CustomFieldsManager from './CustomFieldsManager';
-import ElectionResults from './ElectionResults';
+import HomePage from './HomePage';
+import MethodResults from './MethodResults';
 import RankedApprovalList from './RankedApprovalList';
 import {
   Candidate,
@@ -21,6 +23,7 @@ import {
   CustomFieldValue,
   Election,
   Vote,
+  VotingMethod,
 } from './types';
 
 // Firebase config
@@ -60,6 +63,7 @@ function App() {
   const [newCandidateFields, setNewCandidateFields] = useState<
     CustomFieldValue[]
   >([]);
+  const [votingMethod, setVotingMethod] = useState<VotingMethod>('plurality');
 
   const loadElection = useCallback(async (id: string) => {
     try {
@@ -123,6 +127,7 @@ function App() {
       setLoading(true);
       const electionData: Election = {
         title: electionTitle.trim(),
+        votingMethod,
         candidates: candidates || [],
         votes: [],
         createdAt: new Date().toISOString(),
@@ -200,10 +205,13 @@ function App() {
 
     try {
       setLoading(true);
+      const method = election.votingMethod || 'smithApproval';
       const vote: Vote = {
         voterName: voterName,
-        ranking: candidates.map((c) => c.id),
-        approved: Array.from(approvedCandidates),
+        ranking: method === 'approval' ? [] : candidates.map((c) => c.id),
+        approved: (method === 'plurality' || method === 'irv' || method === 'borda' || method === 'condorcet')
+          ? []
+          : Array.from(approvedCandidates),
         timestamp: new Date().toISOString(),
       };
 
@@ -360,7 +368,7 @@ function App() {
           <CardHeader className="space-y-3">
             <div>
               <h1 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
-                Rank and Approve Vote
+                VoteLab
               </h1>
               <h2 className="text-3xl font-medium text-slate-500 mt-1">
                 {mode === 'results'
@@ -378,15 +386,12 @@ function App() {
 
             {/* Home mode */}
             {mode === 'home' && (
-              <div className="space-y-4">
-                <Button
-                  className="w-full"
-                  size="lg"
-                  onClick={() => setMode('create')}
-                >
-                  Create New Election
-                </Button>
-              </div>
+              <HomePage
+                onSelectMethod={(method) => {
+                  setVotingMethod(method);
+                  setMode('create');
+                }}
+              />
             )}
 
             {/* Create mode */}
@@ -405,6 +410,22 @@ function App() {
                     placeholder="Election Title"
                     className="w-full"
                   />
+
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-slate-700">Voting Method</label>
+                    <select
+                      value={votingMethod}
+                      onChange={(e) => setVotingMethod(e.target.value as VotingMethod)}
+                      className="w-full p-2 rounded-md border border-slate-300 bg-white text-sm"
+                    >
+                      <option value="plurality">Plurality — Pick one</option>
+                      <option value="approval">Approval — Approve many</option>
+                      <option value="irv">Instant Runoff (IRV) — Rank candidates</option>
+                      <option value="borda">Borda Count — Rank for points</option>
+                      <option value="condorcet">Condorcet — Pairwise matchups</option>
+                      <option value="smithApproval">Smith + Approval — Rank and approve</option>
+                    </select>
+                  </div>
 
                   <div className="flex items-center space-x-2">
                     <input
@@ -639,26 +660,16 @@ function App() {
                   </div>
                 )}
 
-                {/* Voting interface - show when submissions are closed or voting is open */}
+                {/* Voting interface - show when voting is open */}
                 {election.votingOpen && (
                   <>
-                    <div className="text-sm text-slate-500 space-y-1">
-                      <p>
-                        1. Drag to rank the candidates in your preferred order
-                      </p>
-                      <p>
-                        2. Drag the blue line to set your approval threshold -
-                        candidates above the line are approved
-                      </p>
-                    </div>
-
-                    <RankedApprovalList
+                    <BallotInput
+                      method={election.votingMethod || 'smithApproval'}
                       candidates={candidates}
                       onChange={({ ranking, approved }) => {
                         setCandidates(ranking);
                         setApprovedCandidates(new Set(approved));
                       }}
-                      showApprovalLine={true}
                     />
 
                     {election.createdBy === voterName &&
@@ -687,7 +698,7 @@ function App() {
 
             {/* Results mode */}
             {mode === 'results' && election && (
-              <ElectionResults election={election} />
+              <MethodResults election={election} />
             )}
           </CardContent>
         </Card>
