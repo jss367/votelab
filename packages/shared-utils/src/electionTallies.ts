@@ -227,3 +227,68 @@ export function tallyCondorcet(votes: Vote[], candidates: Candidate[]): Condorce
 
   return { winner, matrix };
 }
+
+export interface RRVRound {
+  winnerId: string;
+  winnerName: string;
+  weightedScores: Array<{ candidateId: string; name: string; score: number }>;
+}
+
+export interface RRVResult {
+  winners: Array<{ candidateId: string; name: string; round: number }>;
+  rounds: RRVRound[];
+}
+
+/**
+ * Reweighted Range Voting: multi-winner proportional method.
+ * Voters score each candidate 0-10. After each winner is selected,
+ * ballots are reweighted: weight = weight / (1 + score_given_to_winner / maxScore)
+ */
+export function tallyRRV(
+  votes: Vote[],
+  candidates: Candidate[],
+  numWinners: number,
+  maxScore: number = 10
+): RRVResult {
+  const remaining = new Set(candidates.map(c => c.id));
+  const weights = votes.map(() => 1.0);
+  const rounds: RRVRound[] = [];
+  const winners: Array<{ candidateId: string; name: string; round: number }> = [];
+
+  const actualNumWinners = Math.min(numWinners, candidates.length);
+
+  for (let round = 0; round < actualNumWinners; round++) {
+    // Compute weighted scores for remaining candidates
+    const weightedScores: Array<{ candidateId: string; name: string; score: number }> = [];
+
+    for (const candidateId of remaining) {
+      let totalWeightedScore = 0;
+      for (let i = 0; i < votes.length; i++) {
+        const voterScore = votes[i].scores?.[candidateId] ?? 0;
+        totalWeightedScore += weights[i] * voterScore;
+      }
+      const candidate = candidates.find(c => c.id === candidateId)!;
+      weightedScores.push({
+        candidateId,
+        name: candidate.name,
+        score: totalWeightedScore,
+      });
+    }
+
+    weightedScores.sort((a, b) => b.score - a.score);
+
+    const winner = weightedScores[0];
+    winners.push({ candidateId: winner.candidateId, name: winner.name, round: round + 1 });
+    rounds.push({ winnerId: winner.candidateId, winnerName: winner.name, weightedScores });
+
+    // Reweight ballots
+    for (let i = 0; i < votes.length; i++) {
+      const voterScoreForWinner = votes[i].scores?.[winner.candidateId] ?? 0;
+      weights[i] = weights[i] / (1 + voterScoreForWinner / maxScore);
+    }
+
+    remaining.delete(winner.candidateId);
+  }
+
+  return { winners, rounds };
+}

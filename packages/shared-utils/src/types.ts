@@ -16,6 +16,7 @@ export interface Vote {
   voterName: string;
   ranking: string[];
   approved: string[];
+  scores?: Record<string, number>;  // candidateId -> score (0-10), used by RRV
   timestamp: string;
 }
 

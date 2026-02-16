@@ -64,6 +64,7 @@ function App() {
     CustomFieldValue[]
   >([]);
   const [votingMethod, setVotingMethod] = useState<VotingMethod>('plurality');
+  const [candidateScores, setCandidateScores] = useState<Record<string, number>>({});
 
   const loadElection = useCallback(async (id: string) => {
     try {
@@ -208,10 +209,11 @@ function App() {
       const method = election.votingMethod || 'smithApproval';
       const vote: Vote = {
         voterName: voterName,
-        ranking: method === 'approval' ? [] : candidates.map((c) => c.id),
-        approved: (method === 'plurality' || method === 'irv' || method === 'borda' || method === 'condorcet')
+        ranking: (method === 'approval' || method === 'rrv') ? [] : candidates.map((c) => c.id),
+        approved: (method === 'plurality' || method === 'irv' || method === 'borda' || method === 'condorcet' || method === 'rrv')
           ? []
           : Array.from(approvedCandidates),
+        ...(method === 'rrv' ? { scores: candidateScores } : {}),
         timestamp: new Date().toISOString(),
       };
 
@@ -424,6 +426,7 @@ function App() {
                       <option value="borda">Borda Count — Rank for points</option>
                       <option value="condorcet">Condorcet — Pairwise matchups</option>
                       <option value="smithApproval">Smith + Approval — Rank and approve</option>
+                      <option value="rrv">Reweighted Range Voting (RRV) — Score candidates</option>
                     </select>
                   </div>
 
@@ -666,9 +669,10 @@ function App() {
                     <BallotInput
                       method={election.votingMethod || 'smithApproval'}
                       candidates={candidates}
-                      onChange={({ ranking, approved }) => {
-                        setCandidates(ranking);
+                      onChange={({ ranking, approved, scores }) => {
+                        if (ranking.length > 0) setCandidates(ranking);
                         setApprovedCandidates(new Set(approved));
+                        if (scores) setCandidateScores(scores);
                       }}
                     />
 

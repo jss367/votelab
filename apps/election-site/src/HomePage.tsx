@@ -43,6 +43,12 @@ const VOTING_METHODS: Array<{
     description: 'Finds the smallest set of candidates who beat all others, then picks the most approved.',
     ballotType: 'Rank and approve',
   },
+  {
+    id: 'rrv',
+    name: 'Reweighted Range Voting (RRV)',
+    description: 'Score all candidates. Picks multiple winners proportionally, ensuring diverse representation.',
+    ballotType: 'Score all candidates 0–10',
+  },
 ];
 
 interface HomePageProps {

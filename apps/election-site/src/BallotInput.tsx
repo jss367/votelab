@@ -2,6 +2,7 @@ import React from 'react';
 import ApprovalBallot from './ApprovalBallot';
 import PluralityBallot from './PluralityBallot';
 import RankedApprovalList from './RankedApprovalList';
+import ScoreBallot from './ScoreBallot';
 import type { Candidate, VotingMethod } from './types';
 
 interface BallotInputProps {
@@ -10,6 +11,7 @@ interface BallotInputProps {
   onChange: (data: {
     ranking: Candidate[];
     approved: string[];
+    scores?: Record<string, number>;
   }) => void;
 }
 
@@ -20,6 +22,7 @@ const BALLOT_INSTRUCTIONS: Record<VotingMethod, string> = {
   borda: 'Drag to rank candidates from most to least preferred. Points are awarded by position.',
   condorcet: 'Drag to rank candidates from most to least preferred.',
   smithApproval: '1. Drag to rank the candidates in your preferred order.\n2. Drag the blue line to set your approval threshold — candidates above the line are approved.',
+  rrv: 'Score each candidate from 0 (worst) to 10 (best).',
 };
 
 const BallotInput: React.FC<BallotInputProps> = ({ method, candidates, onChange }) => {
@@ -58,6 +61,13 @@ const BallotInput: React.FC<BallotInputProps> = ({ method, candidates, onChange 
           candidates={candidates}
           onChange={({ ranking, approved }) => onChange({ ranking, approved })}
           showApprovalLine={true}
+        />
+      )}
+
+      {method === 'rrv' && (
+        <ScoreBallot
+          candidates={candidates}
+          onChange={(data) => onChange({ ranking: [], approved: [], scores: data.scores })}
         />
       )}
     </div>

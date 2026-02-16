@@ -5,6 +5,7 @@ import CondorcetResults from './CondorcetResults';
 import ElectionResults from './ElectionResults';
 import IRVResults from './IRVResults';
 import PluralityResults from './PluralityResults';
+import RRVResults from './RRVResults';
 import type { Election } from './types';
 
 const MethodResults: React.FC<{ election: Election }> = ({ election }) => {
@@ -23,6 +24,8 @@ const MethodResults: React.FC<{ election: Election }> = ({ election }) => {
       return <CondorcetResults election={election} />;
     case 'smithApproval':
       return <ElectionResults election={election} />;
+    case 'rrv':
+      return <RRVResults election={election} />;
     default:
       return <ElectionResults election={election} />;
   }

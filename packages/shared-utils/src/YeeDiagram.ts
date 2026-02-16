@@ -11,7 +11,8 @@ export type VotingMethod =
   | 'irv'
   | 'borda'
   | 'condorcet'
-  | 'smithApproval';
+  | 'smithApproval'
+  | 'rrv';
 
 export interface YeeDiagramConfig {
   voters: Voter[];
