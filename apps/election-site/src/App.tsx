@@ -6,12 +6,12 @@ import {
   collection,
   deleteDoc,
   doc,
-  getDoc,
   getFirestore,
+  onSnapshot,
   updateDoc,
 } from 'firebase/firestore';
 import { Copy } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import AdminView from './AdminView';
 import BallotInput from './BallotInput';
 import CustomFieldsInput from './CustomFieldsInput';
@@ -69,55 +69,47 @@ function App() {
   const [votingMethod, setVotingMethod] = useState<VotingMethod>('plurality');
   const [candidateScores, setCandidateScores] = useState<Record<string, number>>({});
 
-  const loadElection = useCallback(async (id: string) => {
-    try {
-      setLoading(true);
-      setError('');
-      const electionDoc = await getDoc(doc(db, 'elections', id));
-
-      if (electionDoc.exists()) {
-        const data = electionDoc.data() as Election;
-
-        console.log('Election data:', data);
-        console.log('Candidates:', data.candidates);
-
-        setElection(data);
-        setCandidates(data.candidates);
-      } else {
-        setError('Election not found');
-      }
-    } catch (err) {
-      setError('Error loading election');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
+  // Subscribe to real-time election updates
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const id = params.get('id');
     const view = params.get('view');
 
-    if (id) {
-      setElectionId(id);
-      loadElection(id);
-      const v = view?.toLowerCase();
-      if (v === 'results') {
-        setMode('results');
-      } else if (v === 'admin') {
-        setMode('admin');
-      } else {
-        setMode('vote');
-      }
-    }
-  }, [loadElection]);
+    if (!id) return;
 
-  useEffect(() => {
-    if (mode === 'results' && electionId) {
-      loadElection(electionId);
+    setElectionId(id);
+    setLoading(true);
+
+    const v = view?.toLowerCase();
+    if (v === 'results') {
+      setMode('results');
+    } else if (v === 'admin') {
+      setMode('admin');
+    } else {
+      setMode('vote');
     }
-  }, [mode, electionId, loadElection]);
+
+    const unsubscribe = onSnapshot(
+      doc(db, 'elections', id),
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data() as Election;
+          setElection(data);
+          setCandidates(data.candidates);
+        } else {
+          setError('Election not found');
+        }
+        setLoading(false);
+      },
+      (err) => {
+        setError('Error loading election');
+        console.error(err);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
 
   const createElection = async () => {
     if (!creatorName.trim()) {
@@ -176,7 +168,7 @@ function App() {
         submissionsClosed: true,
         votingOpen: true,
       });
-      await loadElection(electionId);
+      // onSnapshot handles the update automatically
     } catch (err) {
       setError('Error closing submissions');
       console.error(err);
@@ -196,7 +188,7 @@ function App() {
       await updateDoc(electionRef, {
         votingOpen: false,
       });
-      await loadElection(electionId);
+      // onSnapshot handles the update automatically
     } catch (err) {
       setError('Error closing voting');
       console.error(err);
@@ -234,7 +226,7 @@ function App() {
         votes: arrayUnion(vote),
       });
 
-      await loadElection(electionId);
+      // onSnapshot handles the update automatically
       setMode('success');
     } catch (err) {
       setError('Error submitting vote');
@@ -280,7 +272,7 @@ function App() {
         candidates: arrayUnion(newCand),
       });
 
-      await loadElection(electionId);
+      // onSnapshot handles the update automatically
       setNewCandidate('');
       setNewCandidateFields([]); // Reset custom fields after adding
     } catch (err) {
@@ -349,7 +341,7 @@ function App() {
         candidates: arrayUnion(newCand),
       });
 
-      await loadElection(electionId);
+      // onSnapshot handles the update automatically
       setNewCandidate('');
       setNewCandidateFields([]);
     } catch (err) {
@@ -381,9 +373,12 @@ function App() {
         <Card className="shadow-lg border-slate-200">
           <CardHeader className="space-y-3">
             <div>
-              <h1 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
+              <a
+                href={window.location.pathname}
+                className="text-sm font-bold text-slate-900 uppercase tracking-wide hover:text-blue-700 transition-colors"
+              >
                 VoteLab
-              </h1>
+              </a>
               <h2 className="text-3xl font-medium text-slate-500 mt-1">
                 {mode === 'results'
                   ? election?.title || 'Loading...'
@@ -604,23 +599,15 @@ function App() {
                 {/* Candidate submission form - show during submission period */}
                 {!election.submissionsClosed && (
                   <div className="space-y-4">
-                    <div className="flex gap-2">
-                      <Input
-                        value={newCandidate}
-                        onChange={(e) => setNewCandidate(e.target.value)}
-                        placeholder="Add a new candidate..."
-                        onKeyPress={(e) =>
-                          e.key === 'Enter' && addExistingElectionCandidate()
-                        }
-                      />
-                      <Button
-                        onClick={addExistingElectionCandidate}
-                        variant="secondary"
-                        className="px-3"
-                      >
-                        Add
-                      </Button>
-                    </div>
+                    <Input
+                      value={newCandidate}
+                      onChange={(e) => setNewCandidate(e.target.value)}
+                      placeholder="Add a new candidate..."
+                      onKeyPress={(e) =>
+                        e.key === 'Enter' && addExistingElectionCandidate()
+                      }
+                      className="w-full"
+                    />
 
                     {election.customFields &&
                       election.customFields.length > 0 && (
@@ -630,6 +617,14 @@ function App() {
                           onChange={setNewCandidateFields}
                         />
                       )}
+
+                    <Button
+                      onClick={addExistingElectionCandidate}
+                      variant="secondary"
+                      className="w-full"
+                    >
+                      Add Candidate
+                    </Button>
 
                     {/* Show existing candidates */}
                     <div className="mt-4">
@@ -745,7 +740,7 @@ function App() {
                   try {
                     setLoading(true);
                     await updateDoc(doc(db, 'elections', electionId), { votingOpen: true });
-                    await loadElection(electionId);
+                    // onSnapshot handles the update automatically
                   } catch (err) {
                     setError('Error reopening voting');
                     console.error(err);
