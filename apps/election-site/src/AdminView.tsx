@@ -1,7 +1,7 @@
-import { Button, Card, CardContent, CardHeader } from '@repo/ui';
+import { Button, Card, CardContent, CardHeader, Input } from '@repo/ui';
 import { Copy } from 'lucide-react';
 import { useState } from 'react';
-import type { Election } from './types';
+import type { CustomField, Election, FieldType } from './types';
 
 const METHOD_NAMES: Record<string, string> = {
   plurality: 'Plurality',
@@ -20,6 +20,7 @@ interface AdminViewProps {
   onCloseVoting: () => void;
   onReopenVoting: () => void;
   onDelete: () => void;
+  onUpdate: (fields: Partial<Election>) => Promise<void>;
 }
 
 const AdminView: React.FC<AdminViewProps> = ({
@@ -29,8 +30,16 @@ const AdminView: React.FC<AdminViewProps> = ({
   onCloseVoting,
   onReopenVoting,
   onDelete,
+  onUpdate,
 }) => {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState(election.title);
+  const [editFields, setEditFields] = useState<CustomField[]>(
+    () => election.customFields?.map((f) => ({ ...f })) || []
+  );
+  const [newFieldName, setNewFieldName] = useState('');
+  const [newFieldType, setNewFieldType] = useState<FieldType>('text');
 
   const voteUrl = `${window.location.origin}${window.location.pathname}?id=${electionId}`;
   const resultsUrl = `${window.location.origin}${window.location.pathname}?id=${electionId}&view=results`;
@@ -41,6 +50,51 @@ const AdminView: React.FC<AdminViewProps> = ({
     : election.votingOpen
       ? 'Voting open'
       : 'Voting closed';
+
+  const handleSave = async () => {
+    await onUpdate({
+      title: editTitle.trim(),
+      customFields: editFields,
+    });
+    setEditing(false);
+  };
+
+  const handleCancelEdit = () => {
+    setEditTitle(election.title);
+    setEditFields(election.customFields?.map((f) => ({ ...f })) || []);
+    setNewFieldName('');
+    setNewFieldType('text');
+    setEditing(false);
+  };
+
+  const addField = () => {
+    if (!newFieldName.trim()) return;
+    setEditFields([
+      ...editFields,
+      { id: Date.now().toString(), name: newFieldName.trim(), type: newFieldType, required: false },
+    ]);
+    setNewFieldName('');
+    setNewFieldType('text');
+  };
+
+  const removeField = (id: string) => {
+    setEditFields(editFields.filter((f) => f.id !== id));
+  };
+
+  const moveField = (from: number, to: number) => {
+    const updated = [...editFields];
+    const [item] = updated.splice(from, 1);
+    if (item) {
+      updated.splice(to, 0, item);
+      setEditFields(updated);
+    }
+  };
+
+  const removeCandidate = async (candidateId: string) => {
+    await onUpdate({
+      candidates: election.candidates.filter((c) => c.id !== candidateId),
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -65,6 +119,125 @@ const AdminView: React.FC<AdminViewProps> = ({
           </span>
         </p>
       </div>
+
+      {/* Edit election details */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-slate-900">Election Details</h3>
+            {!editing && (
+              <button
+                onClick={() => setEditing(true)}
+                className="text-xs text-blue-600 hover:text-blue-800 underline"
+              >
+                Edit
+              </button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {editing ? (
+            <>
+              <div className="space-y-1">
+                <label className="text-xs text-slate-500">Title</label>
+                <Input
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="w-full"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs text-slate-500">Custom Fields</label>
+                {editFields.map((field, i) => (
+                  <div key={field.id} className="flex gap-2 items-center">
+                    <div className="flex flex-col">
+                      <button
+                        onClick={() => moveField(i, i - 1)}
+                        disabled={i === 0}
+                        className="text-xs text-slate-400 hover:text-slate-700 disabled:opacity-25 leading-none"
+                      >
+                        &#9650;
+                      </button>
+                      <button
+                        onClick={() => moveField(i, i + 1)}
+                        disabled={i === editFields.length - 1}
+                        className="text-xs text-slate-400 hover:text-slate-700 disabled:opacity-25 leading-none"
+                      >
+                        &#9660;
+                      </button>
+                    </div>
+                    <Input
+                      value={field.name}
+                      onChange={(e) => {
+                        const updated = editFields.map((f, j) =>
+                          j === i ? { id: f.id, name: e.target.value, type: f.type, required: f.required } : f
+                        );
+                        setEditFields(updated);
+                      }}
+                      className="flex-1"
+                    />
+                    <span className="text-xs text-slate-400">{field.type}</span>
+                    <button
+                      onClick={() => removeField(field.id)}
+                      className="text-xs text-red-500 hover:text-red-700"
+                    >
+                      &times;
+                    </button>
+                  </div>
+                ))}
+                <div className="flex gap-2 items-center">
+                  <Input
+                    value={newFieldName}
+                    onChange={(e) => setNewFieldName(e.target.value)}
+                    placeholder="New field name"
+                    className="flex-1"
+                    onKeyPress={(e) => e.key === 'Enter' && addField()}
+                  />
+                  <select
+                    value={newFieldType}
+                    onChange={(e) => setNewFieldType(e.target.value as FieldType)}
+                    className="p-2 rounded-md border border-slate-300 bg-white text-xs"
+                  >
+                    <option value="text">text</option>
+                    <option value="number">number</option>
+                    <option value="date">date</option>
+                  </select>
+                  <Button onClick={addField} variant="secondary" size="sm">
+                    Add
+                  </Button>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={handleSave} size="sm" className="flex-1">
+                  Save
+                </Button>
+                <Button onClick={handleCancelEdit} variant="secondary" size="sm" className="flex-1">
+                  Cancel
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <label className="text-xs text-slate-500">Title</label>
+                <p className="text-sm text-slate-900">{election.title}</p>
+              </div>
+              {election.customFields && election.customFields.length > 0 && (
+                <div>
+                  <label className="text-xs text-slate-500">Custom Fields</label>
+                  <ul className="space-y-1 mt-1">
+                    {election.customFields.map((f) => (
+                      <li key={f.id} className="text-sm text-slate-900">
+                        {f.name} <span className="text-slate-400">({f.type})</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Share links */}
       <Card>
@@ -146,8 +319,14 @@ const AdminView: React.FC<AdminViewProps> = ({
           ) : (
             <ul className="space-y-1">
               {election.candidates.map((c) => (
-                <li key={c.id} className="text-sm p-2 bg-slate-50 rounded-md border border-slate-200">
-                  {c.name}
+                <li key={c.id} className="text-sm p-2 bg-slate-50 rounded-md border border-slate-200 flex items-center justify-between">
+                  <span>{c.name}</span>
+                  <button
+                    onClick={() => removeCandidate(c.id)}
+                    className="text-xs text-red-500 hover:text-red-700 ml-2"
+                  >
+                    Remove
+                  </button>
                 </li>
               ))}
             </ul>

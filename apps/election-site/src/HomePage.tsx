@@ -1,5 +1,5 @@
 import { Button, Card, CardContent, CardHeader } from '@repo/ui';
-import { getSavedElections, removeSavedElection, type SavedElection } from './electionStorage';
+import { getSavedElections, type SavedElection } from './electionStorage';
 import { useState } from 'react';
 import type { VotingMethod } from './types';
 
@@ -51,6 +51,42 @@ const VOTING_METHODS: Array<{
     description: 'Score all candidates. Picks multiple winners proportionally, ensuring diverse representation.',
     ballotType: 'Score all candidates 0\u201310',
   },
+  {
+    id: 'star',
+    name: 'STAR Voting',
+    description: 'Score candidates 0-5, then the top two face an automatic runoff based on voter preferences.',
+    ballotType: 'Score all candidates 0\u20135',
+  },
+  {
+    id: 'score',
+    name: 'Score Voting',
+    description: 'Score all candidates 0-10. Highest total score wins.',
+    ballotType: 'Score all candidates 0\u201310',
+  },
+  {
+    id: 'stv',
+    name: 'Single Transferable Vote (STV)',
+    description: 'Rank candidates to elect multiple winners proportionally. Surplus votes transfer to next choices.',
+    ballotType: 'Rank all candidates',
+  },
+  {
+    id: 'rankedPairs',
+    name: 'Ranked Pairs (Tideman)',
+    description: 'Rank candidates. Pairwise victories are locked by margin, skipping cycles. Always finds a winner.',
+    ballotType: 'Rank all candidates',
+  },
+  {
+    id: 'majorityJudgment',
+    name: 'Majority Judgment',
+    description: 'Grade each candidate from Reject to Excellent. Candidate with the highest median grade wins.',
+    ballotType: 'Grade all candidates',
+  },
+  {
+    id: 'cumulative',
+    name: 'Cumulative Voting',
+    description: 'Distribute a fixed number of points across candidates. Put all points on one or spread them around.',
+    ballotType: 'Distribute points',
+  },
 ];
 
 const METHOD_NAMES: Record<string, string> = {
@@ -61,6 +97,12 @@ const METHOD_NAMES: Record<string, string> = {
   condorcet: 'Condorcet',
   smithApproval: 'Smith+Approval',
   rrv: 'RRV',
+  star: 'STAR',
+  score: 'Score',
+  stv: 'STV',
+  rankedPairs: 'Ranked Pairs',
+  majorityJudgment: 'Majority Judgment',
+  cumulative: 'Cumulative',
 };
 
 interface HomePageProps {
@@ -68,12 +110,7 @@ interface HomePageProps {
 }
 
 const HomePage: React.FC<HomePageProps> = ({ onSelectMethod }) => {
-  const [savedElections, setSavedElections] = useState<SavedElection[]>(getSavedElections);
-
-  const handleRemove = (id: string) => {
-    removeSavedElection(id);
-    setSavedElections(getSavedElections());
-  };
+  const [savedElections] = useState<SavedElection[]>(getSavedElections);
 
   return (
     <div className="space-y-8">
@@ -90,9 +127,10 @@ const HomePage: React.FC<HomePageProps> = ({ onSelectMethod }) => {
           <h2 className="text-lg font-bold text-slate-900">My Elections</h2>
           <div className="space-y-2">
             {savedElections.map((e) => (
-              <div
+              <a
                 key={e.id}
-                className="flex items-center justify-between p-3 bg-white rounded-lg border border-slate-200"
+                href={`?id=${e.id}&view=admin`}
+                className="flex items-center justify-between p-3 bg-white rounded-lg border border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 transition-colors"
               >
                 <div className="min-w-0">
                   <p className="font-medium text-slate-900 truncate">{e.title}</p>
@@ -101,28 +139,8 @@ const HomePage: React.FC<HomePageProps> = ({ onSelectMethod }) => {
                     {new Date(e.createdAt).toLocaleDateString()}
                   </p>
                 </div>
-                <div className="flex gap-2 ml-4 shrink-0">
-                  <a
-                    href={`?id=${e.id}&view=admin`}
-                    className="text-xs text-blue-600 hover:text-blue-800 underline"
-                  >
-                    Manage
-                  </a>
-                  <a
-                    href={`?id=${e.id}&view=results`}
-                    className="text-xs text-blue-600 hover:text-blue-800 underline"
-                  >
-                    Results
-                  </a>
-                  <button
-                    onClick={() => handleRemove(e.id)}
-                    className="text-xs text-slate-400 hover:text-red-600"
-                    title="Remove from list"
-                  >
-                    &times;
-                  </button>
-                </div>
-              </div>
+                <span className="text-xs text-blue-600 ml-4 shrink-0">Manage &rarr;</span>
+              </a>
             ))}
           </div>
         </div>

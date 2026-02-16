@@ -1,29 +1,38 @@
 import React, { useState } from 'react';
 import type { Candidate } from './types';
 
-interface ScoreBallotProps {
+interface CumulativeBallotProps {
   candidates: Candidate[];
-  maxScore?: number;
+  pointBudget: number;
   onChange: (data: { ranking: string[]; approved: string[]; scores: Record<string, number> }) => void;
 }
 
-const ScoreBallot: React.FC<ScoreBallotProps> = ({ candidates, maxScore = 10, onChange }) => {
-  const [scores, setScores] = useState<Record<string, number>>(() => {
+const CumulativeBallot: React.FC<CumulativeBallotProps> = ({ candidates, pointBudget, onChange }) => {
+  const [points, setPoints] = useState<Record<string, number>>(() => {
     const initial: Record<string, number> = {};
-    candidates.forEach(c => { initial[c.id] = 0; });
+    candidates.forEach((c) => { initial[c.id] = 0; });
     return initial;
   });
 
+  const totalUsed = Object.values(points).reduce((sum, p) => sum + p, 0);
+  const remaining = pointBudget - totalUsed;
+
   const handleChange = (candidateId: string, value: number) => {
-    const clamped = Math.max(0, Math.min(maxScore, value));
-    const next = { ...scores, [candidateId]: clamped };
-    setScores(next);
+    const currentOthers = totalUsed - (points[candidateId] ?? 0);
+    const maxForThis = pointBudget - currentOthers;
+    const clamped = Math.max(0, Math.min(maxForThis, value));
+    const next = { ...points, [candidateId]: clamped };
+    setPoints(next);
     onChange({ ranking: [], approved: [], scores: next });
   };
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-slate-500">{`Score each candidate from 0 (worst) to ${maxScore} (best):`}</p>
+      <div className={`text-center p-2 rounded-lg font-medium ${
+        remaining === 0 ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
+      }`}>
+        {remaining} / {pointBudget} points remaining
+      </div>
       {candidates.map((candidate) => (
         <div
           key={candidate.id}
@@ -33,16 +42,16 @@ const ScoreBallot: React.FC<ScoreBallotProps> = ({ candidates, maxScore = 10, on
           <input
             type="range"
             min={0}
-            max={maxScore}
-            value={scores[candidate.id] ?? 0}
+            max={pointBudget}
+            value={points[candidate.id] ?? 0}
             onChange={(e) => handleChange(candidate.id, parseInt(e.target.value, 10))}
             className="w-32 accent-blue-500"
           />
           <input
             type="number"
             min={0}
-            max={maxScore}
-            value={scores[candidate.id] ?? 0}
+            max={pointBudget}
+            value={points[candidate.id] ?? 0}
             onChange={(e) => handleChange(candidate.id, parseInt(e.target.value, 10) || 0)}
             className="w-14 text-center p-1 rounded border border-slate-300 text-sm"
           />
@@ -52,4 +61,4 @@ const ScoreBallot: React.FC<ScoreBallotProps> = ({ candidates, maxScore = 10, on
   );
 };
 
-export default ScoreBallot;
+export default CumulativeBallot;

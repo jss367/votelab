@@ -12,7 +12,13 @@ export type VotingMethod =
   | 'borda'
   | 'condorcet'
   | 'smithApproval'
-  | 'rrv';
+  | 'rrv'
+  | 'star'
+  | 'score'
+  | 'stv'
+  | 'rankedPairs'
+  | 'majorityJudgment'
+  | 'cumulative';
 
 export interface YeeDiagramConfig {
   voters: Voter[];

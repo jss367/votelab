@@ -6,7 +6,8 @@ module.exports = {
     './src/components/**/*.{js,jsx,ts,tsx}',
     './src/app/**/*.{js,jsx,ts,tsx}',
     './src/**/*.{js,jsx,ts,tsx}',
-    './index.html'
+    './index.html',
+    '../../packages/ui/src/**/*.{js,jsx,ts,tsx}',
   ],
   prefix: "",
   theme: {

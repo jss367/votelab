@@ -1,5 +1,7 @@
 import React from 'react';
 import ApprovalBallot from './ApprovalBallot';
+import CumulativeBallot from './CumulativeBallot';
+import GradeBallot from './GradeBallot';
 import PluralityBallot from './PluralityBallot';
 import RankedApprovalList from './RankedApprovalList';
 import ScoreBallot from './ScoreBallot';
@@ -23,6 +25,12 @@ const BALLOT_INSTRUCTIONS: Record<VotingMethod, string> = {
   condorcet: 'Drag to rank candidates from most to least preferred.',
   smithApproval: '1. Drag to rank the candidates in your preferred order.\n2. Drag the blue line to set your approval threshold — candidates above the line are approved.',
   rrv: 'Score each candidate from 0 (worst) to 10 (best).',
+  star: 'Score each candidate from 0 (worst) to 5 (best). The top two scorers face an automatic runoff.',
+  score: 'Score each candidate from 0 (worst) to 10 (best).',
+  stv: 'Drag to rank candidates from most to least preferred.',
+  rankedPairs: 'Drag to rank candidates from most to least preferred.',
+  majorityJudgment: 'Assign a grade to each candidate, from Reject to Excellent.',
+  cumulative: 'Distribute your points across the candidates. You can give all points to one or spread them out.',
 };
 
 const BallotInput: React.FC<BallotInputProps> = ({ method, candidates, onChange }) => {
@@ -67,6 +75,44 @@ const BallotInput: React.FC<BallotInputProps> = ({ method, candidates, onChange 
       {method === 'rrv' && (
         <ScoreBallot
           candidates={candidates}
+          onChange={(data) => onChange({ ranking: [], approved: [], scores: data.scores })}
+        />
+      )}
+
+      {(method === 'stv' || method === 'rankedPairs') && (
+        <RankedApprovalList
+          candidates={candidates}
+          onChange={({ ranking, approved }) => onChange({ ranking, approved })}
+          showApprovalLine={false}
+        />
+      )}
+
+      {method === 'star' && (
+        <ScoreBallot
+          candidates={candidates}
+          maxScore={5}
+          onChange={(data) => onChange({ ranking: [], approved: [], scores: data.scores })}
+        />
+      )}
+
+      {method === 'score' && (
+        <ScoreBallot
+          candidates={candidates}
+          onChange={(data) => onChange({ ranking: [], approved: [], scores: data.scores })}
+        />
+      )}
+
+      {method === 'majorityJudgment' && (
+        <GradeBallot
+          candidates={candidates}
+          onChange={(data) => onChange({ ranking: [], approved: [], scores: data.scores })}
+        />
+      )}
+
+      {method === 'cumulative' && (
+        <CumulativeBallot
+          candidates={candidates}
+          pointBudget={10}
           onChange={(data) => onChange({ ranking: [], approved: [], scores: data.scores })}
         />
       )}

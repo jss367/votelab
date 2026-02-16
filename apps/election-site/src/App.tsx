@@ -6,8 +6,10 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getFirestore,
   onSnapshot,
+  setDoc,
   updateDoc,
 } from 'firebase/firestore';
 import { Copy } from 'lucide-react';
@@ -68,6 +70,8 @@ function App() {
   >([]);
   const [votingMethod, setVotingMethod] = useState<VotingMethod>('plurality');
   const [candidateScores, setCandidateScores] = useState<Record<string, number>>({});
+  const [electionSlug, setElectionSlug] = useState('');
+  const [slugTouched, setSlugTouched] = useState(false);
 
   // Subscribe to real-time election updates
   useEffect(() => {
@@ -136,18 +140,35 @@ function App() {
         customFields: customFields,
       };
 
-      const docRef = await addDoc(collection(db, 'elections'), electionData);
+      let id: string;
+      const slug = electionSlug.trim();
+
+      if (slug) {
+        // Check if slug is already taken
+        const existing = await getDoc(doc(db, 'elections', slug));
+        if (existing.exists()) {
+          setError(`The ID "${slug}" is already taken. Choose a different one.`);
+          setLoading(false);
+          return;
+        }
+        await setDoc(doc(db, 'elections', slug), electionData);
+        id = slug;
+      } else {
+        const docRef = await addDoc(collection(db, 'elections'), electionData);
+        id = docRef.id;
+      }
+
       saveElection({
-        id: docRef.id,
+        id,
         title: electionTitle.trim(),
         method: votingMethod,
         createdAt: electionData.createdAt,
       });
-      const votingUrl = `${window.location.origin}${window.location.pathname}?id=${docRef.id}`;
-      const resultsUrl = `${window.location.origin}${window.location.pathname}?id=${docRef.id}&view=results`;
+      const votingUrl = `${window.location.origin}${window.location.pathname}?id=${id}`;
+      const resultsUrl = `${window.location.origin}${window.location.pathname}?id=${id}&view=results`;
       setShareUrl(votingUrl);
       setResultsUrl(resultsUrl);
-      setElectionId(docRef.id);
+      setElectionId(id);
     } catch (err) {
       setError('Error creating election');
       console.error('Election creation error:', err);
@@ -211,13 +232,14 @@ function App() {
     try {
       setLoading(true);
       const method = election.votingMethod || 'smithApproval';
+      const scoreBasedMethods: VotingMethod[] = ['rrv', 'star', 'score', 'majorityJudgment', 'cumulative'];
       const vote: Vote = {
         voterName: voterName,
-        ranking: (method === 'approval' || method === 'rrv') ? [] : candidates.map((c) => c.id),
-        approved: (method === 'plurality' || method === 'irv' || method === 'borda' || method === 'condorcet' || method === 'rrv')
-          ? []
-          : Array.from(approvedCandidates),
-        ...(method === 'rrv' ? { scores: candidateScores } : {}),
+        ranking: scoreBasedMethods.includes(method) ? [] : candidates.map((c) => c.id),
+        approved: (method === 'approval' || method === 'smithApproval')
+          ? Array.from(approvedCandidates)
+          : [],
+        ...(scoreBasedMethods.includes(method) ? { scores: candidateScores } : {}),
         timestamp: new Date().toISOString(),
       };
 
@@ -415,10 +437,39 @@ function App() {
                   />
                   <Input
                     value={electionTitle}
-                    onChange={(e) => setElectionTitle(e.target.value)}
+                    onChange={(e) => {
+                      setElectionTitle(e.target.value);
+                      if (!slugTouched) {
+                        setElectionSlug(
+                          e.target.value
+                            .trim()
+                            .replace(/\s+/g, '-')
+                            .replace(/[^a-zA-Z0-9_-]/g, '')
+                        );
+                      }
+                    }}
                     placeholder="Election Title"
                     className="w-full"
                   />
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-slate-700">
+                      Custom URL
+                    </label>
+                    <div className="flex items-center gap-0">
+                      <span className="text-sm text-slate-400 bg-slate-100 border border-r-0 border-slate-300 rounded-l-md px-3 py-2">
+                        votelab.web.app/?id=
+                      </span>
+                      <Input
+                        value={electionSlug}
+                        onChange={(e) => {
+                          setSlugTouched(true);
+                          setElectionSlug(e.target.value.replace(/[^a-zA-Z0-9_-]/g, ''));
+                        }}
+                        placeholder="BookClub"
+                        className="rounded-l-none"
+                      />
+                    </div>
+                  </div>
 
                   <div className="space-y-1">
                     <label className="text-sm font-medium text-slate-700">Voting Method</label>
@@ -434,6 +485,12 @@ function App() {
                       <option value="condorcet">Condorcet — Pairwise matchups</option>
                       <option value="smithApproval">Smith + Approval — Rank and approve</option>
                       <option value="rrv">Reweighted Range Voting (RRV) — Score candidates</option>
+                      <option value="star">STAR — Score then automatic runoff</option>
+                      <option value="score">Score — Rate all candidates</option>
+                      <option value="stv">STV — Proportional ranked choice</option>
+                      <option value="rankedPairs">Ranked Pairs — Condorcet completion</option>
+                      <option value="majorityJudgment">Majority Judgment — Grade candidates</option>
+                      <option value="cumulative">Cumulative — Distribute points</option>
                     </select>
                   </div>
 
@@ -620,7 +677,6 @@ function App() {
 
                     <Button
                       onClick={addExistingElectionCandidate}
-                      variant="secondary"
                       className="w-full"
                     >
                       Add Candidate
@@ -714,7 +770,6 @@ function App() {
                 <p className="text-slate-600">Thank you for voting. Your vote has been recorded.</p>
                 {electionId && election && !election.votingOpen && (
                   <Button
-                    variant="secondary"
                     onClick={() => setMode('results')}
                   >
                     View Results
@@ -763,6 +818,15 @@ function App() {
                     console.error(err);
                   } finally {
                     setLoading(false);
+                  }
+                }}
+                onUpdate={async (fields) => {
+                  if (!electionId) return;
+                  try {
+                    await updateDoc(doc(db, 'elections', electionId), fields);
+                  } catch (err) {
+                    setError('Error updating election');
+                    console.error(err);
                   }
                 }}
               />
