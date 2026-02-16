@@ -168,17 +168,6 @@ const HomePage: React.FC<HomePageProps> = ({ onSelectMethod }) => {
           </Card>
         ))}
       </div>
-
-      <div className="text-center">
-        <a
-          href="https://votelab-visualizations.web.app"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-sm text-blue-600 hover:text-blue-800 underline"
-        >
-          Explore voting methods visually
-        </a>
-      </div>
     </div>
   );
 };
