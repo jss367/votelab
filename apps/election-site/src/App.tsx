@@ -4,6 +4,7 @@ import {
   addDoc,
   arrayUnion,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getFirestore,
@@ -11,9 +12,11 @@ import {
 } from 'firebase/firestore';
 import { Copy } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
+import AdminView from './AdminView';
 import BallotInput from './BallotInput';
 import CustomFieldsInput from './CustomFieldsInput';
 import CustomFieldsManager from './CustomFieldsManager';
+import { removeSavedElection, saveElection } from './electionStorage';
 import HomePage from './HomePage';
 import MethodResults from './MethodResults';
 import RankedApprovalList from './RankedApprovalList';
@@ -37,7 +40,7 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
-type Mode = 'home' | 'create' | 'vote' | 'success' | 'results';
+type Mode = 'home' | 'create' | 'vote' | 'success' | 'results' | 'admin';
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -99,8 +102,11 @@ function App() {
     if (id) {
       setElectionId(id);
       loadElection(id);
-      if (view?.toLowerCase() === 'results') {
+      const v = view?.toLowerCase();
+      if (v === 'results') {
         setMode('results');
+      } else if (v === 'admin') {
+        setMode('admin');
       } else {
         setMode('vote');
       }
@@ -139,6 +145,12 @@ function App() {
       };
 
       const docRef = await addDoc(collection(db, 'elections'), electionData);
+      saveElection({
+        id: docRef.id,
+        title: electionTitle.trim(),
+        method: votingMethod,
+        createdAt: electionData.createdAt,
+      });
       const votingUrl = `${window.location.origin}${window.location.pathname}?id=${docRef.id}`;
       const resultsUrl = `${window.location.origin}${window.location.pathname}?id=${docRef.id}&view=results`;
       setShareUrl(votingUrl);
@@ -700,9 +712,65 @@ function App() {
               </div>
             )}
 
+            {/* Success mode */}
+            {mode === 'success' && (
+              <div className="text-center space-y-4 py-8">
+                <h2 className="text-2xl font-bold text-green-700">Vote Submitted!</h2>
+                <p className="text-slate-600">Thank you for voting. Your vote has been recorded.</p>
+                {electionId && election && !election.votingOpen && (
+                  <Button
+                    variant="secondary"
+                    onClick={() => setMode('results')}
+                  >
+                    View Results
+                  </Button>
+                )}
+              </div>
+            )}
+
             {/* Results mode */}
             {mode === 'results' && election && (
               <MethodResults election={election} />
+            )}
+
+            {/* Admin mode */}
+            {mode === 'admin' && election && electionId && (
+              <AdminView
+                election={election}
+                electionId={electionId}
+                onCloseSubmissions={closeSubmissions}
+                onCloseVoting={closeVoting}
+                onReopenVoting={async () => {
+                  if (!electionId) return;
+                  try {
+                    setLoading(true);
+                    await updateDoc(doc(db, 'elections', electionId), { votingOpen: true });
+                    await loadElection(electionId);
+                  } catch (err) {
+                    setError('Error reopening voting');
+                    console.error(err);
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                onDelete={async () => {
+                  if (!electionId) return;
+                  try {
+                    setLoading(true);
+                    await deleteDoc(doc(db, 'elections', electionId));
+                    removeSavedElection(electionId);
+                    setMode('home');
+                    setElection(null);
+                    setElectionId(null);
+                    window.history.replaceState({}, '', window.location.pathname);
+                  } catch (err) {
+                    setError('Error deleting election');
+                    console.error(err);
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+              />
             )}
           </CardContent>
         </Card>
