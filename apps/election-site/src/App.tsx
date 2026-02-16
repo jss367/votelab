@@ -465,7 +465,7 @@ function App() {
                           setSlugTouched(true);
                           setElectionSlug(e.target.value.replace(/[^a-zA-Z0-9_-]/g, ''));
                         }}
-                        placeholder="BookClub"
+                        placeholder="Election-Title"
                         className="rounded-l-none"
                       />
                     </div>
