@@ -25,13 +25,13 @@ import {
 
 // Firebase config
 const firebaseConfig = {
-  apiKey: 'AIzaSyD2cDOH0jIstu_e7NxPWpjf1cBb9utmxpU',
-  authDomain: 'rank-and-approve-voting.firebaseapp.com',
-  projectId: 'rank-and-approve-voting',
-  storageBucket: 'rank-and-approve-voting.firebasestorage.app',
-  messagingSenderId: '457756698776',
-  appId: '1:457756698776:web:e1326245c652affb7b08ed',
-  measurementId: 'G-1KCG6HW8RT',
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
 type Mode = 'home' | 'create' | 'vote' | 'success' | 'results';

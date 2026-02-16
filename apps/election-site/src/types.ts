@@ -20,16 +20,6 @@ export interface Vote {
   timestamp: string;
 }
 
-export interface Election {
-  title: string;
-  candidates: Candidate[];
-  votes: Vote[];
-  createdAt: string;
-  submissionsClosed: boolean;
-  votingOpen: boolean;
-  createdBy: string;
-}
-
 export type FieldType = 'text' | 'number' | 'date';
 
 export interface CustomField {
