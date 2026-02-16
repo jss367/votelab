@@ -197,24 +197,49 @@ export type SpatialVoteCalculator<M extends VotingMethod> = M extends
   ? ThresholdCalculator
   : BaseCalculator;
 
+// Generate a vote from a single position
+export const generateVoteFromPosition = (
+  position: { x: number; y: number },
+  candidates: SpatialCandidate[],
+  approvalThreshold: number = DEFAULT_APPROVAL_THRESHOLD
+): Vote => {
+  const prefs = getVoterPreference(position.x, position.y, candidates);
+
+  return {
+    ranking: prefs.map((p) => p.id),
+    approved: prefs.filter((p) => p.dist <= approvalThreshold).map((p) => p.id),
+    timestamp: new Date().toISOString(),
+    voterName: `voter-${Math.random().toString(36).slice(2)}`,
+  };
+};
+
+// Generate votes from multiple positions
+export const generateVotesFromSpatialData = (
+  voters: Array<{ x: number; y: number }>,
+  candidates: SpatialCandidate[],
+  approvalThreshold: number = DEFAULT_APPROVAL_THRESHOLD
+): Vote[] => {
+  return voters.map((voter) =>
+    generateVoteFromPosition(voter, candidates, approvalThreshold)
+  );
+};
+
 // The actual calculators
 export const spatialVoteCalculators = {
-  plurality: ((x, y, candidates) =>
-    simulateElectionAtPoint(
-      { x, y },
-      candidates,
-      'plurality'
-    )) as BaseCalculator,
+  plurality: ((x, y, candidates) => {
+    const prefs = getVoterPreference(x, y, candidates);
+    return [prefs[0].id]; // Return closest candidate
+  }) as BaseCalculator,
 
-  approval: ((x, y, candidates) =>
-    simulateElectionAtPoint(
-      { x, y },
-      candidates,
-      'approval'
-    )) as ThresholdCalculator,
+  approval: ((x, y, candidates, threshold = DEFAULT_APPROVAL_THRESHOLD) => {
+    const prefs = getVoterPreference(x, y, candidates);
+    return prefs.filter((p) => p.dist <= threshold).map((p) => p.id);
+  }) as ThresholdCalculator,
 
-  irv: ((x, y, candidates) =>
-    simulateElectionAtPoint({ x, y }, candidates, 'irv')) as BaseCalculator,
+  irv: ((x, y, candidates) => {
+    const prefs = getVoterPreference(x, y, candidates);
+    return prefs.map((p) => p.id); // Return full ranking by distance
+  }) as BaseCalculator,
 
   condorcet: ((x, y, candidates) =>
     simulateElectionAtPoint(
@@ -223,6 +248,16 @@ export const spatialVoteCalculators = {
       'condorcet'
     )) as BaseCalculator,
 
-  borda: ((x, y, candidates) =>
-    simulateElectionAtPoint({ x, y }, candidates, 'borda')) as BaseCalculator,
+  borda: ((x, y, candidates) => {
+    const prefs = getVoterPreference(x, y, candidates);
+    return prefs.map((p) => p.id); // Return full ranking by distance
+  }) as BaseCalculator,
+
+  smithApproval: ((x, y, candidates, threshold = DEFAULT_APPROVAL_THRESHOLD) => {
+    const prefs = getVoterPreference(x, y, candidates);
+    // For a single voter, Smith set is just the closest candidate
+    // and approval is based on threshold
+    const approved = prefs.filter((p) => p.dist <= threshold).map((p) => p.id);
+    return approved.length > 0 ? approved : [prefs[0].id];
+  }) as ThresholdCalculator,
 } as const;

@@ -163,12 +163,12 @@ export const selectWinner = (
     const losses = victories.filter((v) => v.loser === candidate).length;
     const netVictories = wins - losses;
 
-    const margins = victories
-      .filter((v) => v.winner === candidate || v.loser === candidate)
-      .map((v) => (v.winner === candidate ? v.margin : -v.margin));
+    const victoryMargins = victories
+      .filter((v) => v.winner === candidate)
+      .map((v) => v.margin);
     const avgMargin =
-      margins.length > 0
-        ? margins.reduce((sum, m) => sum + m, 0) / margins.length
+      victoryMargins.length > 0
+        ? victoryMargins.reduce((sum, m) => sum + m, 0) / victoryMargins.length
         : 0;
 
     const candidateId =

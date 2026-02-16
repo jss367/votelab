@@ -48,7 +48,10 @@ const ElectionViz = () => {
 
           // Get winner at this point
           const calculator = spatialVoteCalculators[method];
-          const winners = calculator(px, py, candidates);
+          // Some methods (approval, smithApproval) need a threshold parameter
+          const winners = (method === 'approval' || method === 'smithApproval')
+            ? (calculator as (x: number, y: number, c: SpatialCandidate[], t: number) => string[])(px, py, candidates, 0.3)
+            : (calculator as (x: number, y: number, c: SpatialCandidate[]) => string[])(px, py, candidates);
           const winnerId = winners[0];
           const color = candidateColors[winnerId];
 
