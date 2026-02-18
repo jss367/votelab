@@ -7,11 +7,14 @@ import {
 import { Button } from '@repo/ui';
 import { ArrowDown, ArrowUp, Grip, Trash2 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
+import CategoryBadges from './CategoryBadge';
+import type { Candidate, CustomField } from './types';
 
 interface RankedApprovalListProps {
-  candidates: Array<{ id: string; name: string }>;
+  candidates: Candidate[];
+  customFields?: CustomField[];
   onChange: (change: {
-    ranking: Array<{ id: string; name: string }>;
+    ranking: Candidate[];
     approved: string[];
   }) => void;
   onRemove?: (id: string) => void;
@@ -20,12 +23,13 @@ interface RankedApprovalListProps {
 
 const RankedApprovalList: React.FC<RankedApprovalListProps> = ({
   candidates,
+  customFields,
   onChange,
   onRemove,
   showApprovalLine = false,
 }) => {
   const [items, setItems] =
-    useState<Array<{ id: string; name: string }>>(candidates);
+    useState<Candidate[]>(candidates);
   const [approvalLine, setApprovalLine] = useState(
     Math.floor(candidates.length / 2)
   );
@@ -48,9 +52,7 @@ const RankedApprovalList: React.FC<RankedApprovalListProps> = ({
     const destinationIndex = result.destination.index;
 
     const newItems = Array.from(items);
-    const [removed] = newItems.splice(sourceIndex, 1) as [
-      { id: string; name: string },
-    ];
+    const [removed] = newItems.splice(sourceIndex, 1) as [Candidate];
     newItems.splice(destinationIndex, 0, removed);
 
     setItems(newItems);
@@ -203,9 +205,12 @@ const RankedApprovalList: React.FC<RankedApprovalListProps> = ({
                           <span className="w-6 font-medium text-slate-500">
                             {index + 1}.
                           </span>
-                          <span className="flex-grow font-medium text-slate-700">
-                            {candidate.name}
-                          </span>
+                          <div className="flex items-center gap-2 flex-grow">
+                            <span className="font-medium text-slate-700">
+                              {candidate.name}
+                            </span>
+                            <CategoryBadges candidate={candidate} customFields={customFields} />
+                          </div>
                         </div>
                         {onRemove && (
                           <Button

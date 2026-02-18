@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import type { Candidate } from './types';
+import CategoryBadges from './CategoryBadge';
+import type { Candidate, CustomField } from './types';
 
 const GRADES = ['Reject', 'Poor', 'Acceptable', 'Good', 'Very Good', 'Excellent'];
 const GRADE_COLORS = [
@@ -13,10 +14,11 @@ const GRADE_COLORS = [
 
 interface GradeBallotProps {
   candidates: Candidate[];
+  customFields?: CustomField[];
   onChange: (data: { ranking: string[]; approved: string[]; scores: Record<string, number> }) => void;
 }
 
-const GradeBallot: React.FC<GradeBallotProps> = ({ candidates, onChange }) => {
+const GradeBallot: React.FC<GradeBallotProps> = ({ candidates, customFields, onChange }) => {
   const [grades, setGrades] = useState<Record<string, number>>(() => {
     const initial: Record<string, number> = {};
     candidates.forEach((c) => { initial[c.id] = -1; });
@@ -40,7 +42,10 @@ const GradeBallot: React.FC<GradeBallotProps> = ({ candidates, onChange }) => {
           key={candidate.id}
           className="p-3 rounded-lg border bg-slate-50 border-slate-200 space-y-2"
         >
-          <span className="font-medium text-slate-700">{candidate.name}</span>
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-slate-700">{candidate.name}</span>
+            <CategoryBadges candidate={candidate} customFields={customFields} />
+          </div>
           <div className="flex flex-wrap gap-1">
             {GRADES.map((label, index) => (
               <button

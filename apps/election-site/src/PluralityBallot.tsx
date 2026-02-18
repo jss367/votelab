@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
-import type { Candidate } from './types';
+import CategoryBadges from './CategoryBadge';
+import type { Candidate, CustomField } from './types';
 
 interface PluralityBallotProps {
   candidates: Candidate[];
+  customFields?: CustomField[];
   onChange: (data: { ranking: string[]; approved: string[] }) => void;
 }
 
-const PluralityBallot: React.FC<PluralityBallotProps> = ({ candidates, onChange }) => {
+const PluralityBallot: React.FC<PluralityBallotProps> = ({ candidates, customFields, onChange }) => {
   const [selected, setSelected] = useState<string | null>(null);
 
   const handleSelect = (id: string) => {
@@ -34,7 +36,10 @@ const PluralityBallot: React.FC<PluralityBallotProps> = ({ candidates, onChange 
             onChange={() => handleSelect(candidate.id)}
             className="h-4 w-4 text-blue-600"
           />
-          <span className="font-medium text-slate-700">{candidate.name}</span>
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-slate-700">{candidate.name}</span>
+            <CategoryBadges candidate={candidate} customFields={customFields} />
+          </div>
         </label>
       ))}
     </div>

@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
-import type { Candidate } from './types';
+import CategoryBadges from './CategoryBadge';
+import type { Candidate, CustomField } from './types';
 
 interface ScoreBallotProps {
   candidates: Candidate[];
+  customFields?: CustomField[];
   maxScore?: number;
   onChange: (data: { ranking: string[]; approved: string[]; scores: Record<string, number> }) => void;
 }
 
-const ScoreBallot: React.FC<ScoreBallotProps> = ({ candidates, maxScore = 10, onChange }) => {
+const ScoreBallot: React.FC<ScoreBallotProps> = ({ candidates, customFields, maxScore = 10, onChange }) => {
   const [scores, setScores] = useState<Record<string, number>>(() => {
     const initial: Record<string, number> = {};
     candidates.forEach(c => { initial[c.id] = 0; });
@@ -29,7 +31,10 @@ const ScoreBallot: React.FC<ScoreBallotProps> = ({ candidates, maxScore = 10, on
           key={candidate.id}
           className="flex items-center gap-4 p-3 rounded-lg border bg-slate-50 border-slate-200"
         >
-          <span className="font-medium text-slate-700 flex-grow">{candidate.name}</span>
+          <div className="flex items-center gap-2 flex-grow">
+            <span className="font-medium text-slate-700">{candidate.name}</span>
+            <CategoryBadges candidate={candidate} customFields={customFields} />
+          </div>
           <input
             type="range"
             min={0}

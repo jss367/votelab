@@ -1,6 +1,7 @@
 import { Button, Card, CardContent, CardHeader, Input } from '@repo/ui';
 import { Copy } from 'lucide-react';
 import { useState } from 'react';
+import CategoryBadges from './CategoryBadge';
 import CustomFieldsInput from './CustomFieldsInput';
 import type { CustomField, CustomFieldValue, Election, FieldType } from './types';
 
@@ -175,40 +176,108 @@ const AdminView: React.FC<AdminViewProps> = ({
               <div className="space-y-2">
                 <label className="text-xs text-slate-500">Custom Fields</label>
                 {editFields.map((field, i) => (
-                  <div key={field.id} className="flex gap-2 items-center">
-                    <div className="flex flex-col">
-                      <button
-                        onClick={() => moveField(i, i - 1)}
-                        disabled={i === 0}
-                        className="text-xs text-slate-400 hover:text-slate-700 disabled:opacity-25 leading-none"
+                  <div key={field.id}>
+                    <div className="flex gap-2 items-center">
+                      <div className="flex flex-col">
+                        <button
+                          onClick={() => moveField(i, i - 1)}
+                          disabled={i === 0}
+                          className="text-xs text-slate-400 hover:text-slate-700 disabled:opacity-25 leading-none"
+                        >
+                          &#9650;
+                        </button>
+                        <button
+                          onClick={() => moveField(i, i + 1)}
+                          disabled={i === editFields.length - 1}
+                          className="text-xs text-slate-400 hover:text-slate-700 disabled:opacity-25 leading-none"
+                        >
+                          &#9660;
+                        </button>
+                      </div>
+                      <Input
+                        value={field.name}
+                        onChange={(e) => {
+                          const updated = editFields.map((f, j) =>
+                            j === i ? { ...f, name: e.target.value } : f
+                          );
+                          setEditFields(updated);
+                        }}
+                        className="flex-1"
+                      />
+                      <select
+                        value={field.type}
+                        onChange={(e) => {
+                          const updated = editFields.map((f, j) =>
+                            j === i ? { ...f, type: e.target.value as FieldType } : f
+                          );
+                          setEditFields(updated);
+                        }}
+                        className="p-1 rounded-md border border-slate-300 bg-white text-xs"
                       >
-                        &#9650;
-                      </button>
+                        <option value="text">text</option>
+                        <option value="textarea">long text</option>
+                        <option value="number">number</option>
+                        <option value="date">date</option>
+                        <option value="select">select</option>
+                        <option value="multiselect">multi-select</option>
+                      </select>
                       <button
-                        onClick={() => moveField(i, i + 1)}
-                        disabled={i === editFields.length - 1}
-                        className="text-xs text-slate-400 hover:text-slate-700 disabled:opacity-25 leading-none"
+                        onClick={() => removeField(field.id)}
+                        className="text-xs text-red-500 hover:text-red-700"
                       >
-                        &#9660;
+                        &times;
                       </button>
                     </div>
-                    <Input
-                      value={field.name}
-                      onChange={(e) => {
-                        const updated = editFields.map((f, j) =>
-                          j === i ? { id: f.id, name: e.target.value, type: f.type, required: f.required } : f
-                        );
-                        setEditFields(updated);
-                      }}
-                      className="flex-1"
-                    />
-                    <span className="text-xs text-slate-400">{field.type}</span>
-                    <button
-                      onClick={() => removeField(field.id)}
-                      className="text-xs text-red-500 hover:text-red-700"
-                    >
-                      &times;
-                    </button>
+                    {(field.type === 'select' || field.type === 'multiselect') && (
+                      <div className="ml-8 mt-2 space-y-1">
+                        {(field.options || []).map((opt, oi) => (
+                          <div key={oi} className="flex items-center gap-1">
+                            <span className="text-xs text-slate-600">{opt}</span>
+                            <button
+                              onClick={() => {
+                                const updated = editFields.map((f, j) =>
+                                  j === i ? { ...f, options: f.options?.filter((_, k) => k !== oi) } : f
+                                );
+                                setEditFields(updated);
+                              }}
+                              className="text-xs text-red-400 hover:text-red-600"
+                            >
+                              &times;
+                            </button>
+                          </div>
+                        ))}
+                        <Input
+                          placeholder="Add option and press Enter..."
+                          className="h-7 text-xs"
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                              const val = (e.target as HTMLInputElement).value.trim();
+                              if (val) {
+                                const updated = editFields.map((f, j) =>
+                                  j === i ? { ...f, options: [...(f.options || []), val] } : f
+                                );
+                                setEditFields(updated);
+                                (e.target as HTMLInputElement).value = '';
+                              }
+                            }
+                          }}
+                        />
+                        <div className="flex items-center gap-2 mt-1">
+                          <input
+                            type="checkbox"
+                            checked={field.allowCustomOptions || false}
+                            onChange={(e) => {
+                              const updated = editFields.map((f, j) =>
+                                j === i ? { ...f, allowCustomOptions: e.target.checked } : f
+                              );
+                              setEditFields(updated);
+                            }}
+                            className="h-3 w-3 rounded border-gray-300"
+                          />
+                          <label className="text-xs text-slate-500">Allow submitters to add their own options</label>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
                 <div className="flex gap-2 items-center">
@@ -228,6 +297,8 @@ const AdminView: React.FC<AdminViewProps> = ({
                     <option value="textarea">long text</option>
                     <option value="number">number</option>
                     <option value="date">date</option>
+                    <option value="select">select</option>
+                    <option value="multiselect">multi-select</option>
                   </select>
                   <Button onClick={addField} variant="secondary" size="sm">
                     Add
@@ -374,7 +445,10 @@ const AdminView: React.FC<AdminViewProps> = ({
                   ) : (
                     <div className="flex items-start justify-between">
                       <div>
-                        <span className="font-medium">{c.name}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{c.name}</span>
+                          <CategoryBadges candidate={c} customFields={election.customFields} />
+                        </div>
                         {c.customFields && c.customFields.length > 0 && (
                           <div className="mt-1 text-sm text-slate-500">
                             {c.customFields.map((field) => {

@@ -24,18 +24,20 @@ export interface Vote {
   timestamp: string;
 }
 
-export type FieldType = 'text' | 'textarea' | 'number' | 'date';
+export type FieldType = 'text' | 'textarea' | 'number' | 'date' | 'select' | 'multiselect';
 
 export interface CustomField {
   id: string;
   name: string;
   type: FieldType;
   required: boolean;
+  options?: string[];  // predefined options for select/multiselect fields
+  allowCustomOptions?: boolean;  // allow submitters to add their own options
 }
 
 export interface CustomFieldValue {
   fieldId: string;
-  value: string | number | Date | null;
+  value: string | number | Date | string[] | null;
 }
 
 export interface Election {

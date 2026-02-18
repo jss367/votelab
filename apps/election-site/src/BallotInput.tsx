@@ -5,11 +5,12 @@ import GradeBallot from './GradeBallot';
 import PluralityBallot from './PluralityBallot';
 import RankedApprovalList from './RankedApprovalList';
 import ScoreBallot from './ScoreBallot';
-import type { Candidate, VotingMethod } from './types';
+import type { Candidate, CustomField, VotingMethod } from './types';
 
 interface BallotInputProps {
   method: VotingMethod;
   candidates: Candidate[];
+  customFields?: CustomField[];
   onChange: (data: {
     ranking: Candidate[];
     approved: string[];
@@ -33,7 +34,7 @@ const BALLOT_INSTRUCTIONS: Record<VotingMethod, string> = {
   cumulative: 'Distribute your points across the candidates. You can give all points to one or spread them out.',
 };
 
-const BallotInput: React.FC<BallotInputProps> = ({ method, candidates, onChange }) => {
+const BallotInput: React.FC<BallotInputProps> = ({ method, candidates, customFields, onChange }) => {
   const handleSimpleBallot = (data: { ranking: string[]; approved: string[] }) => {
     // Convert string IDs back to candidate objects for ranking
     const rankedCandidates = data.ranking
@@ -49,16 +50,17 @@ const BallotInput: React.FC<BallotInputProps> = ({ method, candidates, onChange 
       </p>
 
       {method === 'plurality' && (
-        <PluralityBallot candidates={candidates} onChange={handleSimpleBallot} />
+        <PluralityBallot candidates={candidates} customFields={customFields} onChange={handleSimpleBallot} />
       )}
 
       {method === 'approval' && (
-        <ApprovalBallot candidates={candidates} onChange={handleSimpleBallot} />
+        <ApprovalBallot candidates={candidates} customFields={customFields} onChange={handleSimpleBallot} />
       )}
 
       {(method === 'irv' || method === 'borda' || method === 'condorcet') && (
         <RankedApprovalList
           candidates={candidates}
+          customFields={customFields}
           onChange={({ ranking, approved }) => onChange({ ranking, approved })}
           showApprovalLine={false}
         />
@@ -67,6 +69,7 @@ const BallotInput: React.FC<BallotInputProps> = ({ method, candidates, onChange 
       {method === 'smithApproval' && (
         <RankedApprovalList
           candidates={candidates}
+          customFields={customFields}
           onChange={({ ranking, approved }) => onChange({ ranking, approved })}
           showApprovalLine={true}
         />
@@ -75,6 +78,7 @@ const BallotInput: React.FC<BallotInputProps> = ({ method, candidates, onChange 
       {method === 'rrv' && (
         <ScoreBallot
           candidates={candidates}
+          customFields={customFields}
           onChange={(data) => onChange({ ranking: [], approved: [], scores: data.scores })}
         />
       )}
@@ -82,6 +86,7 @@ const BallotInput: React.FC<BallotInputProps> = ({ method, candidates, onChange 
       {(method === 'stv' || method === 'rankedPairs') && (
         <RankedApprovalList
           candidates={candidates}
+          customFields={customFields}
           onChange={({ ranking, approved }) => onChange({ ranking, approved })}
           showApprovalLine={false}
         />
@@ -90,6 +95,7 @@ const BallotInput: React.FC<BallotInputProps> = ({ method, candidates, onChange 
       {method === 'star' && (
         <ScoreBallot
           candidates={candidates}
+          customFields={customFields}
           maxScore={5}
           onChange={(data) => onChange({ ranking: [], approved: [], scores: data.scores })}
         />
@@ -98,6 +104,7 @@ const BallotInput: React.FC<BallotInputProps> = ({ method, candidates, onChange 
       {method === 'score' && (
         <ScoreBallot
           candidates={candidates}
+          customFields={customFields}
           onChange={(data) => onChange({ ranking: [], approved: [], scores: data.scores })}
         />
       )}
@@ -105,6 +112,7 @@ const BallotInput: React.FC<BallotInputProps> = ({ method, candidates, onChange 
       {method === 'majorityJudgment' && (
         <GradeBallot
           candidates={candidates}
+          customFields={customFields}
           onChange={(data) => onChange({ ranking: [], approved: [], scores: data.scores })}
         />
       )}
@@ -112,6 +120,7 @@ const BallotInput: React.FC<BallotInputProps> = ({ method, candidates, onChange 
       {method === 'cumulative' && (
         <CumulativeBallot
           candidates={candidates}
+          customFields={customFields}
           pointBudget={10}
           onChange={(data) => onChange({ ranking: [], approved: [], scores: data.scores })}
         />

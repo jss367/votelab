@@ -16,6 +16,7 @@ import { Copy } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import AdminView from './AdminView';
 import BallotInput from './BallotInput';
+import CategoryBadges from './CategoryBadge';
 import CustomFieldsInput from './CustomFieldsInput';
 import CustomFieldsManager from './CustomFieldsManager';
 import { removeSavedElection, saveElection } from './electionStorage';
@@ -75,6 +76,18 @@ function App() {
   const [editingCandidateId, setEditingCandidateId] = useState<string | null>(null);
   const [editCandidateName, setEditCandidateName] = useState('');
   const [editCandidateFields, setEditCandidateFields] = useState<CustomFieldValue[]>([]);
+  const [sortByField, setSortByField] = useState<string>('');
+
+  const sortedVoterCandidates = (() => {
+    if (!election || !sortByField) return election?.candidates || [];
+    return [...election.candidates].sort((a, b) => {
+      const aRaw = a.customFields?.find((f) => f.fieldId === sortByField)?.value;
+      const bRaw = b.customFields?.find((f) => f.fieldId === sortByField)?.value;
+      const aVal = Array.isArray(aRaw) ? aRaw.join(', ') : aRaw?.toString() || '';
+      const bVal = Array.isArray(bRaw) ? bRaw.join(', ') : bRaw?.toString() || '';
+      return aVal.localeCompare(bVal);
+    });
+  })();
 
   // Subscribe to real-time election updates
   useEffect(() => {
@@ -588,6 +601,7 @@ function App() {
                 {/* Candidate list */}
                 <RankedApprovalList
                   candidates={candidates}
+                  customFields={customFields}
                   onChange={({ ranking }) => {
                     setCandidates(ranking);
                     // Don't update approvedCandidates during creation
@@ -648,15 +662,6 @@ function App() {
                         ? 'You can add candidates and vote.'
                         : 'You can add candidates. Voting will begin when the submission period ends.'}
                     </p>
-                    {election.createdBy === voterName && (
-                      <Button
-                        onClick={closeSubmissions}
-                        variant="secondary"
-                        className="mt-2"
-                      >
-                        Close Submission Period & Start Voting
-                      </Button>
-                    )}
                   </div>
                 )}
 
@@ -667,13 +672,6 @@ function App() {
                     </p>
                   </div>
                 )}
-
-                <Input
-                  value={voterName}
-                  onChange={(e) => setVoterName(e.target.value)}
-                  placeholder="Your Name"
-                  className="w-full"
-                />
 
                 {/* Candidate submission form - show during submission period */}
                 {!election.submissionsClosed && (
@@ -709,8 +707,25 @@ function App() {
                       <h3 className="text-sm font-medium text-slate-900 mb-2">
                         Current Candidates:
                       </h3>
+                      {election.customFields?.some((f) => f.type === 'select' || f.type === 'multiselect') && (
+                        <div className="flex items-center gap-2 mb-2">
+                          <label className="text-xs text-slate-500">Sort by:</label>
+                          <select
+                            value={sortByField}
+                            onChange={(e) => setSortByField(e.target.value)}
+                            className="text-xs p-1 rounded border border-slate-300 bg-white"
+                          >
+                            <option value="">Default</option>
+                            {election.customFields
+                              .filter((f) => f.type === 'select' || f.type === 'multiselect')
+                              .map((f) => (
+                                <option key={f.id} value={f.id}>{f.name}</option>
+                              ))}
+                          </select>
+                        </div>
+                      )}
                       <div className="space-y-2">
-                        {election.candidates.map((candidate) => (
+                        {sortedVoterCandidates.map((candidate) => (
                           <div
                             key={candidate.id}
                             className="p-3 bg-slate-50 rounded-md border border-slate-200"
@@ -761,7 +776,10 @@ function App() {
                             ) : (
                               <div className="flex items-start justify-between">
                                 <div>
-                                  <div className="font-medium">{candidate.name}</div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium">{candidate.name}</span>
+                                    <CategoryBadges candidate={candidate} customFields={election.customFields} />
+                                  </div>
                                   {candidate.customFields &&
                                     candidate.customFields.length > 0 && (
                                       <div className="mt-1 text-sm text-slate-600">
@@ -802,26 +820,23 @@ function App() {
                 {/* Voting interface - show when voting is open */}
                 {election.votingOpen && (
                   <>
+                    <Input
+                      value={voterName}
+                      onChange={(e) => setVoterName(e.target.value)}
+                      placeholder="Your Name"
+                      className="w-full"
+                    />
+
                     <BallotInput
                       method={election.votingMethod || 'smithApproval'}
                       candidates={candidates}
+                      customFields={election.customFields}
                       onChange={({ ranking, approved, scores }) => {
                         if (ranking.length > 0) setCandidates(ranking);
                         setApprovedCandidates(new Set(approved));
                         if (scores) setCandidateScores(scores);
                       }}
                     />
-
-                    {election.createdBy === voterName &&
-                      election.votingOpen && (
-                        <Button
-                          onClick={closeVoting}
-                          variant="secondary"
-                          className="w-full"
-                        >
-                          Close Voting
-                        </Button>
-                      )}
 
                     <Button
                       className="w-full"

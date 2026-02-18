@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
-import type { Candidate } from './types';
+import CategoryBadges from './CategoryBadge';
+import type { Candidate, CustomField } from './types';
 
 interface ApprovalBallotProps {
   candidates: Candidate[];
+  customFields?: CustomField[];
   onChange: (data: { ranking: string[]; approved: string[] }) => void;
 }
 
-const ApprovalBallot: React.FC<ApprovalBallotProps> = ({ candidates, onChange }) => {
+const ApprovalBallot: React.FC<ApprovalBallotProps> = ({ candidates, customFields, onChange }) => {
   const [approved, setApproved] = useState<Set<string>>(new Set());
 
   const handleToggle = (id: string) => {
@@ -38,7 +40,10 @@ const ApprovalBallot: React.FC<ApprovalBallotProps> = ({ candidates, onChange })
             onChange={() => handleToggle(candidate.id)}
             className="h-4 w-4 rounded text-green-600"
           />
-          <span className="font-medium text-slate-700">{candidate.name}</span>
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-slate-700">{candidate.name}</span>
+            <CategoryBadges candidate={candidate} customFields={customFields} />
+          </div>
         </label>
       ))}
     </div>
