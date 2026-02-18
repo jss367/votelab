@@ -75,6 +75,7 @@ const CustomFieldsManager = ({
                 className="w-32"
               >
                 <option value="text">Text</option>
+                <option value="textarea">Long Text</option>
                 <option value="number">Number</option>
                 <option value="date">Date</option>
               </Select>
