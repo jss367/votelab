@@ -24,7 +24,7 @@ export interface Vote {
   timestamp: string;
 }
 
-export type FieldType = 'text' | 'number' | 'date';
+export type FieldType = 'text' | 'textarea' | 'number' | 'date';
 
 export interface CustomField {
   id: string;

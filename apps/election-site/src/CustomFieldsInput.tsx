@@ -65,20 +65,31 @@ const CustomFieldsInput = ({
             {field.name}
             {field.required && <span className="text-red-500 ml-1">*</span>}
           </label>
-          <Input
-            type={
-              field.type === 'date'
-                ? 'date'
-                : field.type === 'number'
-                  ? 'number'
-                  : 'text'
-            }
-            value={getValue(field.id)}
-            onChange={(e) => updateFieldValue(field.id, e.target.value)}
-            disabled={disabled}
-            required={field.required}
-            className="w-full"
-          />
+          {field.type === 'textarea' ? (
+            <textarea
+              value={getValue(field.id)}
+              onChange={(e) => updateFieldValue(field.id, e.target.value)}
+              disabled={disabled}
+              required={field.required}
+              rows={3}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            />
+          ) : (
+            <Input
+              type={
+                field.type === 'date'
+                  ? 'date'
+                  : field.type === 'number'
+                    ? 'number'
+                    : 'text'
+              }
+              value={getValue(field.id)}
+              onChange={(e) => updateFieldValue(field.id, e.target.value)}
+              disabled={disabled}
+              required={field.required}
+              className="w-full"
+            />
+          )}
         </div>
       ))}
     </div>

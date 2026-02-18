@@ -72,6 +72,9 @@ function App() {
   const [candidateScores, setCandidateScores] = useState<Record<string, number>>({});
   const [electionSlug, setElectionSlug] = useState('');
   const [slugTouched, setSlugTouched] = useState(false);
+  const [editingCandidateId, setEditingCandidateId] = useState<string | null>(null);
+  const [editCandidateName, setEditCandidateName] = useState('');
+  const [editCandidateFields, setEditCandidateFields] = useState<CustomFieldValue[]>([]);
 
   // Subscribe to real-time election updates
   useEffect(() => {
@@ -379,6 +382,25 @@ function App() {
     const newApproved = new Set(approvedCandidates);
     newApproved.delete(id);
     setApprovedCandidates(newApproved);
+  };
+
+  const updateCandidate = async (updatedCandidate: Candidate) => {
+    if (!electionId || !election) return;
+    setError('');
+    try {
+      setLoading(true);
+      const updatedCandidates = election.candidates.map((c) =>
+        c.id === updatedCandidate.id ? updatedCandidate : c
+      );
+      const electionRef = doc(db, 'elections', electionId);
+      await updateDoc(electionRef, { candidates: updatedCandidates });
+    } catch (err) {
+      setError('Error updating candidate');
+      console.error(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (loading) {
@@ -691,34 +713,85 @@ function App() {
                         {election.candidates.map((candidate) => (
                           <div
                             key={candidate.id}
-                            className="p-2 bg-slate-50 rounded-md border border-slate-200"
+                            className="p-3 bg-slate-50 rounded-md border border-slate-200"
                           >
-                            <div className="font-medium">{candidate.name}</div>
-                            {candidate.customFields &&
-                              candidate.customFields.length > 0 && (
-                                <div className="mt-1 text-sm text-slate-600">
-                                  {candidate.customFields.map((field) => {
-                                    const fieldDef =
-                                      election.customFields?.find(
-                                        (f) => f.id === field.fieldId
-                                      );
-                                    if (!fieldDef) {
-                                      return null;
-                                    }
-                                    return (
-                                      <span
-                                        key={field.fieldId}
-                                        className="inline-block mr-3"
-                                      >
-                                        <span className="font-medium">
-                                          {fieldDef.name}:
-                                        </span>{' '}
-                                        {field.value?.toString()}
-                                      </span>
-                                    );
-                                  })}
+                            {editingCandidateId === candidate.id ? (
+                              <div className="space-y-3">
+                                <Input
+                                  value={editCandidateName}
+                                  onChange={(e) => setEditCandidateName(e.target.value)}
+                                  placeholder="Candidate Name"
+                                  className="w-full"
+                                />
+                                {election.customFields && election.customFields.length > 0 && (
+                                  <CustomFieldsInput
+                                    fields={election.customFields}
+                                    values={editCandidateFields}
+                                    onChange={setEditCandidateFields}
+                                  />
+                                )}
+                                <div className="flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    disabled={loading}
+                                    onClick={async () => {
+                                      try {
+                                        await updateCandidate({
+                                          ...candidate,
+                                          name: editCandidateName.trim() || candidate.name,
+                                          customFields: editCandidateFields,
+                                        });
+                                        setEditingCandidateId(null);
+                                      } catch {
+                                        // error already set by updateCandidate; keep editor open
+                                      }
+                                    }}
+                                  >
+                                    Save
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    onClick={() => setEditingCandidateId(null)}
+                                  >
+                                    Cancel
+                                  </Button>
                                 </div>
-                              )}
+                              </div>
+                            ) : (
+                              <div className="flex items-start justify-between">
+                                <div>
+                                  <div className="font-medium">{candidate.name}</div>
+                                  {candidate.customFields &&
+                                    candidate.customFields.length > 0 && (
+                                      <div className="mt-1 text-sm text-slate-600">
+                                        {candidate.customFields.map((field) => {
+                                          const fieldDef = election.customFields?.find(
+                                            (f) => f.id === field.fieldId
+                                          );
+                                          if (!fieldDef) return null;
+                                          return (
+                                            <span key={field.fieldId} className="inline-block mr-3">
+                                              <span className="font-medium">{fieldDef.name}:</span>{' '}
+                                              {field.value?.toString()}
+                                            </span>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                </div>
+                                <button
+                                  onClick={() => {
+                                    setEditingCandidateId(candidate.id);
+                                    setEditCandidateName(candidate.name);
+                                    setEditCandidateFields(candidate.customFields || []);
+                                  }}
+                                  className="text-xs text-blue-600 hover:text-blue-800 underline ml-2 shrink-0"
+                                >
+                                  Edit
+                                </button>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
