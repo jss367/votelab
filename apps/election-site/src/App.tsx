@@ -416,6 +416,23 @@ function App() {
     }
   };
 
+  const deleteCandidate = async (candidateId: string) => {
+    if (!electionId || !election) return;
+    setError('');
+    try {
+      setLoading(true);
+      const updatedCandidates = election.candidates.filter((c) => c.id !== candidateId);
+      const electionRef = doc(db, 'elections', electionId);
+      await updateDoc(electionRef, { candidates: updatedCandidates });
+    } catch (err) {
+      setError('Error deleting candidate');
+      console.error(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen bg-background">
@@ -798,16 +815,24 @@ function App() {
                                       </div>
                                     )}
                                 </div>
-                                <button
-                                  onClick={() => {
-                                    setEditingCandidateId(candidate.id);
-                                    setEditCandidateName(candidate.name);
-                                    setEditCandidateFields(candidate.customFields || []);
-                                  }}
-                                  className="text-xs text-blue-600 hover:text-blue-800 underline ml-2 shrink-0"
-                                >
-                                  Edit
-                                </button>
+                                <div className="flex gap-2 ml-2 shrink-0">
+                                  <button
+                                    onClick={() => {
+                                      setEditingCandidateId(candidate.id);
+                                      setEditCandidateName(candidate.name);
+                                      setEditCandidateFields(candidate.customFields || []);
+                                    }}
+                                    className="text-xs text-blue-600 hover:text-blue-800 underline"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    onClick={() => deleteCandidate(candidate.id)}
+                                    className="text-xs text-red-500 hover:text-red-700 underline"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
                               </div>
                             )}
                           </div>
