@@ -807,7 +807,7 @@ function App() {
                                           if (!fieldDef) return null;
                                           return (
                                             <div key={field.fieldId}>
-                                              <span className="font-medium">{fieldDef.name}:</span>{' '}
+                                              <span className="font-medium text-slate-700">{fieldDef.name}:</span>{' '}
                                               {field.value?.toString()}
                                             </div>
                                           );
