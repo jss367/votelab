@@ -799,17 +799,17 @@ function App() {
                                   </div>
                                   {candidate.customFields &&
                                     candidate.customFields.length > 0 && (
-                                      <div className="mt-1 text-sm text-slate-600">
+                                      <div className="mt-1 text-sm text-slate-600 space-y-0.5">
                                         {candidate.customFields.map((field) => {
                                           const fieldDef = election.customFields?.find(
                                             (f) => f.id === field.fieldId
                                           );
                                           if (!fieldDef) return null;
                                           return (
-                                            <span key={field.fieldId} className="inline-block mr-3">
+                                            <div key={field.fieldId}>
                                               <span className="font-medium">{fieldDef.name}:</span>{' '}
                                               {field.value?.toString()}
-                                            </span>
+                                            </div>
                                           );
                                         })}
                                       </div>
