@@ -450,14 +450,15 @@ const AdminView: React.FC<AdminViewProps> = ({
                           <CategoryBadges candidate={c} customFields={election.customFields} />
                         </div>
                         {c.customFields && c.customFields.length > 0 && (
-                          <div className="mt-1 text-sm text-slate-500">
+                          <div className="mt-1 text-sm text-slate-500 space-y-0.5">
                             {c.customFields.map((field) => {
                               const fieldDef = election.customFields?.find((f) => f.id === field.fieldId);
                               if (!fieldDef) return null;
                               return (
-                                <span key={field.fieldId} className="inline-block mr-2">
-                                  {fieldDef.name}: {Array.isArray(field.value) ? field.value.join(', ') : field.value?.toString()}
-                                </span>
+                                <div key={field.fieldId}>
+                                  <span className="font-medium">{fieldDef.name}:</span>{' '}
+                                  {Array.isArray(field.value) ? field.value.join(', ') : field.value?.toString()}
+                                </div>
                               );
                             })}
                           </div>
