@@ -345,7 +345,7 @@ const VotingMethodViz: React.FC = () => {
   };
 
   const calculateWinningAreas = useCallback(
-    (method: VotingMethod) => {
+    (method: string) => {
       const samplePoints = 50;
       const votes = new Map<string, number>();
       candidates.forEach((c) => votes.set(c.id, 0));
@@ -449,7 +449,7 @@ const VotingMethodViz: React.FC = () => {
   );
 
   const calculateActualVotes = useCallback(
-    (method: VotingMethod) => {
+    (method: string) => {
       if (!hasGeneratedVoters || voters.length === 0) return null;
 
       const votes = new Map<string, number>();
@@ -458,7 +458,7 @@ const VotingMethodViz: React.FC = () => {
       if (method === 'irv') {
         let remainingCandidates = [...candidates];
         const allVotes = voters.map((voter) =>
-          spatialVoteCalculators[method as SpatialVotingMethod](voter.x, voter.y, candidates)
+          spatialVoteCalculators.irv(voter.x, voter.y, candidates)
         );
 
         while (remainingCandidates.length > 1) {

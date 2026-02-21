@@ -26,7 +26,6 @@ export function createCache<T>(prefix: string) {
         const cached = data as CacheEntry<T>;
 
         if (cached.version !== CACHE_VERSION) {
-          await this.clear(key);
           return null;
         }
 
