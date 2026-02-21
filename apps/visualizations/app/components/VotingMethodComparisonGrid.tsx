@@ -268,7 +268,7 @@ const VotingMethodComparisonGrid = () => {
       setDisplayBallots(allBallots);
 
       // Redraw all canvases to show inspection point
-      Object.entries(canvasRefs).forEach(([_method, ref]) => {
+      Object.entries(canvasRefs).forEach(([, ref]) => {
         const canvas = ref.current;
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
