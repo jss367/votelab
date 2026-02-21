@@ -456,7 +456,7 @@ const AdminView: React.FC<AdminViewProps> = ({
                               if (!fieldDef) return null;
                               return (
                                 <span key={field.fieldId} className="inline-block mr-2">
-                                  {fieldDef.name}: {field.value?.toString()}
+                                  {fieldDef.name}: {Array.isArray(field.value) ? field.value.join(', ') : field.value?.toString()}
                                 </span>
                               );
                             })}
