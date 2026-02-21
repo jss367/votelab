@@ -25,7 +25,7 @@ export async function GET(request: Request) {
     const filePath = join(CACHE_DIR, `${key}.json`);
     const data = await readFile(filePath, 'utf-8');
     return NextResponse.json({ data: JSON.parse(data) });
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json({ error: 'Cache miss' }, { status: 404 });
   }
 }

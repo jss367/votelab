@@ -1,3 +1,5 @@
+import { Ballot } from './ballotGeneration';
+
 interface CacheEntry<T> {
   data: T;
   timestamp: number;
@@ -87,9 +89,9 @@ interface VisualizationResult {
 interface BallotResult {
   ballots: Array<{
     voterPosition: { x: number; y: number };
-    pluralityBallot: any;
-    rankedBallot: any;
-    starBallot: any;
+    pluralityBallot: Ballot;
+    rankedBallot: Ballot;
+    starBallot: Ballot;
   }>;
 }
 

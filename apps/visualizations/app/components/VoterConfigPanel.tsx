@@ -4,7 +4,6 @@ import React, { useState, useCallback } from 'react';
 import {
   VoterBloc,
   VoterPreset,
-  createVoterBloc,
   createPresetPopulation,
 } from '@votelab/shared-utils';
 
@@ -25,7 +24,7 @@ const PRESETS: { value: VoterPreset; label: string }[] = [
 export const VoterConfigPanel: React.FC<VoterConfigPanelProps> = ({
   blocs,
   onBlocsChange,
-  onAddBloc,
+  onAddBloc: _onAddBloc,
 }) => {
   const [selectedPreset, setSelectedPreset] = useState<VoterPreset>('uniform');
   const [totalVoters, setTotalVoters] = useState(1000);

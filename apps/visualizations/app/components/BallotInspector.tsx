@@ -6,7 +6,7 @@ import {
   SpatialCandidate,
   VotingMethod,
   getVoterPreferences,
-  computeWinner,
+
   computePluralityWinner,
   computeApprovalWinner,
   computeBordaWinner,

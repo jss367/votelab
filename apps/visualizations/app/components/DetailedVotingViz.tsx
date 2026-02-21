@@ -550,7 +550,7 @@ const DetailedVotingViz = () => {
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                 These visualizations show how different voting methods would
                 determine the winner based on where voters are centered. Each
-                point's color represents which candidate would win if voters
+                point&apos;s color represents which candidate would win if voters
                 were concentrated around that location.
               </p>
               <VotingMethodComparisonGrid />
