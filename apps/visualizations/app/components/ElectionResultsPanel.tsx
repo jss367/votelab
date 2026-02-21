@@ -126,7 +126,7 @@ export const ElectionResultsPanel: React.FC<ElectionResultsPanelProps> = ({
   const results = useMemo(() => {
     if (voters.length === 0) return null;
 
-    return {
+    const r: Partial<Record<VotingMethod, string>> = {
       plurality: computePluralityWinner(voters, candidates),
       approval: computeApprovalWinner(voters, candidates, approvalThreshold),
       irv: computeIRVWinner(voters, candidates),
@@ -134,6 +134,7 @@ export const ElectionResultsPanel: React.FC<ElectionResultsPanelProps> = ({
       condorcet: computeCondorcetWinner(voters, candidates),
       smithApproval: computeSmithApprovalWinner(voters, candidates, approvalThreshold),
     };
+    return r;
   }, [voters, candidates, approvalThreshold]);
 
   // Create candidate lookups
@@ -179,6 +180,7 @@ export const ElectionResultsPanel: React.FC<ElectionResultsPanelProps> = ({
           <div className="space-y-1">
             {(Object.keys(METHOD_NAMES) as VotingMethod[]).map((m) => {
               const winnerId = results[m];
+              if (!winnerId) return null;
               const isCurrentMethod = m === method;
               return (
                 <div
