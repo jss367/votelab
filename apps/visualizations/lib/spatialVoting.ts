@@ -261,3 +261,5 @@ export const spatialVoteCalculators = {
     return approved.length > 0 ? approved : [prefs[0].id];
   }) as ThresholdCalculator,
 } as const;
+
+export type SpatialVotingMethod = keyof typeof spatialVoteCalculators;

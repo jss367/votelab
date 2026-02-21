@@ -8,6 +8,7 @@ import React, {
 import {
   DEFAULT_APPROVAL_THRESHOLD,
   SpatialCandidate,
+  SpatialVotingMethod,
   spatialVoteCalculators,
 } from '../../lib/spatialVoting';
 import { VotingMethod } from '../../lib/votingMethods';
@@ -174,7 +175,7 @@ const VotingMethodComparisonGrid = () => {
           const py = 1 - y / CANVAS_SIZE;
 
           // Get winner at this point
-          const winnerIds = spatialVoteCalculators[method](
+          const winnerIds = spatialVoteCalculators[method as SpatialVotingMethod](
             px,
             py,
             candidates,
