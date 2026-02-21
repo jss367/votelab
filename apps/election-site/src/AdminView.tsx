@@ -423,7 +423,7 @@ const AdminView: React.FC<AdminViewProps> = ({
                       <Input
                         value={editCandidateName}
                         onChange={(e) => setEditCandidateName(e.target.value)}
-                        placeholder="Candidate Name"
+                        placeholder={election.candidateLabel || "Candidate Name"}
                         className="w-full"
                       />
                       {election.customFields && election.customFields.length > 0 && (

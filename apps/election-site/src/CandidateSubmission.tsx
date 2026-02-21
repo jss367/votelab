@@ -79,7 +79,7 @@ const CandidateSubmission: React.FC<CandidateSubmissionProps> = ({
         ) : (
           <div className="space-y-4">
             <Input
-              placeholder="Candidate Name"
+              placeholder={election.candidateLabel || "Candidate Name"}
               value={name}
               onChange={(e) => setName(e.target.value)}
             />

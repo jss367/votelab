@@ -50,4 +50,5 @@ export interface Election {
   votingOpen: boolean;
   createdBy: string;
   customFields?: CustomField[];
+  candidateLabel?: string;
 }
