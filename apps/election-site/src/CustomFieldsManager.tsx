@@ -1,16 +1,19 @@
 import { Button, Input, Select } from '@repo/ui';
 import { Plus, Settings2, Trash2 } from 'lucide-react';
 import { useState } from 'react';
+import { electionTemplates } from './electionTemplates';
 import { CustomField, FieldType } from './types';
 
 interface CustomFieldsManagerProps {
   fields: CustomField[];
   onChange: (fields: CustomField[]) => void;
+  onCandidateLabelChange?: (label: string) => void;
 }
 
 const CustomFieldsManager = ({
   fields,
   onChange,
+  onCandidateLabelChange,
 }: CustomFieldsManagerProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -36,6 +39,26 @@ const CustomFieldsManager = ({
     onChange(fields.filter((field) => field.id !== id));
   };
 
+  const loadTemplate = (templateIndex: number) => {
+    const template = electionTemplates[templateIndex];
+    if (!template) return;
+
+    if (fields.length > 0) {
+      if (!window.confirm('This will replace your current fields. Continue?')) {
+        return;
+      }
+    }
+
+    const newFields: CustomField[] = template.fields.map((f) => ({
+      ...f,
+      id: Date.now().toString() + Math.random().toString(36).slice(2),
+    }));
+
+    onChange(newFields);
+    onCandidateLabelChange?.(template.candidateLabel);
+    setIsExpanded(true);
+  };
+
   return (
     <div className="space-y-4 border rounded-lg p-4 bg-slate-50">
       <div className="flex items-center justify-between">
@@ -45,13 +68,32 @@ const CustomFieldsManager = ({
             Custom Candidate Fields
           </h3>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setIsExpanded(!isExpanded)}
-        >
-          {isExpanded ? 'Hide' : 'Show'} Fields
-        </Button>
+        <div className="flex items-center gap-2">
+          <select
+            value=""
+            onChange={(e) => {
+              if (e.target.value) {
+                loadTemplate(parseInt(e.target.value));
+                e.target.value = '';
+              }
+            }}
+            className="text-sm text-slate-500 bg-transparent border border-slate-300 rounded px-2 py-1 cursor-pointer hover:border-slate-400"
+          >
+            <option value="">Load template...</option>
+            {electionTemplates.map((t, i) => (
+              <option key={t.name} value={i}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsExpanded(!isExpanded)}
+          >
+            {isExpanded ? 'Hide' : 'Show'} Fields
+          </Button>
+        </div>
       </div>
 
       {isExpanded && (

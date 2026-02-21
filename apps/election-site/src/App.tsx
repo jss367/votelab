@@ -77,6 +77,7 @@ function App() {
   const [editCandidateName, setEditCandidateName] = useState('');
   const [editCandidateFields, setEditCandidateFields] = useState<CustomFieldValue[]>([]);
   const [sortByField, setSortByField] = useState<string>('');
+  const [candidateLabel, setCandidateLabel] = useState('');
 
   const sortedVoterCandidates = (() => {
     if (!election || !sortByField) return election?.candidates || [];
@@ -154,6 +155,7 @@ function App() {
         votingOpen: !isOpen,
         createdBy: creatorName.trim(),
         customFields: customFields,
+        ...(candidateLabel ? { candidateLabel } : {}),
       };
 
       let id: string;
@@ -585,6 +587,7 @@ function App() {
                 <CustomFieldsManager
                   fields={customFields}
                   onChange={setCustomFields}
+                  onCandidateLabelChange={setCandidateLabel}
                 />
 
                 {/* Add candidate input */}
@@ -592,7 +595,7 @@ function App() {
                   <Input
                     value={newCandidate}
                     onChange={(e) => setNewCandidate(e.target.value)}
-                    placeholder="Candidate Name"
+                    placeholder={candidateLabel || "Candidate Name"}
                     className="w-full bg-white"
                   />
                   {customFields.length > 0 && (
@@ -696,7 +699,7 @@ function App() {
                     <Input
                       value={newCandidate}
                       onChange={(e) => setNewCandidate(e.target.value)}
-                      placeholder="Add a new candidate..."
+                      placeholder={election?.candidateLabel ? `Add a new ${election.candidateLabel.toLowerCase()}...` : "Add a new candidate..."}
                       onKeyPress={(e) =>
                         e.key === 'Enter' && addExistingElectionCandidate()
                       }
@@ -752,7 +755,7 @@ function App() {
                                 <Input
                                   value={editCandidateName}
                                   onChange={(e) => setEditCandidateName(e.target.value)}
-                                  placeholder="Candidate Name"
+                                  placeholder={election?.candidateLabel || "Candidate Name"}
                                   className="w-full"
                                 />
                                 {election.customFields && election.customFields.length > 0 && (
