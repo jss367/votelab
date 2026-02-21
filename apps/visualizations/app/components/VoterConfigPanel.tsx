@@ -4,7 +4,6 @@ import React, { useState, useCallback } from 'react';
 import {
   VoterBloc,
   VoterPreset,
-  createVoterBloc,
   createPresetPopulation,
 } from '@votelab/shared-utils';
 
@@ -25,6 +24,7 @@ const PRESETS: { value: VoterPreset; label: string }[] = [
 export const VoterConfigPanel: React.FC<VoterConfigPanelProps> = ({
   blocs,
   onBlocsChange,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   onAddBloc,
 }) => {
   const [selectedPreset, setSelectedPreset] = useState<VoterPreset>('uniform');

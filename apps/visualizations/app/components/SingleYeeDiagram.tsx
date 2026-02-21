@@ -5,7 +5,6 @@ import {
   Voter,
   SpatialCandidate,
   VotingMethod,
-  YeeDiagramResult,
 } from '@votelab/shared-utils';
 import { useYeeDiagram } from '../../lib/useYeeDiagram';
 

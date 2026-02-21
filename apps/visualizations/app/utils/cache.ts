@@ -1,3 +1,5 @@
+import { Ballot } from './ballotGeneration';
+
 interface CacheEntry<T> {
   data: T;
   timestamp: number;
@@ -24,7 +26,6 @@ export function createCache<T>(prefix: string) {
         const cached = data as CacheEntry<T>;
 
         if (cached.version !== CACHE_VERSION) {
-          await this.clear(key);
           return null;
         }
 
@@ -87,9 +88,9 @@ interface VisualizationResult {
 interface BallotResult {
   ballots: Array<{
     voterPosition: { x: number; y: number };
-    pluralityBallot: any;
-    rankedBallot: any;
-    starBallot: any;
+    pluralityBallot: Ballot;
+    rankedBallot: Ballot;
+    starBallot: Ballot;
   }>;
 }
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   SpatialCandidate,
+  SpatialVotingMethod,
   spatialVoteCalculators,
 } from '../../lib/spatialVoting';
 import { methods } from '../../lib/votingMethods';
@@ -47,7 +48,7 @@ const ElectionViz = () => {
           const py = 1 - y / CANVAS_SIZE;
 
           // Get winner at this point
-          const calculator = spatialVoteCalculators[method];
+          const calculator = spatialVoteCalculators[method as SpatialVotingMethod];
           // Some methods (approval, smithApproval) need a threshold parameter
           const winners = (method === 'approval' || method === 'smithApproval')
             ? (calculator as (x: number, y: number, c: SpatialCandidate[], t: number) => string[])(px, py, candidates, 0.3)

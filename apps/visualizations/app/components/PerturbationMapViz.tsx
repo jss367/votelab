@@ -14,7 +14,7 @@ import {
 import { SinglePerturbationMap } from './SinglePerturbationMap';
 import { VoterConfigPanel } from './VoterConfigPanel';
 import { BallotInspector } from './BallotInspector';
-import { parseConfig, updateURL, ElectionConfig } from '../../lib/urlState';
+import { parseConfig, updateURL } from '../../lib/urlState';
 
 const DEFAULT_CANDIDATES: SpatialCandidate[] = [
   { id: 'a', name: 'A', x: 0.25, y: 0.25, color: '#ef4444' },
@@ -118,7 +118,7 @@ export const PerturbationMapViz: React.FC = () => {
   // Get perturbed voters for inspection
   const getPerturbedVotersForCell = useCallback(
     (cell: InspectedCell): Voter[] => {
-      const info = getPerturbationCellInfo(
+      getPerturbationCellInfo(
         {
           candidates,
           voters,

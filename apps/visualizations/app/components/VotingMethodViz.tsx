@@ -9,6 +9,7 @@ import {
   DEFAULT_APPROVAL_THRESHOLD,
   distance,
   SpatialCandidate,
+  SpatialVotingMethod,
   spatialVoteCalculators,
 } from '../../lib/spatialVoting';
 import type { VotingMethod } from '../../lib/votingMethods';
@@ -212,7 +213,7 @@ const VotingMethodViz: React.FC = () => {
         const voterY = 1 - y / height;
 
         // Use spatialVoteCalculators for all methods
-        const winnerIds = spatialVoteCalculators[selectedMethod](
+        const winnerIds = spatialVoteCalculators[selectedMethod as SpatialVotingMethod](
           voterX,
           voterY,
           candidates,
@@ -344,7 +345,7 @@ const VotingMethodViz: React.FC = () => {
   };
 
   const calculateWinningAreas = useCallback(
-    (method: VotingMethod) => {
+    (method: string) => {
       const samplePoints = 50;
       const votes = new Map<string, number>();
       candidates.forEach((c) => votes.set(c.id, 0));
@@ -356,7 +357,7 @@ const VotingMethodViz: React.FC = () => {
         for (let y = 0; y < samplePoints; y++) {
           const voterX = x / (samplePoints - 1);
           const voterY = y / (samplePoints - 1);
-          const voteResult = spatialVoteCalculators[method](
+          const voteResult = spatialVoteCalculators[method as SpatialVotingMethod](
             voterX,
             voterY,
             candidates,
@@ -448,7 +449,7 @@ const VotingMethodViz: React.FC = () => {
   );
 
   const calculateActualVotes = useCallback(
-    (method: VotingMethod) => {
+    (method: string) => {
       if (!hasGeneratedVoters || voters.length === 0) return null;
 
       const votes = new Map<string, number>();
@@ -457,7 +458,7 @@ const VotingMethodViz: React.FC = () => {
       if (method === 'irv') {
         let remainingCandidates = [...candidates];
         const allVotes = voters.map((voter) =>
-          spatialVoteCalculators[method](voter.x, voter.y, candidates)
+          spatialVoteCalculators.irv(voter.x, voter.y, candidates)
         );
 
         while (remainingCandidates.length > 1) {
@@ -496,7 +497,7 @@ const VotingMethodViz: React.FC = () => {
         }
       } else {
         voters.forEach((voter) => {
-          const voteResult = spatialVoteCalculators[method](
+          const voteResult = spatialVoteCalculators[method as SpatialVotingMethod](
             voter.x,
             voter.y,
             candidates,

@@ -51,7 +51,7 @@ export const parseConfig = (searchParams: URLSearchParams): ElectionConfig | nul
       return null;
     }
 
-    const candidates: SpatialCandidate[] = candidatesStr.split(';').map((str, i) => {
+    const candidates: SpatialCandidate[] = candidatesStr.split(';').map((str) => {
       const [name, x, y, color] = str.split(',');
       return {
         id: name.toLowerCase(),

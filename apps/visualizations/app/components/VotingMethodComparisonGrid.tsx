@@ -8,6 +8,7 @@ import React, {
 import {
   DEFAULT_APPROVAL_THRESHOLD,
   SpatialCandidate,
+  SpatialVotingMethod,
   spatialVoteCalculators,
 } from '../../lib/spatialVoting';
 import { VotingMethod } from '../../lib/votingMethods';
@@ -20,38 +21,8 @@ import { BallotDisplay } from './BallotDisplay';
 
 const CANVAS_SIZE = 300;
 
-interface CacheKey {
-  candidates: Array<{ id: string; x: number; y: number; color: string }>;
-  method: string;
-}
-
-interface ResultCache {
-  imageData: ImageData;
-  timestamp: number;
-}
-
-// Global cache for results
-const resultCache = new Map<string, ResultCache>();
-
 const distance = (x1: number, y1: number, x2: number, y2: number): number =>
   Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
-
-// Generate cache key from current configuration
-const generateCacheKey = (
-  candidates: CacheKey['candidates'],
-  method: VotingMethod
-): string => {
-  const config = {
-    candidates: candidates.map((c) => ({
-      id: c.id,
-      x: Math.round(c.x * 100) / 100, // Round to 2 decimal places for cache efficiency
-      y: Math.round(c.y * 100) / 100,
-      color: c.color,
-    })),
-    method,
-  };
-  return JSON.stringify(config);
-};
 
 const VotingMethodComparisonGrid = () => {
   const [candidates, setCandidates] = useState<SpatialCandidate[]>([
@@ -193,7 +164,6 @@ const VotingMethodComparisonGrid = () => {
       );
 
       const SAMPLE_STEP = 3; // Sample every 3 pixels
-      const totalSteps = Math.ceil(CANVAS_SIZE / SAMPLE_STEP);
 
       // Draw with anti-aliasing and sampling
       for (let y = 0; y < CANVAS_SIZE; y += SAMPLE_STEP) {
@@ -205,7 +175,7 @@ const VotingMethodComparisonGrid = () => {
           const py = 1 - y / CANVAS_SIZE;
 
           // Get winner at this point
-          const winnerIds = spatialVoteCalculators[method](
+          const winnerIds = spatialVoteCalculators[method as SpatialVotingMethod](
             px,
             py,
             candidates,
@@ -299,7 +269,7 @@ const VotingMethodComparisonGrid = () => {
       setDisplayBallots(allBallots);
 
       // Redraw all canvases to show inspection point
-      Object.entries(canvasRefs).forEach(([method, ref]) => {
+      Object.entries(canvasRefs).forEach(([, ref]) => {
         const canvas = ref.current;
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
@@ -639,7 +609,7 @@ const VotingMethodComparisonGrid = () => {
           <PresetControls />
         </div>
         <p className="text-sm text-gray-600 mt-2">
-          Drag candidates to reposition them, then click "Compute Results" to
+          Drag candidates to reposition them, then click &quot;Compute Results&quot; to
           see the outcomes. Hold Shift and click anywhere to inspect ballots for
           that location. Each point represents an election with voter opinions
           normally distributed around that point.

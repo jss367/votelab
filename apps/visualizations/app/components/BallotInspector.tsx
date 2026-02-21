@@ -6,7 +6,7 @@ import {
   SpatialCandidate,
   VotingMethod,
   getVoterPreferences,
-  computeWinner,
+
   computePluralityWinner,
   computeApprovalWinner,
   computeBordaWinner,
@@ -37,6 +37,13 @@ const METHOD_NAMES: Record<VotingMethod, string> = {
   borda: 'Borda Count',
   condorcet: 'Condorcet',
   smithApproval: 'Smith Set + Approval',
+  star: 'STAR',
+  rrv: 'Reweighted Range (RRV)',
+  score: 'Score',
+  stv: 'STV',
+  rankedPairs: 'Ranked Pairs',
+  majorityJudgment: 'Majority Judgment',
+  cumulative: 'Cumulative',
 };
 
 export const BallotInspector: React.FC<BallotInspectorProps> = ({
@@ -103,7 +110,7 @@ export const BallotInspector: React.FC<BallotInspectorProps> = ({
   const results = useMemo(() => {
     if (nearbyVoters.length === 0) return null;
 
-    const r = {
+    const r: Partial<Record<VotingMethod, string>> = {
       plurality: computePluralityWinner(nearbyVoters, candidates),
       approval: computeApprovalWinner(nearbyVoters, candidates, approvalThreshold),
       irv: computeIRVWinner(nearbyVoters, candidates),
@@ -265,6 +272,7 @@ export const BallotInspector: React.FC<BallotInspectorProps> = ({
                   <div className="grid grid-cols-2 gap-2">
                     {(Object.keys(METHOD_NAMES) as VotingMethod[]).map(m => {
                       const winnerId = results[m];
+                      if (!winnerId) return null;
                       const isCurrentMethod = m === method;
                       return (
                         <div

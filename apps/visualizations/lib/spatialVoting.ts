@@ -1,5 +1,5 @@
 import { Candidate, Vote } from '@votelab/shared-utils';
-import { runElection } from './electionRunner';
+import { ElectionMethod, runElection } from './electionRunner';
 import { VotingMethod } from './votingMethods';
 
 export interface SpatialCandidate extends Candidate {
@@ -86,7 +86,7 @@ function generateVoterDistribution(
 function simulateElectionAtPoint(
   point: { x: number; y: number },
   candidates: SpatialCandidate[],
-  method: VotingMethod,
+  method: string,
   voterParams: Omit<VoterDistribution, 'mean'> = {
     count: DEFAULT_VOTER_COUNT,
     variance: DEFAULT_VARIANCE,
@@ -119,7 +119,7 @@ function simulateElectionAtPoint(
   const results =
     method === 'condorcet'
       ? runCondorcetElection(votes, candidates)
-      : runElection(method, votes, candidates);
+      : runElection(method as ElectionMethod, votes, candidates);
 
   return Array.isArray(results.winner) ? results.winner : [results.winner];
 }
@@ -261,3 +261,5 @@ export const spatialVoteCalculators = {
     return approved.length > 0 ? approved : [prefs[0].id];
   }) as ThresholdCalculator,
 } as const;
+
+export type SpatialVotingMethod = keyof typeof spatialVoteCalculators;
