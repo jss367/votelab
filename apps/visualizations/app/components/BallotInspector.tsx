@@ -272,6 +272,7 @@ export const BallotInspector: React.FC<BallotInspectorProps> = ({
                   <div className="grid grid-cols-2 gap-2">
                     {(Object.keys(METHOD_NAMES) as VotingMethod[]).map(m => {
                       const winnerId = results[m];
+                      if (!winnerId) return null;
                       const isCurrentMethod = m === method;
                       return (
                         <div
