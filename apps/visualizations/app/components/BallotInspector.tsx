@@ -37,6 +37,13 @@ const METHOD_NAMES: Record<VotingMethod, string> = {
   borda: 'Borda Count',
   condorcet: 'Condorcet',
   smithApproval: 'Smith Set + Approval',
+  star: 'STAR',
+  rrv: 'Reweighted Range (RRV)',
+  score: 'Score',
+  stv: 'STV',
+  rankedPairs: 'Ranked Pairs',
+  majorityJudgment: 'Majority Judgment',
+  cumulative: 'Cumulative',
 };
 
 export const BallotInspector: React.FC<BallotInspectorProps> = ({
