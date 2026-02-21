@@ -811,7 +811,7 @@ function App() {
                                           return (
                                             <div key={field.fieldId}>
                                               <span className="font-medium text-slate-700">{fieldDef.name}:</span>{' '}
-                                              {field.value?.toString()}
+                                              {Array.isArray(field.value) ? field.value.join(', ') : field.value?.toString()}
                                             </div>
                                           );
                                         })}

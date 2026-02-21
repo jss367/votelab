@@ -75,7 +75,7 @@ const CustomFieldDisplay: React.FC<CustomFieldDisplayProps> = ({
         return (
           <div key={field.fieldId} className="text-sm">
             <span className="font-medium text-slate-700">{fieldDef.name}:</span>{' '}
-            <span className="text-slate-600">{field.value?.toString()}</span>
+            <span className="text-slate-600">{Array.isArray(field.value) ? field.value.join(', ') : field.value?.toString()}</span>
           </div>
         );
       })}
