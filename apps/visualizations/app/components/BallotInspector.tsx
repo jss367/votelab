@@ -110,7 +110,7 @@ export const BallotInspector: React.FC<BallotInspectorProps> = ({
   const results = useMemo(() => {
     if (nearbyVoters.length === 0) return null;
 
-    const r = {
+    const r: Partial<Record<VotingMethod, string>> = {
       plurality: computePluralityWinner(nearbyVoters, candidates),
       approval: computeApprovalWinner(nearbyVoters, candidates, approvalThreshold),
       irv: computeIRVWinner(nearbyVoters, candidates),
