@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import CategoryBadges from './CategoryBadge';
+import CandidateDetails from './CandidateDetails';
 import type { Candidate, CustomField } from './types';
 
 interface PluralityBallotProps {
@@ -36,10 +36,7 @@ const PluralityBallot: React.FC<PluralityBallotProps> = ({ candidates, customFie
             onChange={() => handleSelect(candidate.id)}
             className="h-4 w-4 text-blue-600"
           />
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-slate-700">{candidate.name}</span>
-            <CategoryBadges candidate={candidate} customFields={customFields} />
-          </div>
+          <CandidateDetails candidate={candidate} customFields={customFields} />
         </label>
       ))}
     </div>

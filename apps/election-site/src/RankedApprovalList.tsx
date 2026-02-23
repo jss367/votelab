@@ -7,7 +7,7 @@ import {
 import { Button } from '@repo/ui';
 import { ArrowDown, ArrowUp, Grip, Trash2 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
-import CategoryBadges from './CategoryBadge';
+import CandidateDetails from './CandidateDetails';
 import type { Candidate, CustomField } from './types';
 
 interface RankedApprovalListProps {
@@ -205,11 +205,8 @@ const RankedApprovalList: React.FC<RankedApprovalListProps> = ({
                           <span className="w-6 font-medium text-slate-500">
                             {index + 1}.
                           </span>
-                          <div className="flex items-center gap-2 flex-grow">
-                            <span className="font-medium text-slate-700">
-                              {candidate.name}
-                            </span>
-                            <CategoryBadges candidate={candidate} customFields={customFields} />
+                          <div className="flex-grow">
+                            <CandidateDetails candidate={candidate} customFields={customFields} />
                           </div>
                         </div>
                         {onRemove && (

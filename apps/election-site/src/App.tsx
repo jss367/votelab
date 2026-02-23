@@ -16,7 +16,7 @@ import { Copy } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import AdminView from './AdminView';
 import BallotInput from './BallotInput';
-import CategoryBadges from './CategoryBadge';
+import CandidateDetails from './CandidateDetails';
 import CustomFieldsInput from './CustomFieldsInput';
 import CustomFieldsManager from './CustomFieldsManager';
 import { removeSavedElection, saveElection } from './electionStorage';
@@ -799,29 +799,7 @@ function App() {
                               </div>
                             ) : (
                               <div className="flex items-start justify-between">
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-medium">{candidate.name}</span>
-                                    <CategoryBadges candidate={candidate} customFields={election.customFields} />
-                                  </div>
-                                  {candidate.customFields &&
-                                    candidate.customFields.length > 0 && (
-                                      <div className="mt-1 text-sm text-slate-600 space-y-0.5">
-                                        {candidate.customFields.map((field) => {
-                                          const fieldDef = election.customFields?.find(
-                                            (f) => f.id === field.fieldId
-                                          );
-                                          if (!fieldDef) return null;
-                                          return (
-                                            <div key={field.fieldId}>
-                                              <span className="font-medium text-slate-700">{fieldDef.name}:</span>{' '}
-                                              {Array.isArray(field.value) ? field.value.join(', ') : field.value?.toString()}
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    )}
-                                </div>
+                                <CandidateDetails candidate={candidate} customFields={election.customFields} />
                                 <div className="flex gap-2 ml-2 shrink-0">
                                   <button
                                     onClick={() => {

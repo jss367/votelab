@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import CategoryBadges from './CategoryBadge';
+import CandidateDetails from './CandidateDetails';
 import type { Candidate, CustomField } from './types';
 
 interface ScoreBallotProps {
@@ -31,9 +31,8 @@ const ScoreBallot: React.FC<ScoreBallotProps> = ({ candidates, customFields, max
           key={candidate.id}
           className="flex items-center gap-4 p-3 rounded-lg border bg-slate-50 border-slate-200"
         >
-          <div className="flex items-center gap-2 flex-grow">
-            <span className="font-medium text-slate-700">{candidate.name}</span>
-            <CategoryBadges candidate={candidate} customFields={customFields} />
+          <div className="flex-grow">
+            <CandidateDetails candidate={candidate} customFields={customFields} />
           </div>
           <input
             type="range"
