@@ -562,25 +562,14 @@ function App() {
                   </div>
                   {isOpen && (
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
-                      <p className="font-medium mb-2">
-                        Tip for Closing Submissions:
+                      <p className="font-medium mb-1">
+                        Managing Your Election
                       </p>
                       <p>
-                        After creating the election, you can close the
-                        submission period by:
+                        After creating the election, you can close submissions, edit
+                        candidates, and manage voting from the admin page. You'll need
+                        the creator name you enter above to access it.
                       </p>
-                      <ul className="list-disc list-inside mt-1">
-                        <li>
-                          Using the same name you used to create the election
-                        </li>
-                        <li>
-                          Clicking the "Close Submission Period & Start Voting"
-                          button
-                        </li>
-                        <li>
-                          This will prevent new candidates from being added
-                        </li>
-                      </ul>
                     </div>
                   )}
                 </div>
@@ -665,6 +654,21 @@ function App() {
                         <Copy className="w-4 h-4" />
                       </Button>
                     </div>
+                    <p className="mb-2 font-medium text-slate-900 mt-4">
+                      Admin URL:
+                    </p>
+                    <div className="flex gap-2">
+                      <Input value={`${shareUrl}&view=admin`} readOnly className="bg-white" />
+                      <Button
+                        onClick={() => navigator.clipboard.writeText(`${shareUrl}&view=admin`)}
+                        variant="secondary"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    <p className="text-sm text-slate-500 mt-1">
+                      You'll need your creator name (<span className="font-medium">{creatorName}</span>) to manage this election.
+                    </p>
                   </div>
                 )}
               </div>
