@@ -25,7 +25,6 @@ const ScoreBallot: React.FC<ScoreBallotProps> = ({ candidates, customFields, max
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-slate-500">{`Score each candidate from 0 (worst) to ${maxScore} (best):`}</p>
       {candidates.map((candidate) => (
         <div
           key={candidate.id}
