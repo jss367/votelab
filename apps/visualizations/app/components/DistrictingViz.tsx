@@ -47,8 +47,18 @@ const DistrictMap: React.FC<DistrictMapProps> = ({
       hexToRgb(DISTRICT_COLORS[i % DISTRICT_COLORS.length])
     );
 
-    // 1. Shade the background by nearest district centroid (a light Voronoi
-    //    tint) so districts read as contiguous regions.
+    // 1. Shade the background from the *actual* district assignment: each
+    //    pixel takes the district of its nearest voter. Tinting by nearest
+    //    centroid would draw straight Voronoi boundaries that can cut through
+    //    counties the county-integrity algorithm deliberately kept whole, so
+    //    the fill would disagree with the dots and the split-count metric.
+    //    Following the assignment keeps the regions consistent with both.
+    const vx = new Float32Array(map.voters.length);
+    const vy = new Float32Array(map.voters.length);
+    for (let i = 0; i < map.voters.length; i++) {
+      vx[i] = map.voters[i].x;
+      vy[i] = map.voters[i].y;
+    }
     const img = ctx.createImageData(S, S);
     const data = img.data;
     const STEP = 2;
@@ -58,14 +68,13 @@ const DistrictMap: React.FC<DistrictMapProps> = ({
         const uy = 1 - py / S;
         let best = 0;
         let bestD = Infinity;
-        for (let d = 0; d < k; d++) {
-          const c = result.centroids[d];
-          const dx = ux - c.x;
-          const dy = uy - c.y;
+        for (let i = 0; i < vx.length; i++) {
+          const dx = ux - vx[i];
+          const dy = uy - vy[i];
           const dd = dx * dx + dy * dy;
           if (dd < bestD) {
             bestD = dd;
-            best = d;
+            best = result.assignment[i];
           }
         }
         const col = colors[best];

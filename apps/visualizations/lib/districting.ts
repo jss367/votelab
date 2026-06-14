@@ -283,6 +283,22 @@ function meanPoint(points: Pt[]): Pt {
   return { x: sx / points.length, y: sy / points.length };
 }
 
+/**
+ * Split `n` voters into `k` integer district quotas that sum to `n` and are
+ * each within one voter of the ideal size `n / k`. Districts are given either
+ * `floor(n / k)` or `ceil(n / k)` so the spread is at most a single voter —
+ * well inside any realistic population tolerance. This is the equal-population
+ * target every assignment pass is held to, replacing the previous upper-cap-
+ * only constraint that let some districts fall far below the ideal.
+ */
+function equalPopulationQuotas(n: number, k: number): number[] {
+  const base = Math.floor(n / k);
+  const remainder = n - base * k;
+  const quotas = new Array(k).fill(base);
+  for (let d = 0; d < remainder; d++) quotas[d] += 1;
+  return quotas;
+}
+
 export interface DistrictingOptions {
   numDistricts?: number;
   seed?: number;
@@ -298,8 +314,9 @@ export interface DistrictingOptions {
  * Partition voters into `numDistricts` equal-population districts while
  * minimizing the average voter-to-centroid distance. Population balance is
  * enforced with a capacitated assignment: voters are processed in order of how
- * strongly they prefer their nearest district, and each district is capped so
- * the populations stay within `tolerance` of the ideal size.
+ * strongly they prefer their nearest district, and each district is held to an
+ * exact equal-population quota (every district lands within one voter of the
+ * ideal size, well inside `tolerance`).
  */
 export function districtByCentroid(
   map: MapData,
@@ -309,13 +326,12 @@ export function districtByCentroid(
     numDistricts: k = 4,
     seed = 1,
     maxIterations = 40,
-    tolerance = 0.02,
   } = options;
 
   const rand = mulberry32(seed * 2654435761);
   const n = map.voters.length;
   const points: Pt[] = map.voters;
-  const capacity = Math.ceil((n / k) * (1 + tolerance));
+  const quotas = equalPopulationQuotas(n, k);
 
   let centroids = kmeansPlusPlusInit(
     points,
@@ -327,7 +343,7 @@ export function districtByCentroid(
   let assignment = new Array(n).fill(-1);
 
   for (let iter = 0; iter < maxIterations; iter++) {
-    const next = balancedAssign(points, centroids, k, capacity);
+    const next = balancedAssign(points, centroids, k, quotas);
 
     // recompute centroids
     const buckets: Pt[][] = Array.from({ length: k }, () => []);
@@ -354,13 +370,18 @@ export function districtByCentroid(
  * Capacitated nearest-centroid assignment. Voters are sorted by "regret" (the
  * gap between their nearest and second-nearest district) so that voters with a
  * strong preference are placed first; each voter then takes the closest
- * district that still has room.
+ * district that still has remaining quota.
+ *
+ * Each district is capped at its exact equal-population quota, and the quotas
+ * sum to the voter count, so every district fills to exactly its quota. That
+ * enforces both an upper *and* a lower bound on population: no district can
+ * absorb leftover voters past its share, and none can be starved below it.
  */
 function balancedAssign(
   points: Pt[],
   centroids: Pt[],
   k: number,
-  capacity: number
+  quotas: number[]
 ): number[] {
   const n = points.length;
 
@@ -382,7 +403,7 @@ function balancedAssign(
   for (const entry of order) {
     let placed = false;
     for (const d of entry.order) {
-      if (counts[d] < capacity) {
+      if (counts[d] < quotas[d]) {
         assignment[entry.i] = d;
         counts[d]++;
         placed = true;
@@ -390,14 +411,68 @@ function balancedAssign(
       }
     }
     if (!placed) {
-      // every preferred district is full: fall back to the emptiest one
-      let minIdx = 0;
-      for (let d = 1; d < k; d++) if (counts[d] < counts[minIdx]) minIdx = d;
-      assignment[entry.i] = minIdx;
-      counts[minIdx]++;
+      // every preferred district is at quota: fall back to the district with
+      // the most remaining room (only reachable through floating-point ties).
+      let bestIdx = 0;
+      let bestRoom = -Infinity;
+      for (let d = 0; d < k; d++) {
+        const room = quotas[d] - counts[d];
+        if (room > bestRoom) {
+          bestRoom = room;
+          bestIdx = d;
+        }
+      }
+      assignment[entry.i] = bestIdx;
+      counts[bestIdx]++;
     }
   }
   return assignment;
+}
+
+/**
+ * Move voters from over-target districts into any district below `floor`,
+ * mutating `assignment` and `counts` in place. For each under-floor district we
+ * repeatedly steal the single voter that is cheapest to move — the one closest
+ * to the under-floor district's centroid among all voters currently sitting in
+ * a district that is still above the ideal size — until the floor is reached.
+ * This is what gives the county path a genuine lower population bound instead
+ * of only an upper cap.
+ */
+function rebalanceToFloor(
+  voters: Pt[],
+  centroids: Pt[],
+  assignment: number[],
+  counts: number[],
+  k: number,
+  floor: number
+): void {
+  const n = voters.length;
+  const ideal = n / k;
+
+  for (let d = 0; d < k; d++) {
+    while (counts[d] < floor) {
+      // candidate donors: districts currently above the ideal size
+      let bestVoter = -1;
+      let bestCost = Infinity;
+      for (let i = 0; i < n; i++) {
+        const from = assignment[i];
+        if (from === d) continue;
+        if (counts[from] <= ideal) continue; // don't starve a donor below ideal
+        const c = centroids[d];
+        const dx = voters[i].x - c.x;
+        const dy = voters[i].y - c.y;
+        const cost = dx * dx + dy * dy;
+        if (cost < bestCost) {
+          bestCost = cost;
+          bestVoter = i;
+        }
+      }
+      if (bestVoter < 0) break; // no donor above ideal; nothing left to take
+      counts[assignment[bestVoter]]--;
+      assignment[bestVoter] = d;
+      counts[d]++;
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -409,7 +484,10 @@ function balancedAssign(
  * intact wherever reasonable. Whole counties are assigned to districts first;
  * a county is only split when assigning it whole would push a district beyond
  * its population tolerance, in which case just enough of its (nearest) voters
- * are moved to balance.
+ * are moved to balance. After the greedy pass a rebalancing step moves the
+ * cheapest voters from over-quota districts into any district still below its
+ * equal-population quota, so every district lands within the tolerance band
+ * (not just under the upper cap).
  */
 export function districtByCounty(
   map: MapData,
@@ -425,6 +503,10 @@ export function districtByCounty(
   const rand = mulberry32(seed * 40503 + 7);
   const n = map.voters.length;
   const capacity = Math.ceil((n / k) * (1 + tolerance));
+  // Lower bound a district may not fall below. Splitting counties is costly, so
+  // the county path keeps a wider tolerance band than the compactness path; the
+  // floor still guarantees no district is starved well below the ideal size.
+  const floor = Math.floor((n / k) * (1 - tolerance));
 
   // group voters by county
   const countyVoters = new Map<number, number[]>();
@@ -516,6 +598,13 @@ export function districtByCounty(
         }
       }
     }
+
+    // Rebalance: any district left below its floor pulls in the voters that
+    // are cheapest to move (closest to the under-floor centroid) out of
+    // districts that are above the ideal size. This splits as few additional
+    // counties as the population balance requires while guaranteeing every
+    // district reaches the lower bound.
+    rebalanceToFloor(map.voters, centroids, next, counts, k, floor);
 
     // recompute centroids
     const buckets: Pt[][] = Array.from({ length: k }, () => []);
