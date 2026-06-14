@@ -19,6 +19,9 @@ export default function Home() {
         <Link href="/detailed" className="text-blue-600 hover:underline font-medium">
           Detailed View
         </Link>
+        <Link href="/districts" className="text-blue-600 hover:underline font-medium">
+          District Maps
+        </Link>
       </nav>
       <ElectionViz />
     </main>

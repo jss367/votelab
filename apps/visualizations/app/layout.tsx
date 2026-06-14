@@ -29,8 +29,11 @@ function Navigation() {
         <Link href="/comparison" className="mr-4 hover:underline">
           Method Comparison
         </Link>
-        <Link href="/detailed" className="hover:underline">
+        <Link href="/detailed" className="mr-4 hover:underline">
           Detailed Analysis
+        </Link>
+        <Link href="/districts" className="hover:underline">
+          District Maps
         </Link>
       </div>
     </nav>
