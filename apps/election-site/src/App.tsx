@@ -255,15 +255,23 @@ function App() {
       setLoading(true);
       const method = election.votingMethod || 'smithApproval';
       const scoreBasedMethods: VotingMethod[] = ['rrv', 'star', 'score', 'majorityJudgment', 'cumulative'];
+      // Drop any ids that no longer exist (a candidate can be deleted while the
+      // voter is mid-ballot, leaving a stale id in ballotRanking/approved that
+      // would otherwise be submitted as an unknown candidate).
+      const validIds = new Set(candidates.map((c) => c.id));
+      const filteredRanking = ballotRanking.filter((id) => validIds.has(id));
       // For ranked/plurality methods, use the voter's ballot ordering. Fall
-      // back to the election's candidate order if they didn't reorder anything.
+      // back to the election's candidate order if they didn't reorder anything
+      // (or their only selections were since-deleted candidates).
       const ranking =
-        ballotRanking.length > 0 ? ballotRanking : candidates.map((c) => c.id);
+        filteredRanking.length > 0
+          ? filteredRanking
+          : candidates.map((c) => c.id);
       const vote: Vote = {
         voterName: voterName,
         ranking: scoreBasedMethods.includes(method) ? [] : ranking,
         approved: (method === 'approval' || method === 'smithApproval')
-          ? Array.from(approvedCandidates)
+          ? Array.from(approvedCandidates).filter((id) => validIds.has(id))
           : [],
         ...(scoreBasedMethods.includes(method) ? { scores: candidateScores } : {}),
         timestamp: new Date().toISOString(),
