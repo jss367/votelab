@@ -130,6 +130,29 @@ describe('electionTallies', () => {
       expect(result.matrix['c']['a']).toBe(2);
       expect(result.matrix['a']['c']).toBe(1);
     });
+
+    it('treats unranked candidates as lowest preference (truncated ballots)', () => {
+      const abc: Candidate[] = [
+        { id: 'a', name: 'A' },
+        { id: 'b', name: 'B' },
+        { id: 'c', name: 'C' },
+      ];
+      // 3 voters bullet-vote A; 2 voters rank B>C and leave A off entirely.
+      // A should still beat both B and C 3-2 and be the Condorcet winner.
+      const truncatedVotes: Vote[] = [
+        { voterName: 'V1', ranking: ['a'], approved: [], timestamp: '' },
+        { voterName: 'V2', ranking: ['a'], approved: [], timestamp: '' },
+        { voterName: 'V3', ranking: ['a'], approved: [], timestamp: '' },
+        { voterName: 'V4', ranking: ['b', 'c'], approved: [], timestamp: '' },
+        { voterName: 'V5', ranking: ['b', 'c'], approved: [], timestamp: '' },
+      ];
+      const result = tallyCondorcet(truncatedVotes, abc);
+      expect(result.winner).toBe('a');
+      expect(result.matrix['a']['b']).toBe(3);
+      expect(result.matrix['b']['a']).toBe(2);
+      expect(result.matrix['a']['c']).toBe(3);
+      expect(result.matrix['c']['a']).toBe(2);
+    });
   });
 });
 
@@ -192,6 +215,23 @@ describe('tallyRankedPairs', () => {
     expect(result.winner).toBe('a');
     expect(result.lockedPairs.length).toBe(3);
   });
+
+  it('treats unranked candidates as lowest preference (truncated ballots)', () => {
+    const abc: Candidate[] = [
+      { id: 'a', name: 'A' },
+      { id: 'b', name: 'B' },
+      { id: 'c', name: 'C' },
+    ];
+    const truncatedVotes: Vote[] = [
+      { voterName: 'V1', ranking: ['a'], approved: [], timestamp: '' },
+      { voterName: 'V2', ranking: ['a'], approved: [], timestamp: '' },
+      { voterName: 'V3', ranking: ['a'], approved: [], timestamp: '' },
+      { voterName: 'V4', ranking: ['b', 'c'], approved: [], timestamp: '' },
+      { voterName: 'V5', ranking: ['b', 'c'], approved: [], timestamp: '' },
+    ];
+    const result = tallyRankedPairs(truncatedVotes, abc);
+    expect(result.winner).toBe('a');
+  });
 });
 
 describe('tallySTV', () => {
@@ -223,6 +263,40 @@ describe('tallyMajorityJudgment', () => {
     const result = tallyMajorityJudgment(mjVotes, candidates);
     expect(result.winner).toBe('1');
     expect(result.medianGrades[0].medianGrade).toBe(4);
+  });
+
+  it('uses the lower median for an even number of grades', () => {
+    // Alice: [2,2,4,4] -> lower median 2; Bob: [3,3,3,3] -> median 3.
+    // Upper-median (the old bug) would give Alice 4 and elect her incorrectly.
+    const twoCandidates: Candidate[] = [
+      { id: '1', name: 'Alice' },
+      { id: '2', name: 'Bob' },
+    ];
+    const mjVotes: Vote[] = [
+      { voterName: 'V1', ranking: [], approved: [], scores: { '1': 2, '2': 3 }, timestamp: '' },
+      { voterName: 'V2', ranking: [], approved: [], scores: { '1': 2, '2': 3 }, timestamp: '' },
+      { voterName: 'V3', ranking: [], approved: [], scores: { '1': 4, '2': 3 }, timestamp: '' },
+      { voterName: 'V4', ranking: [], approved: [], scores: { '1': 4, '2': 3 }, timestamp: '' },
+    ];
+    const result = tallyMajorityJudgment(mjVotes, twoCandidates);
+    expect(result.winner).toBe('2');
+    const alice = result.medianGrades.find((m) => m.candidateId === '1')!;
+    expect(alice.medianGrade).toBe(2);
+  });
+
+  it('treats a candidate a voter did not grade as the lowest grade', () => {
+    // Charlie is graded 5 by one voter and omitted by the others. Treating the
+    // omissions as abstentions (the old bug) gave Charlie a median of 5 and a
+    // win; treating them as Reject (0) gives a median of 0.
+    const mjVotes: Vote[] = [
+      { voterName: 'V1', ranking: [], approved: [], scores: { '1': 3, '2': 2, '3': 5 }, timestamp: '' },
+      { voterName: 'V2', ranking: [], approved: [], scores: { '1': 3, '2': 2 }, timestamp: '' },
+      { voterName: 'V3', ranking: [], approved: [], scores: { '1': 3, '2': 2 }, timestamp: '' },
+    ];
+    const result = tallyMajorityJudgment(mjVotes, candidates);
+    expect(result.winner).toBe('1');
+    const charlie = result.medianGrades.find((m) => m.candidateId === '3')!;
+    expect(charlie.medianGrade).toBe(0);
   });
 });
 

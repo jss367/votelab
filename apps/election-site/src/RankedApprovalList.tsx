@@ -39,8 +39,26 @@ const RankedApprovalList: React.FC<RankedApprovalListProps> = ({
     Math.floor(candidates.length / 2)
   );
 
+  // Reconcile against the incoming candidate list without discarding the
+  // voter's current ordering. Re-renders happen whenever the parent re-passes
+  // `candidates` (e.g. a real-time election snapshot when another voter
+  // submits); a naive `setItems(candidates)` would reset the drag order the
+  // voter is building. Instead we keep the existing order for candidates that
+  // still exist, append any newly added ones, and drop removed ones.
   useEffect(() => {
-    setItems(candidates);
+    setItems((prev) => {
+      const byId = new Map(candidates.map((c) => [c.id, c]));
+      const kept = prev
+        .filter((c) => byId.has(c.id))
+        .map((c) => byId.get(c.id)!);
+      const keptIds = new Set(kept.map((c) => c.id));
+      const added = candidates.filter((c) => !keptIds.has(c.id));
+      const next = [...kept, ...added];
+      const unchanged =
+        next.length === prev.length &&
+        next.every((c, i) => c === prev[i]);
+      return unchanged ? prev : next;
+    });
   }, [candidates]);
 
   const onDragEnd = (result: DropResult) => {

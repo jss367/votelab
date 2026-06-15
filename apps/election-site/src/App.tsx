@@ -71,6 +71,10 @@ function App() {
   >([]);
   const [votingMethod, setVotingMethod] = useState<VotingMethod>('plurality');
   const [candidateScores, setCandidateScores] = useState<Record<string, number>>({});
+  // The voter's ranking for this ballot, kept separate from the election's
+  // candidate list so that a real-time snapshot (e.g. another voter submitting)
+  // does not wipe the order the current voter is building. Holds candidate ids.
+  const [ballotRanking, setBallotRanking] = useState<string[]>([]);
   const [electionSlug, setElectionSlug] = useState('');
   const [slugTouched, setSlugTouched] = useState(false);
   const [editingCandidateId, setEditingCandidateId] = useState<string | null>(null);
@@ -251,9 +255,13 @@ function App() {
       setLoading(true);
       const method = election.votingMethod || 'smithApproval';
       const scoreBasedMethods: VotingMethod[] = ['rrv', 'star', 'score', 'majorityJudgment', 'cumulative'];
+      // For ranked/plurality methods, use the voter's ballot ordering. Fall
+      // back to the election's candidate order if they didn't reorder anything.
+      const ranking =
+        ballotRanking.length > 0 ? ballotRanking : candidates.map((c) => c.id);
       const vote: Vote = {
         voterName: voterName,
-        ranking: scoreBasedMethods.includes(method) ? [] : candidates.map((c) => c.id),
+        ranking: scoreBasedMethods.includes(method) ? [] : ranking,
         approved: (method === 'approval' || method === 'smithApproval')
           ? Array.from(approvedCandidates)
           : [],
@@ -842,7 +850,8 @@ function App() {
                       candidates={candidates}
                       customFields={election.customFields}
                       onChange={({ ranking, approved, scores }) => {
-                        if (ranking.length > 0) setCandidates(ranking);
+                        if (ranking.length > 0)
+                          setBallotRanking(ranking.map((c) => c.id));
                         setApprovedCandidates(new Set(approved));
                         if (scores) setCandidateScores(scores);
                       }}

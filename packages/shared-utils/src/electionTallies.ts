@@ -31,6 +31,48 @@ export interface CondorcetResult {
 }
 
 /**
+ * Build a pairwise preference matrix where matrix[a][b] = number of voters who
+ * prefer a over b. Unranked candidates are treated as the lowest preference
+ * (a ranked candidate beats an unranked one), matching getPairwiseResults in
+ * ElectionUtils. Ballots that rank neither candidate of a pair contribute
+ * nothing to that pair.
+ */
+function buildPairwiseMatrix(
+  votes: Vote[],
+  ids: string[]
+): Record<string, Record<string, number>> {
+  const matrix: Record<string, Record<string, number>> = {};
+  for (const a of ids) {
+    matrix[a] = {};
+    for (const b of ids) {
+      matrix[a][b] = 0;
+    }
+  }
+
+  for (const vote of votes) {
+    // Position of each candidate on this ballot (first occurrence wins).
+    const pos = new Map<string, number>();
+    vote.ranking.forEach((id, i) => {
+      if (!pos.has(id)) pos.set(id, i);
+    });
+
+    for (let x = 0; x < ids.length; x++) {
+      for (let y = x + 1; y < ids.length; y++) {
+        const a = ids[x];
+        const b = ids[y];
+        const pa = pos.has(a) ? pos.get(a)! : Infinity;
+        const pb = pos.has(b) ? pos.get(b)! : Infinity;
+        if (pa === Infinity && pb === Infinity) continue; // neither ranked
+        if (pa < pb) matrix[a][b]++;
+        else if (pb < pa) matrix[b][a]++;
+      }
+    }
+  }
+
+  return matrix;
+}
+
+/**
  * Count first-choice votes. Winner = candidate with most first-choice votes.
  */
 export function tallyPlurality(votes: Vote[], candidates: Candidate[]): PluralityResult {
@@ -187,26 +229,8 @@ export function tallyCondorcet(votes: Vote[], candidates: Candidate[]): Condorce
   const ids = candidates.map((c) => c.id);
 
   // Build pairwise matrix: matrix[a][b] = number of voters who rank a above b
-  const matrix: Record<string, Record<string, number>> = {};
-  for (const a of ids) {
-    matrix[a] = {};
-    for (const b of ids) {
-      matrix[a][b] = 0;
-    }
-  }
-
-  for (const vote of votes) {
-    // For each pair, the one appearing earlier in the ranking is preferred
-    for (let i = 0; i < vote.ranking.length; i++) {
-      for (let j = i + 1; j < vote.ranking.length; j++) {
-        const higher = vote.ranking[i];
-        const lower = vote.ranking[j];
-        if (matrix[higher] && matrix[higher][lower] !== undefined) {
-          matrix[higher][lower]++;
-        }
-      }
-    }
-  }
+  // (unranked candidates count as lowest preference).
+  const matrix = buildPairwiseMatrix(votes, ids);
 
   // Find Condorcet winner: beats all others pairwise
   let winner: string | null = null;
@@ -373,24 +397,8 @@ export interface RankedPairsResult {
 
 export function tallyRankedPairs(votes: Vote[], candidates: Candidate[]): RankedPairsResult {
   const ids = candidates.map((c) => c.id);
-  const matrix: Record<string, Record<string, number>> = {};
-  for (const a of ids) {
-    matrix[a] = {};
-    for (const b of ids) {
-      matrix[a][b] = 0;
-    }
-  }
-  for (const vote of votes) {
-    for (let i = 0; i < vote.ranking.length; i++) {
-      for (let j = i + 1; j < vote.ranking.length; j++) {
-        const higher = vote.ranking[i];
-        const lower = vote.ranking[j];
-        if (matrix[higher]?.[lower] !== undefined) {
-          matrix[higher][lower]++;
-        }
-      }
-    }
-  }
+  // Unranked candidates count as lowest preference (see buildPairwiseMatrix).
+  const matrix = buildPairwiseMatrix(votes, ids);
 
   const pairs: Array<{ winner: string; loser: string; margin: number }> = [];
   for (const a of ids) {
@@ -539,10 +547,17 @@ export function tallyMajorityJudgment(votes: Vote[], candidates: Candidate[]): M
   for (const c of candidates) {
     gradesMap.set(c.id, []);
   }
+  // Each voter contributes a grade for every candidate. A candidate the voter
+  // did not grade is treated as the lowest grade (Reject = 0) so that medians
+  // are computed over the full electorate and a candidate rated by only a small
+  // minority cannot get an inflated median.
   for (const vote of votes) {
-    if (!vote.scores) continue;
-    for (const [candidateId, grade] of Object.entries(vote.scores)) {
-      gradesMap.get(candidateId)?.push(Math.max(0, Math.min(5, Math.round(grade))));
+    const scores = vote.scores ?? {};
+    for (const c of candidates) {
+      const grade = scores[c.id];
+      const clamped =
+        grade === undefined ? 0 : Math.max(0, Math.min(5, Math.round(grade)));
+      gradesMap.get(c.id)!.push(clamped);
     }
   }
 
@@ -550,9 +565,14 @@ export function tallyMajorityJudgment(votes: Vote[], candidates: Candidate[]): M
     grades.sort((a, b) => a - b);
   }
 
+  // Lower median: for an even number of grades, Majority Judgment uses the
+  // lower of the two middle values (and the tie-break below assumes the same).
+  const lowerMedianIndex = (length: number): number =>
+    Math.floor((length - 1) / 2);
+
   const getMedian = (arr: number[]): number => {
     if (arr.length === 0) return 0;
-    return arr[Math.floor(arr.length / 2)];
+    return arr[lowerMedianIndex(arr.length)];
   };
 
   const medianGrades = candidates.map((c) => {
@@ -579,11 +599,13 @@ export function tallyMajorityJudgment(votes: Vote[], candidates: Candidate[]): M
       const aCopy = [...a.grades];
       const bCopy = [...b.grades];
       while (aCopy.length > 0 && bCopy.length > 0) {
-        const aMedian = aCopy[Math.floor(aCopy.length / 2)];
-        const bMedian = bCopy[Math.floor(bCopy.length / 2)];
+        const aIdx = lowerMedianIndex(aCopy.length);
+        const bIdx = lowerMedianIndex(bCopy.length);
+        const aMedian = aCopy[aIdx];
+        const bMedian = bCopy[bIdx];
         if (aMedian !== bMedian) return bMedian - aMedian;
-        aCopy.splice(Math.floor(aCopy.length / 2), 1);
-        bCopy.splice(Math.floor(bCopy.length / 2), 1);
+        aCopy.splice(aIdx, 1);
+        bCopy.splice(bIdx, 1);
       }
       return 0;
     });
