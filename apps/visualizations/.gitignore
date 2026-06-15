@@ -1,0 +1,12 @@
+# Next.js
+/.next/
+
+# Static export output
+/out/
+
+# Local cache
+.cache/
+
+# Firebase
+.firebase/
+firebase-debug.log*
