@@ -195,42 +195,31 @@ export const selectWinner = (
     };
   });
 
-  // Sort using updated waterfall approach
+  // Sort using a waterfall of *transitive* criteria so the comparator defines a
+  // valid total order. (An earlier version broke ties by direct head-to-head
+  // matchup, but that is non-transitive inside a Condorcet cycle — e.g. A>B,
+  // B>C, C>A — which violates Array.prototype.sort's contract and produced an
+  // implementation-defined winner in exactly the cyclic case this function
+  // exists to resolve. Net head-to-head record (a Copeland score) captures the
+  // same information transitively.)
   const sortedScores = scores.sort((a, b) => {
     // 1. First compare by approval votes
     if (a.metrics.approval !== b.metrics.approval) {
       return b.metrics.approval - a.metrics.approval;
     }
 
-    // 2. If approval tied, check direct matchup
-    const directMatchup = victories.find(
-      (v) =>
-        (v.winner === a.name && v.loser === b.name) ||
-        (v.winner === b.name && v.loser === a.name)
-    );
-
-    if (directMatchup) {
-      return directMatchup.winner === a.name ? -1 : 1;
-    }
-
-    // 3. If no direct matchup or tied, compare head-to-head record
+    // 2. If approval tied, compare net head-to-head record
     if (a.metrics.headToHead !== b.metrics.headToHead) {
       return b.metrics.headToHead - a.metrics.headToHead;
     }
 
-    // 4. If head-to-head tied, compare average margin
+    // 3. If head-to-head record tied, compare average margin
     return b.metrics.margin - a.metrics.margin;
   });
 
   // Helper: check if two candidates are truly tied across all tiebreaker levels
   const areTied = (a: CandidateScore, b: CandidateScore): boolean => {
     if (a.metrics.approval !== b.metrics.approval) return false;
-    const directMatchup = victories.some(
-      (v) =>
-        (v.winner === a.name && v.loser === b.name) ||
-        (v.winner === b.name && v.loser === a.name)
-    );
-    if (directMatchup) return false;
     if (a.metrics.headToHead !== b.metrics.headToHead) return false;
     if (a.metrics.margin !== b.metrics.margin) return false;
     return true;
@@ -243,14 +232,6 @@ export const selectWinner = (
   ): string => {
     if (current.metrics.approval !== prev.metrics.approval) {
       return '\nRanked by approval votes';
-    }
-    const directMatchup = victories.find(
-      (v) =>
-        (v.winner === current.name && v.loser === prev.name) ||
-        (v.winner === prev.name && v.loser === current.name)
-    );
-    if (directMatchup) {
-      return '\nRanked by direct head-to-head matchup';
     }
     if (current.metrics.headToHead !== prev.metrics.headToHead) {
       return '\nRanked by head-to-head record';

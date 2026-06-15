@@ -3,6 +3,7 @@ import {
   calculateSmithSet,
   getHeadToHeadVictories,
   getPairwiseResults,
+  selectWinner,
 } from './ElectionUtils';
 import { Election } from './types';
 
@@ -193,5 +194,35 @@ describe('Election Result Calculations', () => {
 
     // With perfect ties, both candidates should be in Smith set
     expect(new Set(smithSet)).toEqual(new Set(['Candidate 1', 'Candidate 2']));
+  });
+
+  test('selectWinner produces a stable total order for a Condorcet cycle', () => {
+    // A cyclic Smith set is exactly where the old pairwise-matchup comparator
+    // was non-transitive (A>B, B>C, C>A), violating Array.sort's contract.
+    const pairwise = getPairwiseResults(cyclicElection);
+    const victories = getHeadToHeadVictories(pairwise);
+    const smithSet = calculateSmithSet(victories, cyclicElection);
+
+    const scores = selectWinner(smithSet, victories, cyclicElection);
+
+    // Every Smith-set member is ranked, and the ranking is internally
+    // consistent: scores are sorted descending by (approval, netVictories,
+    // margin).
+    expect(scores).toHaveLength(smithSet.length);
+    const cmp = (a: { approval: number; headToHead: number; margin: number }) =>
+      [a.approval, a.headToHead, a.margin];
+    for (let i = 1; i < scores.length; i++) {
+      const prev = cmp(scores[i - 1].metrics);
+      const cur = cmp(scores[i].metrics);
+      // First differing component must show prev >= cur (descending order).
+      const diff = prev.findIndex((v, k) => v !== cur[k]);
+      if (diff !== -1) {
+        expect(prev[diff]).toBeGreaterThan(cur[diff]);
+      }
+    }
+
+    // Re-running on the same input yields the same winner (determinism).
+    const scores2 = selectWinner(smithSet, victories, cyclicElection);
+    expect(scores2[0].name).toBe(scores[0].name);
   });
 });

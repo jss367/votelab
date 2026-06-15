@@ -6,7 +6,7 @@ import {
 } from '@hello-pangea/dnd';
 import { Button } from '@repo/ui';
 import { ArrowDown, ArrowUp, Grip, Trash2 } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import CandidateDetails from './CandidateDetails';
 import type { Candidate, CustomField } from './types';
 
@@ -39,8 +39,50 @@ const RankedApprovalList: React.FC<RankedApprovalListProps> = ({
     Math.floor(candidates.length / 2)
   );
 
+  // Track the latest items so the reconcile effect can read them without
+  // listing `items` as a dependency (which would re-run it on every drag).
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+
+  // Reconcile against the incoming candidate list without discarding the
+  // voter's current ordering. Re-renders happen whenever the parent re-passes
+  // `candidates` (e.g. a real-time election snapshot when another voter
+  // submits); a naive `setItems(candidates)` would reset the drag order the
+  // voter is building. Instead we keep the existing order for candidates that
+  // still exist, append any newly added ones, and drop removed ones.
   useEffect(() => {
-    setItems(candidates);
+    const prev = itemsRef.current;
+    const byId = new Map(candidates.map((c) => [c.id, c]));
+    const kept = prev
+      .filter((c) => byId.has(c.id))
+      .map((c) => byId.get(c.id)!);
+    const keptIds = new Set(kept.map((c) => c.id));
+    const added = candidates.filter((c) => !keptIds.has(c.id));
+    const next = [...kept, ...added];
+
+    // Nothing changed at all (same objects, same order) — leave state alone.
+    const identical =
+      next.length === prev.length && next.every((c, i) => c === prev[i]);
+    if (identical) return;
+
+    setItems(next);
+
+    // If membership or order changed (a candidate was added or removed), the
+    // parent's submitted ranking would otherwise keep the stale ids — e.g.
+    // deleting a candidate mid-vote would leave the removed id in the ballot
+    // and a new candidate would be missing. Propagate the reconciled order so
+    // what gets submitted matches what is shown.
+    const membershipOrOrderChanged =
+      next.length !== prev.length ||
+      next.some((c, i) => c.id !== prev[i]?.id);
+    if (membershipOrOrderChanged) {
+      onChange({
+        ranking: next,
+        approved: showApprovalLine
+          ? next.slice(0, approvalLine).map((c) => c.id)
+          : [],
+      });
+    }
   }, [candidates]);
 
   const onDragEnd = (result: DropResult) => {
