@@ -7,13 +7,14 @@
     "build": "next build",
     "start": "npx serve@latest out",
     "lint": "next lint",
-    "deploy": "next build && firebase deploy --only hosting",
+    "deploy": "turbo build --filter=voting-visualization && firebase deploy --only hosting",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@radix-ui/react-select": "^2.1.2",
+    "@repo/ui": "*",
     "@radix-ui/react-slot": "^1.1.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
@@ -22,7 +23,8 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "styled-jsx": "^5.1.6",
-    "tailwind-merge": "^2.5.4"
+    "tailwind-merge": "^2.5.4",
+    "@votelab/shared-utils": "*"
   },
   "devDependencies": {
     "@shadcn/ui": "^0.0.4",
