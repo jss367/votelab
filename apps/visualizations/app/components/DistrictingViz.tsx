@@ -327,7 +327,7 @@ const DistrictingViz: React.FC = () => {
       .then((data: RealStateDistrictingDataset) => {
         if (cancelled) return;
         setDataset(data);
-        setNumDistricts(data.defaultDistricts);
+        setNumDistricts(selectedState.defaultDistricts);
       })
       .catch((err: Error) => {
         if (!cancelled) setError(err.message);
@@ -402,7 +402,7 @@ const DistrictingViz: React.FC = () => {
   const counties = new Set(dataset.units.map((unit) => unit.countyGeoid)).size;
   const unitLabel =
     dataset.unitType === 'blockGroup' ? 'block groups' : `${dataset.unitType}s`;
-  const maxDistricts = Math.max(6, dataset.defaultDistricts);
+  const maxDistricts = Math.max(6, selectedState.defaultDistricts);
 
   return (
     <div className="max-w-7xl mx-auto p-6">
