@@ -456,13 +456,15 @@ function computePartisanScores(
   assignment: number[],
   k: number,
   election: CountyElectionDataset
-): PartisanDistrictScore[] {
+): PartisanDistrictScore[] | undefined {
   const countyPopulation = new Map<string, number>();
+  let totalPopulation = 0;
   for (const unit of dataset.units) {
     countyPopulation.set(
       unit.countyGeoid,
       (countyPopulation.get(unit.countyGeoid) ?? 0) + unit.population
     );
+    totalPopulation += unit.population;
   }
 
   const scores = Array.from({ length: k }, () => ({
@@ -474,17 +476,22 @@ function computePartisanScores(
     margin: 0,
   }));
 
+  let matchedPopulation = 0;
   for (let i = 0; i < dataset.units.length; i++) {
     const unit = dataset.units[i];
     const countyResult = election.counties[unit.countyGeoid];
     const population = countyPopulation.get(unit.countyGeoid) ?? 0;
     if (!countyResult || population <= 0) continue;
+    matchedPopulation += unit.population;
     const weight = unit.population / population;
     const district = assignment[i];
     scores[district].votesDem += countyResult.votesDem * weight;
     scores[district].votesGop += countyResult.votesGop * weight;
     scores[district].totalVotes += countyResult.totalVotes * weight;
   }
+
+  if (matchedPopulation / Math.max(1, totalPopulation) < 0.8) return undefined;
+  if (scores.some((score) => score.totalVotes <= 0)) return undefined;
 
   for (const score of scores) {
     const twoParty = score.votesDem + score.votesGop;

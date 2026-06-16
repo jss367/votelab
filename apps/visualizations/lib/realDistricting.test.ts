@@ -119,6 +119,32 @@ describe('real districting', () => {
     ).toEqual([0.4, 0.6]);
   });
 
+  test('suppresses partisan scores when election coverage is incomplete', () => {
+    const result = districtRealByCountyIntegrity(testDataset, {
+      numDistricts: 2,
+      seed: 1,
+      election: {
+        id: 'partial-election',
+        title: 'Partial election',
+        source: 'test',
+        sourceUrl: 'https://example.com',
+        note: 'test',
+        counties: {
+          c1: {
+            countyName: 'County 1',
+            votesDem: 80,
+            votesGop: 20,
+            totalVotes: 100,
+          },
+        },
+      },
+    });
+
+    expect(result.metrics.partisanScores).toBeUndefined();
+    expect(result.metrics.seatsDem).toBeUndefined();
+    expect(result.metrics.seatsGop).toBeUndefined();
+  });
+
   test('county integrity can keep balanced counties whole', () => {
     const result = districtRealByCountyIntegrity(testDataset, {
       numDistricts: 2,
