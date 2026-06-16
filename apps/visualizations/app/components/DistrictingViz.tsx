@@ -278,6 +278,8 @@ const DistrictingViz: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [numDistricts, setNumDistricts] = useState(3);
   const [seed, setSeed] = useState(1);
+  const [results, setResults] = useState<RealDistrictingResult[]>([]);
+  const [isComputing, setIsComputing] = useState(false);
 
   const selectedState =
     DISTRICTING_STATES.find((state) => state.id === stateId) ??
@@ -335,14 +337,33 @@ const DistrictingViz: React.FC = () => {
     };
   }, [selectedResolution, selectedState]);
 
-  const results = useMemo(() => {
-    if (!dataset) return [];
-    const options = { numDistricts, seed, election: election ?? undefined };
-    return [
-      districtRealByWeightedCentroid(dataset, options),
-      districtRealByCountyIntegrity(dataset, options),
-      districtRealByRegionGrow(dataset, options),
-    ];
+  useEffect(() => {
+    if (!dataset) {
+      setResults([]);
+      setIsComputing(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsComputing(true);
+    setResults([]);
+    const timeout = window.setTimeout(() => {
+      const options = { numDistricts, seed, election: election ?? undefined };
+      const nextResults = [
+        districtRealByWeightedCentroid(dataset, options),
+        districtRealByCountyIntegrity(dataset, options),
+        districtRealByRegionGrow(dataset, options),
+      ];
+      if (!cancelled) {
+        setResults(nextResults);
+        setIsComputing(false);
+      }
+    }, 0);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
   }, [dataset, election, numDistricts, seed]);
 
   if (error) {
@@ -488,15 +509,21 @@ const DistrictingViz: React.FC = () => {
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        {results.map((result) => (
-          <RealDistrictMap
-            key={result.algorithm}
-            dataset={dataset}
-            result={result}
-          />
-        ))}
-      </div>
+      {isComputing ? (
+        <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-600">
+          Computing district plans...
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+          {results.map((result) => (
+            <RealDistrictMap
+              key={result.algorithm}
+              dataset={dataset}
+              result={result}
+            />
+          ))}
+        </div>
+      )}
 
       <div className="mt-8 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-gray-700">
         <p>
