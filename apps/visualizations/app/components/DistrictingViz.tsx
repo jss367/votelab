@@ -55,10 +55,13 @@ function createProjection(
   height: number
 ) {
   const [minLon, minLat, maxLon, maxLat] = bbox;
+  const crossesAntimeridian = maxLon - minLon > 180;
+  const projectedMinLon = crossesAntimeridian ? maxLon : minLon;
+  const projectedMaxLon = crossesAntimeridian ? minLon + 360 : maxLon;
   const midLat = ((minLat + maxLat) / 2) * (Math.PI / 180);
   const lonScale = Math.cos(midLat);
-  const minX = minLon * lonScale;
-  const maxX = maxLon * lonScale;
+  const minX = projectedMinLon * lonScale;
+  const maxX = projectedMaxLon * lonScale;
   const minY = minLat;
   const maxY = maxLat;
   const padding = 18;
@@ -69,10 +72,13 @@ function createProjection(
   const offsetX = (width - (maxX - minX) * scale) / 2;
   const offsetY = (height - (maxY - minY) * scale) / 2;
 
-  return ([lon, lat]: number[]) => ({
-    x: offsetX + (lon * lonScale - minX) * scale,
-    y: height - (offsetY + (lat - minY) * scale),
-  });
+  return ([lon, lat]: number[]) => {
+    const projectedLon = crossesAntimeridian && lon < 0 ? lon + 360 : lon;
+    return {
+      x: offsetX + (projectedLon * lonScale - minX) * scale,
+      y: height - (offsetY + (lat - minY) * scale),
+    };
+  };
 }
 
 function drawFeaturePath(

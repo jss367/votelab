@@ -207,6 +207,7 @@ function weightedAssign(
   const k = centroids.length;
   const totalPopulation = populations.reduce((s, p) => s + p, 0);
   const ideal = totalPopulation / k;
+  const lowerBound = ideal * (1 - tolerance);
   const capacity = ideal * (1 + tolerance);
 
   const ranked = points
@@ -217,6 +218,7 @@ function weightedAssign(
       return {
         i,
         order: distances.map((entry) => entry.idx),
+        distances,
         regret: (distances[1]?.d ?? distances[0].d) - distances[0].d,
         population: populations[i],
       };
@@ -227,21 +229,96 @@ function weightedAssign(
   const counts = new Array(k).fill(0);
 
   for (const entry of ranked) {
-    let district = entry.order.find(
-      (d) => counts[d] + entry.population <= capacity
-    );
-    if (district === undefined) {
-      district = entry.order.reduce((best, d) => {
-        const bestOver = Math.max(0, counts[best] + entry.population - ideal);
-        const nextOver = Math.max(0, counts[d] + entry.population - ideal);
-        return nextOver < bestOver ? d : best;
-      }, entry.order[0]);
-    }
+    const district = entry.distances.reduce((best, candidate, rank) => {
+      const projected = counts[candidate.idx] + entry.population;
+      const overCapacity = Math.max(0, projected - capacity) / Math.max(1, ideal);
+      const deficitBefore =
+        Math.max(0, lowerBound - counts[candidate.idx]) / Math.max(1, ideal);
+      const deficitAfter =
+        Math.max(0, lowerBound - projected) / Math.max(1, ideal);
+      const rankPenalty = rank / Math.max(1, k - 1);
+      const score =
+        overCapacity * 10000 +
+        deficitAfter * 6 -
+        deficitBefore * 8 +
+        rankPenalty;
+      return score < best.score ? { idx: candidate.idx, score } : best;
+    }, { idx: entry.distances[0].idx, score: Infinity }).idx;
     assignment[entry.i] = district;
     counts[district] += entry.population;
   }
 
+  rebalanceUnderfilledDistricts(
+    points,
+    populations,
+    centroids,
+    assignment,
+    counts,
+    tolerance
+  );
+
   return assignment;
+}
+
+function rebalanceUnderfilledDistricts(
+  points: GeoPoint[],
+  populations: number[],
+  centroids: GeoPoint[],
+  assignment: number[],
+  counts: number[],
+  tolerance: number
+) {
+  const k = centroids.length;
+  const totalPopulation = populations.reduce((s, p) => s + p, 0);
+  const ideal = totalPopulation / k;
+  const lowerBound = ideal * (1 - tolerance);
+  const capacity = ideal * (1 + tolerance);
+  const maxMoves = Math.max(points.length * k, points.length);
+
+  for (let move = 0; move < maxMoves; move++) {
+    const underDistrict = counts.reduce((best, population, district) => {
+      if (population >= lowerBound) return best;
+      if (best < 0) return district;
+      return population < counts[best] ? district : best;
+    }, -1);
+    if (underDistrict < 0) break;
+
+    let bestUnit = -1;
+    let bestScore = Infinity;
+    for (let i = 0; i < points.length; i++) {
+      const fromDistrict = assignment[i];
+      if (fromDistrict === underDistrict) continue;
+
+      const population = populations[i];
+      const underAfter = counts[underDistrict] + population;
+      const fromAfter = counts[fromDistrict] - population;
+      if (underAfter > capacity) continue;
+      if (fromAfter < lowerBound && counts[fromDistrict] <= ideal) continue;
+
+      const donorPenalty =
+        Math.max(0, lowerBound - fromAfter) / Math.max(1, ideal);
+      const fillProgress =
+        Math.min(population, lowerBound - counts[underDistrict]) /
+        Math.max(1, ideal);
+      const distancePenalty =
+        dist(points[i], centroids[underDistrict]) -
+        dist(points[i], centroids[fromDistrict]);
+      const score = distancePenalty + donorPenalty * 100 - fillProgress * 10;
+
+      if (score < bestScore) {
+        bestScore = score;
+        bestUnit = i;
+      }
+    }
+
+    if (bestUnit < 0) break;
+
+    const fromDistrict = assignment[bestUnit];
+    const population = populations[bestUnit];
+    assignment[bestUnit] = underDistrict;
+    counts[fromDistrict] -= population;
+    counts[underDistrict] += population;
+  }
 }
 
 function assignmentToRecord(
@@ -491,30 +568,34 @@ export function districtRealByCountyIntegrity(
   for (let iter = 0; iter < maxIterations; iter++) {
     const next = new Array(dataset.units.length).fill(-1);
     const counts = new Array(k).fill(0);
-    const rankedCounties = Array.from(countyUnits.entries())
+    const counties = Array.from(countyUnits.entries())
       .map(([county, idxs]) => {
         const centroid = weightedMean(
           idxs.map((i) => dataset.units[i].centroid),
           idxs.map((i) => dataset.units[i].population)
         );
-        const distances = centroids
-          .map((c, idx) => ({ idx, d: dist(centroid, c) }))
-          .sort((a, b) => a.d - b.d);
         return {
           county,
           idxs,
+          centroid,
           population: idxs.reduce((s, i) => s + dataset.units[i].population, 0),
-          order: distances.map((entry) => entry.idx),
-          regret: (distances[1]?.d ?? distances[0].d) - distances[0].d,
         };
       })
-      .sort((a, b) => b.regret - a.regret || b.population - a.population);
+      .sort((a, b) => b.population - a.population);
+    const countyAssignment = weightedAssign(
+      counties.map((county) => county.centroid),
+      counties.map((county) => county.population),
+      centroids,
+      tolerance
+    );
 
-    for (const county of rankedCounties) {
-      const wholeDistrict = county.order.find(
-        (d) => counts[d] + county.population <= capacity
-      );
-      if (wholeDistrict !== undefined) {
+    for (let countyIndex = 0; countyIndex < counties.length; countyIndex++) {
+      const county = counties[countyIndex];
+      const wholeDistrict = countyAssignment[countyIndex];
+      if (
+        county.population <= capacity &&
+        counts[wholeDistrict] + county.population <= capacity
+      ) {
         for (const i of county.idxs) next[i] = wholeDistrict;
         counts[wholeDistrict] += county.population;
         continue;
@@ -523,17 +604,37 @@ export function districtRealByCountyIntegrity(
       for (const i of county.idxs) {
         const unit = dataset.units[i];
         const order = nearestOrder(unit.centroid, centroids);
-        let district = order.find((d) => counts[d] + unit.population <= capacity);
-        if (district === undefined) {
-          district = order.reduce(
-            (best, d) => (counts[d] < counts[best] ? d : best),
-            order[0]
-          );
-        }
+        const district = order.reduce((best, d, rank) => {
+          const projected = counts[d] + unit.population;
+          const overCapacity =
+            Math.max(0, projected - capacity) / Math.max(1, ideal);
+          const deficitBefore =
+            Math.max(0, ideal * (1 - tolerance) - counts[d]) /
+            Math.max(1, ideal);
+          const deficitAfter =
+            Math.max(0, ideal * (1 - tolerance) - projected) /
+            Math.max(1, ideal);
+          const rankPenalty = rank / Math.max(1, k - 1);
+          const score =
+            overCapacity * 10000 +
+            deficitAfter * 6 -
+            deficitBefore * 8 +
+            rankPenalty;
+          return score < best.score ? { idx: d, score } : best;
+        }, { idx: order[0], score: Infinity }).idx;
         next[i] = district;
         counts[district] += unit.population;
       }
     }
+
+    rebalanceUnderfilledDistricts(
+      dataset.units.map((unit) => unit.centroid),
+      dataset.units.map((unit) => unit.population),
+      centroids,
+      next,
+      counts,
+      tolerance
+    );
 
     const changed = next.some((district, i) => district !== assignment[i]);
     assignment = next;

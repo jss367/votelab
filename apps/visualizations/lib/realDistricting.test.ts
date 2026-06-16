@@ -5,6 +5,7 @@ import {
   districtRealByRegionGrow,
   districtRealByWeightedCentroid,
 } from './realDistricting';
+import californiaTracts from '../public/data/districting/california-tracts.json';
 
 const testDataset: RealStateDistrictingDataset = {
   stateFips: '00',
@@ -138,5 +139,18 @@ describe('real districting', () => {
     expect(assignedGeoids(result)).toEqual(['a', 'b', 'c', 'd']);
     expect(result.metrics.contiguousDistricts).toBe(2);
     expect(result.metrics.populations.reduce((s, p) => s + p, 0)).toBe(400);
+  });
+
+  test('balances the default California tract fixture', () => {
+    const californiaDataset = californiaTracts as RealStateDistrictingDataset;
+    const weighted = districtRealByWeightedCentroid(californiaDataset, {
+      seed: 1,
+    });
+    const county = districtRealByCountyIntegrity(californiaDataset, {
+      seed: 1,
+    });
+
+    expect(weighted.metrics.maxDeviationFraction).toBeLessThanOrEqual(0.085);
+    expect(county.metrics.maxDeviationFraction).toBeLessThanOrEqual(0.125);
   });
 });
