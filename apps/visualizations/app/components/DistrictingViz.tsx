@@ -49,15 +49,44 @@ function formatSignedPercent(value: number): string {
   return `${party}+${(Math.abs(value) * 100).toFixed(1)}`;
 }
 
+function visitFeatureCoordinates(
+  feature: DistrictingFeature,
+  visit: (point: number[]) => void
+) {
+  const visitRing = (ring: number[][]) => ring.forEach(visit);
+
+  if (feature.geometry.type === 'Polygon') {
+    const coordinates = feature.geometry.coordinates as PolygonCoordinates;
+    coordinates.forEach(visitRing);
+  } else {
+    const coordinates = feature.geometry.coordinates as MultiPolygonCoordinates;
+    coordinates.forEach((polygon) => {
+      polygon.forEach(visitRing);
+    });
+  }
+}
+
 function createProjection(
-  bbox: [number, number, number, number],
+  dataset: RealStateDistrictingDataset,
   width: number,
   height: number
 ) {
+  const { bbox } = dataset;
   const [minLon, minLat, maxLon, maxLat] = bbox;
   const crossesAntimeridian = maxLon - minLon > 180;
-  const projectedMinLon = crossesAntimeridian ? maxLon : minLon;
-  const projectedMaxLon = crossesAntimeridian ? minLon + 360 : maxLon;
+  let projectedMinLon = Infinity;
+  let projectedMaxLon = -Infinity;
+  for (const feature of dataset.geometries.features) {
+    visitFeatureCoordinates(feature, ([lon]) => {
+      const projectedLon = crossesAntimeridian && lon < 0 ? lon + 360 : lon;
+      projectedMinLon = Math.min(projectedMinLon, projectedLon);
+      projectedMaxLon = Math.max(projectedMaxLon, projectedLon);
+    });
+  }
+  if (!Number.isFinite(projectedMinLon) || !Number.isFinite(projectedMaxLon)) {
+    projectedMinLon = crossesAntimeridian ? maxLon : minLon;
+    projectedMaxLon = crossesAntimeridian ? minLon + 360 : maxLon;
+  }
   const midLat = ((minLat + maxLat) / 2) * (Math.PI / 180);
   const lonScale = Math.cos(midLat);
   const minX = projectedMinLon * lonScale;
@@ -127,7 +156,7 @@ const RealDistrictMap: React.FC<RealDistrictMapProps> = ({ dataset, result }) =>
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const project = createProjection(dataset.bbox, CANVAS_WIDTH, CANVAS_HEIGHT);
+    const project = createProjection(dataset, CANVAS_WIDTH, CANVAS_HEIGHT);
     ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
     ctx.fillStyle = '#f8fafc';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
