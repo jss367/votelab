@@ -8,7 +8,9 @@ import {
 import arizonaTracts from '../public/data/districting/arizona-tracts.json';
 import californiaTracts from '../public/data/districting/california-tracts.json';
 import georgiaTracts from '../public/data/districting/georgia-tracts.json';
+import hawaiiTracts from '../public/data/districting/hawaii-tracts.json';
 import marylandTracts from '../public/data/districting/maryland-tracts.json';
+import virginiaTracts from '../public/data/districting/virginia-tracts.json';
 
 const testDataset: RealStateDistrictingDataset = {
   stateFips: '00',
@@ -234,5 +236,19 @@ describe('real districting', () => {
 
     expect(result.metrics.contiguousDistricts).toBe(result.numDistricts);
     expect(result.metrics.maxDeviationFraction).toBeLessThanOrEqual(0.12);
+  });
+
+  test('region growing defers severe leftover overflows to balanced fallback', () => {
+    const cases: Array<[RealStateDistrictingDataset, number, number]> = [
+      [hawaiiTracts as RealStateDistrictingDataset, 1, 0.12],
+      [virginiaTracts as RealStateDistrictingDataset, 3, 0.2],
+    ];
+
+    for (const [dataset, seed, maxDeviation] of cases) {
+      const result = districtRealByRegionGrow(dataset, { seed });
+      expect(result.metrics.maxDeviationFraction).toBeLessThanOrEqual(
+        maxDeviation
+      );
+    }
   });
 });
