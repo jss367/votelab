@@ -64,9 +64,6 @@ function App() {
   const [ballotRanking, setBallotRanking] = useState<string[]>([]);
   const [electionSlug, setElectionSlug] = useState('');
   const [slugTouched, setSlugTouched] = useState(false);
-  const [editingCandidateId, setEditingCandidateId] = useState<string | null>(null);
-  const [editCandidateName, setEditCandidateName] = useState('');
-  const [editCandidateFields, setEditCandidateFields] = useState<CustomFieldValue[]>([]);
   const [sortByField, setSortByField] = useState<string>('');
   const [candidateLabel, setCandidateLabel] = useState('');
 
@@ -437,42 +434,6 @@ function App() {
     setApprovedCandidates(newApproved);
   };
 
-  const updateCandidate = async (updatedCandidate: Candidate) => {
-    if (!electionId || !election) return;
-    setError('');
-    try {
-      setLoading(true);
-      const updatedCandidates = election.candidates.map((c) =>
-        c.id === updatedCandidate.id ? updatedCandidate : c
-      );
-      const electionRef = doc(db, 'elections', electionId);
-      await updateDoc(electionRef, { candidates: updatedCandidates });
-    } catch (err) {
-      setError('Error updating candidate');
-      console.error(err);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const deleteCandidate = async (candidateId: string) => {
-    if (!electionId || !election) return;
-    setError('');
-    try {
-      setLoading(true);
-      const updatedCandidates = election.candidates.filter((c) => c.id !== candidateId);
-      const electionRef = doc(db, 'elections', electionId);
-      await updateDoc(electionRef, { candidates: updatedCandidates });
-    } catch (err) {
-      setError('Error deleting candidate');
-      console.error(err);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen bg-background">
@@ -794,72 +755,11 @@ function App() {
                             key={candidate.id}
                             className="p-3 bg-slate-50 rounded-md border border-slate-200"
                           >
-                            {editingCandidateId === candidate.id ? (
-                              <div className="space-y-3">
-                                <Input
-                                  value={editCandidateName}
-                                  onChange={(e) => setEditCandidateName(e.target.value)}
-                                  placeholder={election?.candidateLabel || "Candidate Name"}
-                                  className="w-full"
-                                />
-                                {election.customFields && election.customFields.length > 0 && (
-                                  <CustomFieldsInput
-                                    fields={election.customFields}
-                                    values={editCandidateFields}
-                                    onChange={setEditCandidateFields}
-                                  />
-                                )}
-                                <div className="flex gap-2">
-                                  <Button
-                                    size="sm"
-                                    disabled={loading}
-                                    onClick={async () => {
-                                      try {
-                                        await updateCandidate({
-                                          ...candidate,
-                                          name: editCandidateName.trim() || candidate.name,
-                                          customFields: editCandidateFields,
-                                        });
-                                        setEditingCandidateId(null);
-                                      } catch {
-                                        // error already set by updateCandidate; keep editor open
-                                      }
-                                    }}
-                                  >
-                                    Save
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="secondary"
-                                    onClick={() => setEditingCandidateId(null)}
-                                  >
-                                    Cancel
-                                  </Button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="flex items-start justify-between">
-                                <CandidateDetails candidate={candidate} customFields={election.customFields} />
-                                <div className="flex gap-2 ml-2 shrink-0">
-                                  <button
-                                    onClick={() => {
-                                      setEditingCandidateId(candidate.id);
-                                      setEditCandidateName(candidate.name);
-                                      setEditCandidateFields(candidate.customFields || []);
-                                    }}
-                                    className="text-xs text-blue-600 hover:text-blue-800 underline"
-                                  >
-                                    Edit
-                                  </button>
-                                  <button
-                                    onClick={() => deleteCandidate(candidate.id)}
-                                    className="text-xs text-red-500 hover:text-red-700 underline"
-                                  >
-                                    Delete
-                                  </button>
-                                </div>
-                              </div>
-                            )}
+                            {/* Read-only on the public ballot: voters can add
+                                candidates during open submissions, but editing
+                                and deleting candidates is an admin-only action
+                                (handled in AdminView). */}
+                            <CandidateDetails candidate={candidate} customFields={election.customFields} />
                           </div>
                         ))}
                       </div>
