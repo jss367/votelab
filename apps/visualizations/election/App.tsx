@@ -238,6 +238,16 @@ function App() {
       return;
     }
 
+    // No candidates means there is nothing to vote on; submitting would store an
+    // empty ballot and the results tallies (Approval/Score/Borda/etc.) crash
+    // when dereferencing the first entry of an empty candidate set. This can
+    // happen if an open-submission election has submissions closed before any
+    // candidate was added.
+    if (candidates.length === 0) {
+      setError('This election has no candidates to vote on yet');
+      return;
+    }
+
     const method = election.votingMethod || 'smithApproval';
     const scoreBasedMethods: VotingMethod[] = ['rrv', 'star', 'score', 'majorityJudgment', 'cumulative'];
     // Drop any ids that no longer exist (a candidate can be deleted while the
