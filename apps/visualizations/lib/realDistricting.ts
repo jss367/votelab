@@ -1264,7 +1264,7 @@ export function districtRealByRegionGrow(
 
   const adjacencyResult = finishWithFallback(true);
   let selected = adjacencyResult;
-  const overflowFallbackThreshold = Math.max(0.25, tolerance * 2);
+  const overflowFallbackThreshold = tolerance * 2;
   if (
     adjacencyResult.metrics.maxDeviationFraction > overflowFallbackThreshold
   ) {

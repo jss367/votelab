@@ -247,6 +247,7 @@ describe('real districting', () => {
       [illinoisTracts as RealStateDistrictingDataset, 1, 0.2],
       [pennsylvaniaTracts as RealStateDistrictingDataset, 1, 0.12],
       [tennesseeTracts as RealStateDistrictingDataset, 1, 0.12],
+      [virginiaTracts as RealStateDistrictingDataset, 1, 0.12],
       [virginiaTracts as RealStateDistrictingDataset, 3, 0.2],
     ];
 
