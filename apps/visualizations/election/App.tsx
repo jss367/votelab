@@ -35,6 +35,15 @@ import { db } from './firebaseConfig';
 
 type Mode = 'home' | 'create' | 'vote' | 'success' | 'results' | 'admin';
 
+// A required custom field is only satisfied by a real value. A plain truthiness
+// check wrongly rejects 0 / false (numeric/boolean fields) and accepts an empty
+// multiselect array, so use a type-aware emptiness test.
+const isCustomFieldValueMissing = (value: unknown): boolean =>
+  value === undefined ||
+  value === null ||
+  value === '' ||
+  (Array.isArray(value) && value.length === 0);
+
 function App() {
   const [mode, setMode] = useState<Mode>('home');
   const [electionId, setElectionId] = useState<string | null>(null);
@@ -323,10 +332,10 @@ function App() {
     if (election?.customFields) {
       const missingRequired = election.customFields
         .filter((field) => field.required)
-        .some(
-          (field) =>
-            !newCandidateFields.find((f) => f.fieldId === field.id && f.value)
-        );
+        .some((field) => {
+          const entry = newCandidateFields.find((f) => f.fieldId === field.id);
+          return !entry || isCustomFieldValueMissing(entry.value);
+        });
 
       if (missingRequired) {
         setError('Please fill in all required fields');
@@ -373,10 +382,10 @@ function App() {
     // the local `customFields` state (the election doc does not exist yet).
     const missingRequired = customFields
       .filter((field) => field.required)
-      .some(
-        (field) =>
-          !newCandidateFields.find((f) => f.fieldId === field.id && f.value)
-      );
+      .some((field) => {
+        const entry = newCandidateFields.find((f) => f.fieldId === field.id);
+        return !entry || isCustomFieldValueMissing(entry.value);
+      });
     if (missingRequired) {
       setError('Please fill in all required fields');
       return;
@@ -407,10 +416,10 @@ function App() {
     if (election?.customFields) {
       const missingRequired = election.customFields
         .filter((field) => field.required)
-        .some(
-          (field) =>
-            !newCandidateFields.find((f) => f.fieldId === field.id && f.value)
-        );
+        .some((field) => {
+          const entry = newCandidateFields.find((f) => f.fieldId === field.id);
+          return !entry || isCustomFieldValueMissing(entry.value);
+        });
 
       if (missingRequired) {
         setError('Please fill in all required fields');
