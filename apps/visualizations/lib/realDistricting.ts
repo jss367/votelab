@@ -542,7 +542,7 @@ function rebalanceRegionGrowLowerBound(
   // check synchronously from the visualization.
   const maxMoves = largeFixture
     ? Math.min(units.length * k, 120)
-    : Math.min(units.length * k, 2500);
+    : Math.min(units.length * k, units.length < 3000 ? 12000 : 2500);
   const shortlistSize = largeFixture ? 12 : 48;
 
   for (let move = 0; move < maxMoves; move++) {

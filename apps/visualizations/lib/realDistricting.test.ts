@@ -7,6 +7,7 @@ import {
 } from './realDistricting';
 import arizonaTracts from '../public/data/districting/arizona-tracts.json';
 import californiaTracts from '../public/data/districting/california-tracts.json';
+import georgiaTracts from '../public/data/districting/georgia-tracts.json';
 import marylandTracts from '../public/data/districting/maryland-tracts.json';
 
 const testDataset: RealStateDistrictingDataset = {
@@ -223,5 +224,15 @@ describe('real districting', () => {
       expect(result.metrics.contiguousDistricts).toBe(result.numDistricts);
       expect(result.metrics.maxDeviationFraction).toBeLessThanOrEqual(0.11);
     }
+  });
+
+  test('region growing continues smaller tract repairs beyond the base cap', () => {
+    // Georgia seed 1 needs more than the Illinois-safe base cap to finish the
+    // lower-bound repair, but is small enough to allow a larger bounded budget.
+    const georgiaDataset = georgiaTracts as RealStateDistrictingDataset;
+    const result = districtRealByRegionGrow(georgiaDataset, { seed: 1 });
+
+    expect(result.metrics.contiguousDistricts).toBe(result.numDistricts);
+    expect(result.metrics.maxDeviationFraction).toBeLessThanOrEqual(0.12);
   });
 });
