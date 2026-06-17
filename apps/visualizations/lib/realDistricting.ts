@@ -537,12 +537,12 @@ function rebalanceRegionGrowLowerBound(
   // it must scale with the problem size rather than sit at an arbitrary flat
   // cap: a starved district can legitimately need O(units) boundary moves to
   // refill (the Arizona seed-2 case converged in ~1820 moves but a flat 1400
-  // cap cut it off at deviation ≈ 0.345 with valid moves still pending). Large
-  // fixtures keep a tight cap because each move runs an O(units) connectivity
-  // check and the frontier growth already balances them well.
+  // cap cut it off at deviation ≈ 0.345 with valid moves still pending). Keep
+  // the non-large cap finite because each move runs an O(units) connectivity
+  // check synchronously from the visualization.
   const maxMoves = largeFixture
     ? Math.min(units.length * k, 120)
-    : units.length * k;
+    : Math.min(units.length * k, 2500);
   const shortlistSize = largeFixture ? 12 : 48;
 
   for (let move = 0; move < maxMoves; move++) {
