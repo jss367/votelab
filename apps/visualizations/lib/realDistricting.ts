@@ -1281,7 +1281,7 @@ export function districtRealByRegionGrow(
       capacityAwareResult.metrics.maxDeviationFraction <
         adjacencyResult.metrics.maxDeviationFraction * 0.5;
     const catastrophicAdjacentOverflow =
-      adjacencyResult.metrics.maxDeviationFraction > 1 &&
+      adjacencyResult.metrics.maxDeviationFraction > 0.5 &&
       capacityAwareResult.metrics.maxDeviationFraction < 0.2;
     if (
       score(capacityAwareResult) < score(adjacencyResult) ||
