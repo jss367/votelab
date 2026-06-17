@@ -1,39 +1,154 @@
-// apps/visualizations/app/components/DistrictingViz.tsx
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { DISTRICT_COLORS } from '../../lib/districting';
 import {
-  DISTRICT_COLORS,
-  DistrictingResult,
-  MapData,
-  districtByCentroid,
-  districtByCounty,
-  generateMapData,
-} from '../../lib/districting';
+  CountyElectionDataset,
+  DistrictingFeature,
+  MultiPolygonCoordinates,
+  PolygonCoordinates,
+  RealDistrictingResult,
+  RealStateDistrictingDataset,
+  districtRealByCountyIntegrity,
+  districtRealByRegionGrow,
+  districtRealByWeightedCentroid,
+} from '../../lib/realDistricting';
+import {
+  DISTRICTING_RESOLUTIONS,
+  DISTRICTING_STATES,
+  DistrictingResolution,
+} from '../../lib/realDistrictingStates';
 
-const CANVAS_SIZE = 380;
+const CANVAS_WIDTH = 420;
+const CANVAS_HEIGHT = 500;
+const ELECTION_URL = '/data/elections/county-president-2020.json';
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
   const v = parseInt(hex.slice(1), 16);
   return { r: (v >> 16) & 255, g: (v >> 8) & 255, b: v & 255 };
 }
 
-interface DistrictMapProps {
-  title: string;
-  description: string;
-  map: MapData;
-  result: DistrictingResult;
-  showCounties: boolean;
+function tint(hex: string, amount = 0.18): string {
+  const rgb = hexToRgb(hex);
+  const r = Math.round(rgb.r * amount + 255 * (1 - amount));
+  const g = Math.round(rgb.g * amount + 255 * (1 - amount));
+  const b = Math.round(rgb.b * amount + 255 * (1 - amount));
+  return `rgb(${r}, ${g}, ${b})`;
 }
 
-const DistrictMap: React.FC<DistrictMapProps> = ({
-  title,
-  description,
-  map,
-  result,
-  showCounties,
-}) => {
+function formatPopulation(value: number): string {
+  return Math.round(value).toLocaleString('en-US');
+}
+
+function formatPercent(value: number): string {
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+function formatSignedPercent(value: number): string {
+  const party = value >= 0 ? 'D' : 'R';
+  return `${party}+${(Math.abs(value) * 100).toFixed(1)}`;
+}
+
+function visitFeatureCoordinates(
+  feature: DistrictingFeature,
+  visit: (point: number[]) => void
+) {
+  const visitRing = (ring: number[][]) => ring.forEach(visit);
+
+  if (feature.geometry.type === 'Polygon') {
+    const coordinates = feature.geometry.coordinates as PolygonCoordinates;
+    coordinates.forEach(visitRing);
+  } else {
+    const coordinates = feature.geometry.coordinates as MultiPolygonCoordinates;
+    coordinates.forEach((polygon) => {
+      polygon.forEach(visitRing);
+    });
+  }
+}
+
+function createProjection(
+  dataset: RealStateDistrictingDataset,
+  width: number,
+  height: number
+) {
+  const { bbox } = dataset;
+  const [minLon, minLat, maxLon, maxLat] = bbox;
+  const crossesAntimeridian = maxLon - minLon > 180;
+  let projectedMinLon = Infinity;
+  let projectedMaxLon = -Infinity;
+  for (const feature of dataset.geometries.features) {
+    visitFeatureCoordinates(feature, ([lon]) => {
+      const projectedLon = crossesAntimeridian && lon < 0 ? lon + 360 : lon;
+      projectedMinLon = Math.min(projectedMinLon, projectedLon);
+      projectedMaxLon = Math.max(projectedMaxLon, projectedLon);
+    });
+  }
+  if (!Number.isFinite(projectedMinLon) || !Number.isFinite(projectedMaxLon)) {
+    projectedMinLon = crossesAntimeridian ? maxLon : minLon;
+    projectedMaxLon = crossesAntimeridian ? minLon + 360 : maxLon;
+  }
+  const midLat = ((minLat + maxLat) / 2) * (Math.PI / 180);
+  const lonScale = Math.cos(midLat);
+  const minX = projectedMinLon * lonScale;
+  const maxX = projectedMaxLon * lonScale;
+  const minY = minLat;
+  const maxY = maxLat;
+  const padding = 18;
+  const scale = Math.min(
+    (width - padding * 2) / Math.max(0.0001, maxX - minX),
+    (height - padding * 2) / Math.max(0.0001, maxY - minY)
+  );
+  const offsetX = (width - (maxX - minX) * scale) / 2;
+  const offsetY = (height - (maxY - minY) * scale) / 2;
+
+  return ([lon, lat]: number[]) => {
+    const projectedLon = crossesAntimeridian && lon < 0 ? lon + 360 : lon;
+    return {
+      x: offsetX + (projectedLon * lonScale - minX) * scale,
+      y: height - (offsetY + (lat - minY) * scale),
+    };
+  };
+}
+
+function drawFeaturePath(
+  ctx: CanvasRenderingContext2D,
+  feature: DistrictingFeature,
+  project: (point: number[]) => { x: number; y: number }
+) {
+  const drawRing = (ring: number[][]) => {
+    ring.forEach((point, index) => {
+      const projected = project(point);
+      if (index === 0) {
+        ctx.moveTo(projected.x, projected.y);
+      } else {
+        ctx.lineTo(projected.x, projected.y);
+      }
+    });
+    ctx.closePath();
+  };
+
+  if (feature.geometry.type === 'Polygon') {
+    const coordinates = feature.geometry.coordinates as PolygonCoordinates;
+    coordinates.forEach(drawRing);
+  } else {
+    const coordinates = feature.geometry.coordinates as MultiPolygonCoordinates;
+    coordinates.forEach((polygon) => {
+      polygon.forEach(drawRing);
+    });
+  }
+}
+
+interface RealDistrictMapProps {
+  dataset: RealStateDistrictingDataset;
+  result: RealDistrictingResult;
+}
+
+const RealDistrictMap: React.FC<RealDistrictMapProps> = ({ dataset, result }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const unitByGeoid = useMemo(
+    () => new Map(dataset.units.map((unit) => [unit.geoid, unit])),
+    [dataset]
+  );
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -41,236 +156,389 @@ const DistrictMap: React.FC<DistrictMapProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const S = CANVAS_SIZE;
-    const k = result.numDistricts;
-    const colors = result.centroids.map((_, i) =>
-      hexToRgb(DISTRICT_COLORS[i % DISTRICT_COLORS.length])
-    );
+    const project = createProjection(dataset, CANVAS_WIDTH, CANVAS_HEIGHT);
+    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    // 1. Shade the background from the *actual* district assignment: each
-    //    pixel takes the district of its nearest voter. Tinting by nearest
-    //    centroid would draw straight Voronoi boundaries that can cut through
-    //    counties the county-integrity algorithm deliberately kept whole, so
-    //    the fill would disagree with the dots and the split-count metric.
-    //    Following the assignment keeps the regions consistent with both.
-    const vx = new Float32Array(map.voters.length);
-    const vy = new Float32Array(map.voters.length);
-    for (let i = 0; i < map.voters.length; i++) {
-      vx[i] = map.voters[i].x;
-      vy[i] = map.voters[i].y;
-    }
-    const img = ctx.createImageData(S, S);
-    const data = img.data;
-    const STEP = 2;
-    for (let py = 0; py < S; py += STEP) {
-      for (let px = 0; px < S; px += STEP) {
-        const ux = px / S;
-        const uy = 1 - py / S;
-        let best = 0;
-        let bestD = Infinity;
-        for (let i = 0; i < vx.length; i++) {
-          const dx = ux - vx[i];
-          const dy = uy - vy[i];
-          const dd = dx * dx + dy * dy;
-          if (dd < bestD) {
-            bestD = dd;
-            best = result.assignment[i];
-          }
-        }
-        const col = colors[best];
-        // blend toward white for a soft fill
-        const r = Math.round(col.r * 0.18 + 255 * 0.82);
-        const g = Math.round(col.g * 0.18 + 255 * 0.82);
-        const b = Math.round(col.b * 0.18 + 255 * 0.82);
-        for (let dy = 0; dy < STEP && py + dy < S; dy++) {
-          for (let dx = 0; dx < STEP && px + dx < S; dx++) {
-            const idx = ((py + dy) * S + (px + dx)) * 4;
-            data[idx] = r;
-            data[idx + 1] = g;
-            data[idx + 2] = b;
-            data[idx + 3] = 255;
-          }
-        }
-      }
-    }
-    ctx.putImageData(img, 0, 0);
-
-    // 2. County boundaries (dashed gray grid).
-    if (showCounties) {
-      ctx.strokeStyle = 'rgba(71, 85, 105, 0.55)';
-      ctx.lineWidth = 1;
-      ctx.setLineDash([4, 3]);
-      for (let c = 1; c < map.cols; c++) {
-        const x = (c / map.cols) * S;
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, S);
-        ctx.stroke();
-      }
-      for (let r = 1; r < map.rows; r++) {
-        const y = (r / map.rows) * S;
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(S, y);
-        ctx.stroke();
-      }
-      ctx.setLineDash([]);
-    }
-
-    // 3. Voters, colored by their actual district assignment.
-    for (let i = 0; i < map.voters.length; i++) {
-      const v = map.voters[i];
-      const col = DISTRICT_COLORS[result.assignment[i] % DISTRICT_COLORS.length];
-      ctx.fillStyle = col;
+    for (const feature of dataset.geometries.features) {
+      const district = result.assignment[feature.properties.geoid] ?? 0;
+      const color = DISTRICT_COLORS[district % DISTRICT_COLORS.length];
       ctx.beginPath();
-      ctx.arc(v.x * S, (1 - v.y) * S, 1.6, 0, 2 * Math.PI);
-      ctx.fill();
+      drawFeaturePath(ctx, feature, project);
+      ctx.fillStyle = tint(color, 0.24);
+      ctx.fill('evenodd');
     }
 
-    // 4. District centroids.
-    for (let d = 0; d < k; d++) {
-      const c = result.centroids[d];
-      const cx = c.x * S;
-      const cy = (1 - c.y) * S;
+    ctx.lineWidth = 0.45;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+    for (const feature of dataset.geometries.features) {
       ctx.beginPath();
-      ctx.arc(cx, cy, 7, 0, 2 * Math.PI);
+      drawFeaturePath(ctx, feature, project);
+      ctx.stroke();
+    }
+
+    ctx.lineWidth = 1.8;
+    ctx.strokeStyle = 'rgba(51, 65, 85, 0.34)';
+    for (const feature of dataset.geometries.features) {
+      const unit = unitByGeoid.get(feature.properties.geoid);
+      if (!unit) continue;
+      const hasOtherCountyNeighbor = unit.neighbors.some((neighbor) => {
+        const neighborUnit = unitByGeoid.get(neighbor);
+        return neighborUnit && neighborUnit.countyGeoid !== unit.countyGeoid;
+      });
+      if (!hasOtherCountyNeighbor) continue;
+      ctx.beginPath();
+      drawFeaturePath(ctx, feature, project);
+      ctx.stroke();
+    }
+
+    for (let d = 0; d < result.numDistricts; d++) {
+      const projected = project([result.centroids[d].x, result.centroids[d].y]);
+      ctx.beginPath();
+      ctx.arc(projected.x, projected.y, 5.5, 0, 2 * Math.PI);
       ctx.fillStyle = '#ffffff';
       ctx.fill();
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 2.5;
       ctx.strokeStyle = DISTRICT_COLORS[d % DISTRICT_COLORS.length];
       ctx.stroke();
     }
-  }, [map, result, showCounties]);
+  }, [dataset, result, unitByGeoid]);
 
-  const minPop = Math.min(...result.populations);
-  const maxPop = Math.max(...result.populations);
-  const imbalance = (((maxPop - minPop) / Math.max(1, maxPop)) * 100).toFixed(1);
+  const metrics = result.metrics;
 
   return (
-    <div className="flex flex-col items-center">
-      <h3 className="text-lg font-semibold mb-1">{title}</h3>
-      <p className="text-sm text-gray-600 mb-3 text-center max-w-sm min-h-[2.5rem]">
-        {description}
-      </p>
+    <div className="border border-gray-200 rounded-lg bg-white p-4">
+      <h3 className="text-base font-semibold text-gray-900">{result.algorithm}</h3>
       <canvas
         ref={canvasRef}
-        width={CANVAS_SIZE}
-        height={CANVAS_SIZE}
-        className="border border-gray-300 rounded"
+        width={CANVAS_WIDTH}
+        height={CANVAS_HEIGHT}
+        className="mt-3 w-full rounded border border-gray-200 bg-slate-50"
       />
-      <div className="mt-3 w-full max-w-sm text-sm space-y-1">
-        <div className="flex justify-between">
-          <span className="text-gray-600">Avg. distance to centroid</span>
+      <div className="mt-4 space-y-1 text-sm">
+        <div className="flex justify-between gap-4">
+          <span className="text-gray-600">Population deviation</span>
           <span className="font-mono font-medium">
-            {result.avgDistance.toFixed(4)}
+            {formatPercent(metrics.maxDeviationFraction)}
           </span>
         </div>
-        <div className="flex justify-between">
-          <span className="text-gray-600">Population imbalance</span>
+        <div className="flex justify-between gap-4">
+          <span className="text-gray-600">Population range</span>
           <span className="font-mono font-medium">
-            {imbalance}% ({minPop}–{maxPop})
+            {formatPopulation(metrics.minPopulation)}-
+            {formatPopulation(metrics.maxPopulation)}
           </span>
         </div>
-        <div className="flex justify-between">
-          <span className="text-gray-600">Counties split</span>
+        <div className="flex justify-between gap-4">
+          <span className="text-gray-600">County splits</span>
           <span className="font-mono font-medium">
-            {result.splitCounties} (
-            {(result.countySplitFraction * 100).toFixed(0)}%)
+            {metrics.splitCounties} ({formatPercent(metrics.countySplitFraction)})
           </span>
         </div>
+        <div className="flex justify-between gap-4">
+          <span className="text-gray-600">Contiguous districts</span>
+          <span className="font-mono font-medium">
+            {metrics.contiguousDistricts}/{result.numDistricts}
+          </span>
+        </div>
+        <div className="flex justify-between gap-4">
+          <span className="text-gray-600">Avg. weighted distance</span>
+          <span className="font-mono font-medium">
+            {metrics.avgWeightedDistance.toFixed(4)}
+          </span>
+        </div>
+        {metrics.partisanScores && (
+          <>
+            <div className="flex justify-between gap-4">
+              <span className="text-gray-600">Approx. 2020 seats</span>
+              <span className="font-mono font-medium">
+                D {metrics.seatsDem ?? 0}-R {metrics.seatsGop ?? 0}
+              </span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-gray-600">Median district lean</span>
+              <span className="font-mono font-medium">
+                {formatSignedPercent(metrics.medianPartisanMargin ?? 0)}
+              </span>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
 };
 
 const DistrictingViz: React.FC = () => {
-  const [numDistricts, setNumDistricts] = useState(4);
+  const [stateId, setStateId] = useState(DISTRICTING_STATES[0].id);
+  const [resolution, setResolution] =
+    useState<DistrictingResolution>('block-groups');
+  const [dataset, setDataset] = useState<RealStateDistrictingDataset | null>(null);
+  const [election, setElection] = useState<CountyElectionDataset | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [numDistricts, setNumDistricts] = useState(3);
   const [seed, setSeed] = useState(1);
+  const [results, setResults] = useState<RealDistrictingResult[]>([]);
+  const [isComputing, setIsComputing] = useState(false);
 
-  // counties fixed at a 4x4 grid for clarity
-  const map = useMemo(
-    () =>
-      generateMapData({
-        numVoters: 2000,
-        cols: 4,
-        rows: 4,
-        numClusters: 5,
-        seed,
-      }),
-    [seed]
+  const selectedState =
+    DISTRICTING_STATES.find((state) => state.id === stateId) ??
+    DISTRICTING_STATES[0];
+  const availableResolutions = DISTRICTING_RESOLUTIONS.filter(
+    (entry) => selectedState.datasets[entry.id]
   );
+  const selectedResolution = selectedState.datasets[resolution]
+    ? resolution
+    : availableResolutions[0].id;
 
-  const centroidResult = useMemo(
-    () => districtByCentroid(map, { numDistricts, seed }),
-    [map, numDistricts, seed]
+  useEffect(() => {
+    let cancelled = false;
+    fetch(ELECTION_URL)
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Unable to load election data (${response.status})`);
+        }
+        return response.json();
+      })
+      .then((data: CountyElectionDataset) => {
+        if (!cancelled) setElection(data);
+      })
+      .catch(() => {
+        if (!cancelled) setElection(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const selectedUrl = selectedState.datasets[selectedResolution];
+    if (!selectedUrl) return;
+    setDataset(null);
+    setError(null);
+    fetch(selectedUrl)
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Unable to load district data (${response.status})`);
+        }
+        return response.json();
+      })
+      .then((data: RealStateDistrictingDataset) => {
+        if (cancelled) return;
+        setDataset(data);
+        setNumDistricts(selectedState.defaultDistricts);
+      })
+      .catch((err: Error) => {
+        if (!cancelled) setError(err.message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedResolution, selectedState]);
+
+  useEffect(() => {
+    if (!dataset) {
+      setResults([]);
+      setIsComputing(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsComputing(true);
+    setResults([]);
+    const timeout = window.setTimeout(() => {
+      const options = { numDistricts, seed, election: election ?? undefined };
+      const nextResults = [
+        districtRealByWeightedCentroid(dataset, options),
+        districtRealByCountyIntegrity(dataset, options),
+        districtRealByRegionGrow(dataset, options),
+      ];
+      if (!cancelled) {
+        setResults(nextResults);
+        setIsComputing(false);
+      }
+    }, 0);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [dataset, election, numDistricts, seed]);
+
+  if (error) {
+    return (
+      <div className="max-w-5xl mx-auto p-6">
+        <h1 className="text-3xl font-bold mb-2">Real District Maps</h1>
+        <p className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {error}
+        </p>
+      </div>
+    );
+  }
+
+  if (!dataset) {
+    return (
+      <div className="max-w-5xl mx-auto p-6">
+        <h1 className="text-3xl font-bold mb-2">Real District Maps</h1>
+        <p className="text-gray-600">Loading Census tract data...</p>
+      </div>
+    );
+  }
+
+  const totalPopulation = dataset.units.reduce(
+    (sum, unit) => sum + unit.population,
+    0
   );
-  const countyResult = useMemo(
-    () => districtByCounty(map, { numDistricts, seed }),
-    [map, numDistricts, seed]
-  );
+  const votingAgePopulation = dataset.units.some(
+    (unit) => typeof unit.votingAgePopulation === 'number'
+  )
+    ? dataset.units.reduce(
+        (sum, unit) => sum + (unit.votingAgePopulation ?? 0),
+        0
+      )
+    : null;
+  const hasDemographics = votingAgePopulation !== null;
+  const counties = new Set(dataset.units.map((unit) => unit.countyGeoid)).size;
+  const unitLabel =
+    dataset.unitType === 'blockGroup' ? 'block groups' : `${dataset.unitType}s`;
+  const maxDistricts = Math.max(6, selectedState.defaultDistricts);
 
   return (
-    <div className="max-w-5xl mx-auto p-6">
-      <h1 className="text-3xl font-bold mb-2">Voting District Maps</h1>
-      <p className="text-gray-700 mb-6 max-w-3xl">
-        Gerrymandering works by drawing district lines to favor one group. One
-        antidote is to draw districts with a neutral, transparent rule instead.
-        Both maps below split the same population into equal-population
-        districts that are as compact as possible — the difference is whether
-        they respect existing county lines. Each dot is a voter, colored by the
-        district they end up in; the ringed markers are the district centroids,
-        and the dashed grid shows county boundaries.
+    <div className="max-w-7xl mx-auto p-6">
+      <h1 className="text-3xl font-bold mb-2">Real District Maps</h1>
+      <p className="text-gray-700 mb-6 max-w-4xl">
+        This real-data version uses {dataset.stateName} 2020 Census {unitLabel}
+        from TIGERweb. {hasDemographics
+          ? 'This dataset also includes P.L. 94-171 voting-age population and demographic fields.'
+          : 'This dataset currently uses TIGERweb population fields; it can be regenerated with P.L. 94-171 demographics when the Census API is available.'}
       </p>
 
-      <div className="flex flex-wrap items-end gap-6 mb-8 p-4 bg-gray-50 rounded-lg border border-gray-200">
+      <div className="mb-6 grid grid-cols-1 gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4 md:grid-cols-[1fr_1fr_1fr_auto] md:items-end">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Number of districts: {numDistricts}
+            State
+          </label>
+          <select
+            value={stateId}
+            onChange={(event) => {
+              const nextStateId = event.target.value;
+              const nextState =
+                DISTRICTING_STATES.find((state) => state.id === nextStateId) ??
+                DISTRICTING_STATES[0];
+              setStateId(nextState.id);
+              if (!nextState.datasets[resolution]) {
+                const nextResolution = DISTRICTING_RESOLUTIONS.find(
+                  (entry) => nextState.datasets[entry.id]
+                );
+                if (nextResolution) setResolution(nextResolution.id);
+              }
+            }}
+            className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
+          >
+            {DISTRICTING_STATES.map((entry) => (
+              <option key={entry.id} value={entry.id}>
+                {entry.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Geography
+          </label>
+          <select
+            value={selectedResolution}
+            onChange={(event) =>
+              setResolution(event.target.value as DistrictingResolution)
+            }
+            className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
+          >
+            {availableResolutions.map((entry) => (
+              <option key={entry.id} value={entry.id}>
+                {entry.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Districts: {numDistricts}
           </label>
           <input
             type="range"
-            min={2}
-            max={7}
+            min={1}
+            max={maxDistricts}
             value={numDistricts}
-            onChange={(e) => setNumDistricts(Number(e.target.value))}
-            className="w-48"
+            onChange={(event) => setNumDistricts(Number(event.target.value))}
+            className="w-full"
           />
         </div>
         <button
-          onClick={() => setSeed((s) => s + 1)}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          onClick={() => setSeed((value) => value + 1)}
+          className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
         >
-          New population
+          Reseed
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-        <DistrictMap
-          title="1. Compactness only"
-          description="Minimizes the average distance from each voter to their district's centroid. Compact and equal-population, but it cuts across county lines freely."
-          map={map}
-          result={centroidResult}
-          showCounties
-        />
-        <DistrictMap
-          title="2. Compactness + county integrity"
-          description="Same compactness goal, but keeps whole counties together wherever reasonable. Counties are only split when needed to balance population."
-          map={map}
-          result={countyResult}
-          showCounties
-        />
+      <div className="mb-6 grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
+        <div className="rounded border border-gray-200 bg-white p-3">
+          <div className="text-gray-500">Geography</div>
+          <div className="font-semibold capitalize">{unitLabel}</div>
+        </div>
+        <div className="rounded border border-gray-200 bg-white p-3">
+          <div className="text-gray-500">Units</div>
+          <div className="font-semibold">{dataset.units.length}</div>
+        </div>
+        <div className="rounded border border-gray-200 bg-white p-3">
+          <div className="text-gray-500">Counties</div>
+          <div className="font-semibold">{counties}</div>
+        </div>
+        <div className="rounded border border-gray-200 bg-white p-3">
+          <div className="text-gray-500">Population</div>
+          <div className="font-semibold">{formatPopulation(totalPopulation)}</div>
+        </div>
+        {votingAgePopulation !== null && (
+          <div className="rounded border border-gray-200 bg-white p-3">
+            <div className="text-gray-500">Voting-age pop.</div>
+            <div className="font-semibold">
+              {formatPopulation(votingAgePopulation)}
+            </div>
+          </div>
+        )}
       </div>
 
-      <div className="mt-10 p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-gray-700 max-w-3xl">
-        <p className="font-semibold mb-1">Reading the results</p>
+      {isComputing ? (
+        <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-600">
+          Computing district plans...
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+          {results.map((result) => (
+            <RealDistrictMap
+              key={result.algorithm}
+              dataset={dataset}
+              result={result}
+            />
+          ))}
+        </div>
+      )}
+
+      <div className="mt-8 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-gray-700">
         <p>
-          Algorithm&nbsp;1 will usually post a slightly lower average
-          distance-to-centroid (it has more freedom), while Algorithm&nbsp;2
-          splits far fewer counties. The trade-off between raw compactness and
-          respecting communities of interest is exactly the kind of explicit,
-          measurable rule that independent redistricting commissions use in
-          place of partisan map-drawing.
+          Block groups improve fidelity, but this is still a prototype. The next
+          step is replacing the county-level election approximation with
+          precinct or VTD returns; block-level plans will need more aggressive
+          preprocessing before they are practical in the browser.
         </p>
+        {election && (
+          <p className="mt-2">
+            Election scoring uses {election.title} and allocates county votes to
+            map units by population share. Treat the seat counts and margins as
+            approximate comparison signals, not official district results.
+          </p>
+        )}
       </div>
     </div>
   );
