@@ -71,9 +71,20 @@ const CustomFieldsInput = ({
       return '';
     }
 
-    if (fieldValue.value instanceof Date) {
-      // Ensure we have a valid date before splitting
-      const isoString = fieldValue.value.toISOString();
+    // A date may be a JS Date, or — when loaded back from Firestore — a Firebase
+    // Timestamp, which exposes toDate(). Normalize both to YYYY-MM-DD; otherwise
+    // a reopened/admin-edited date renders as "[object Object]" and can clobber
+    // the saved value.
+    const rawValue = fieldValue.value as unknown;
+    const asDate =
+      rawValue instanceof Date
+        ? rawValue
+        : rawValue &&
+            typeof (rawValue as { toDate?: unknown }).toDate === 'function'
+          ? (rawValue as { toDate: () => Date }).toDate()
+          : null;
+    if (asDate) {
+      const isoString = asDate.toISOString();
       const datePart = isoString.split('T')[0];
       return datePart || ''; // Provide empty string fallback
     }
