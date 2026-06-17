@@ -19,10 +19,11 @@ const MethodResults: React.FC<{ election: Election }> = ({ election }) => {
   const method = election.votingMethod || 'smithApproval';
 
   // The method-specific tally components sort zero counts and would surface an
-  // arbitrary "winner" for an election with no ballots. Guard centrally here so
-  // every method shows a no-votes state (ElectionResults already does this for
-  // the smithApproval path).
-  if (election.votes.length === 0) {
+  // arbitrary "winner" for an election with no ballots, or dereference the first
+  // entry of an empty candidate list (e.g. an admin removes the last candidate
+  // after votes were already cast). Guard centrally here so every method shows a
+  // safe state (ElectionResults already does this for the smithApproval path).
+  if (election.votes.length === 0 || election.candidates.length === 0) {
     return (
       <Card className="max-w-5xl mx-auto">
         <CardHeader>
@@ -32,7 +33,9 @@ const MethodResults: React.FC<{ election: Election }> = ({ election }) => {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            No votes have been cast yet.
+            {election.candidates.length === 0
+              ? 'This election has no candidates to tally.'
+              : 'No votes have been cast yet.'}
           </p>
         </CardContent>
       </Card>
