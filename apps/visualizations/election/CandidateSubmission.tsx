@@ -40,7 +40,7 @@ const CandidateSubmission: React.FC<CandidateSubmissionProps> = ({
     try {
       setLoading(true);
       const newCandidate: Candidate = {
-        id: Date.now().toString(),
+        id: crypto.randomUUID(),
         name: name.trim(),
       };
 

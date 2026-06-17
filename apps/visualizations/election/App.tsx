@@ -325,7 +325,7 @@ function App() {
     try {
       setLoading(true);
       const newCand: Candidate = {
-        id: Date.now().toString(),
+        id: crypto.randomUUID(),
         name: newCandidate.trim(),
         customFields: newCandidateFields,
       };
@@ -356,7 +356,7 @@ function App() {
     }
 
     const newCand = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       name: newCandidate.trim(),
       customFields: newCandidateFields,
     };
@@ -394,7 +394,7 @@ function App() {
     try {
       setLoading(true);
       const newCand = {
-        id: Date.now().toString(),
+        id: crypto.randomUUID(),
         name: newCandidate.trim(),
         customFields: newCandidateFields,
       };
