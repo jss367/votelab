@@ -350,6 +350,301 @@ function recomputeCentroids(
   });
 }
 
+function districtPopulations(
+  units: DistrictGeoUnit[],
+  assignment: number[],
+  k: number
+): number[] {
+  const populations = new Array(k).fill(0);
+  for (let i = 0; i < units.length; i++) {
+    populations[assignment[i]] += units[i].population;
+  }
+  return populations;
+}
+
+function districtComponents(
+  units: DistrictGeoUnit[],
+  assignment: number[],
+  district: number,
+  unitIndex: Map<string, number>,
+  excludedIndex?: number
+): number[][] {
+  const districtIndexes = units
+    .map((unit, i) => ({ unit, i }))
+    .filter(({ i }) => assignment[i] === district && i !== excludedIndex);
+  if (districtIndexes.length === 0) return [];
+
+  const districtSet = new Set(districtIndexes.map(({ i }) => i));
+  const seen = new Set<number>();
+  const components: number[][] = [];
+
+  for (const { i } of districtIndexes) {
+    if (seen.has(i)) continue;
+    const component: number[] = [];
+    const queue = [i];
+    seen.add(i);
+    while (queue.length) {
+      const idx = queue.shift()!;
+      component.push(idx);
+      for (const neighbor of units[idx].neighbors) {
+        const neighborIdx = unitIndex.get(neighbor);
+        if (
+          neighborIdx === undefined ||
+          !districtSet.has(neighborIdx) ||
+          seen.has(neighborIdx)
+        ) {
+          continue;
+        }
+        seen.add(neighborIdx);
+        queue.push(neighborIdx);
+      }
+    }
+    components.push(component);
+  }
+
+  return components;
+}
+
+function isDistrictConnectedAfterRemoving(
+  units: DistrictGeoUnit[],
+  assignment: number[],
+  district: number,
+  removedIndex: number,
+  unitIndex: Map<string, number>
+): boolean {
+  return (
+    districtComponents(units, assignment, district, unitIndex, removedIndex)
+      .length <= 1
+  );
+}
+
+function repairDisconnectedRegionComponents(
+  units: DistrictGeoUnit[],
+  assignment: number[],
+  k: number,
+  tolerance: number
+) {
+  const totalPopulation = units.reduce((s, unit) => s + unit.population, 0);
+  const ideal = totalPopulation / k;
+  const lowerBound = ideal * (1 - tolerance);
+  const capacity = ideal * (1 + tolerance);
+  const unitIndex = new Map(units.map((unit, i) => [unit.geoid, i]));
+  const counts = districtPopulations(units, assignment, k);
+
+  for (let pass = 0; pass < 4; pass++) {
+    let changed = false;
+    for (let district = 0; district < k; district++) {
+      const components = districtComponents(units, assignment, district, unitIndex);
+      if (components.length <= 1) continue;
+
+      components.sort(
+        (a, b) =>
+          b.reduce((s, i) => s + units[i].population, 0) -
+          a.reduce((s, i) => s + units[i].population, 0)
+      );
+
+      for (const component of components.slice(1)) {
+        const componentSet = new Set(component);
+        const componentPopulation = component.reduce(
+          (s, i) => s + units[i].population,
+          0
+        );
+        if (counts[district] - componentPopulation < lowerBound) continue;
+
+        const adjacentDistricts = new Set<number>();
+        for (const idx of component) {
+          for (const neighbor of units[idx].neighbors) {
+            const neighborIdx = unitIndex.get(neighbor);
+            if (neighborIdx === undefined || componentSet.has(neighborIdx)) {
+              continue;
+            }
+            const neighborDistrict = assignment[neighborIdx];
+            if (neighborDistrict !== district) adjacentDistricts.add(neighborDistrict);
+          }
+        }
+
+        let target = -1;
+        let bestPopulation = Infinity;
+        for (const candidate of adjacentDistricts) {
+          const projected = counts[candidate] + componentPopulation;
+          if (projected > capacity) continue;
+          if (counts[candidate] < bestPopulation) {
+            bestPopulation = counts[candidate];
+            target = candidate;
+          }
+        }
+        if (target < 0) continue;
+
+        for (const idx of component) assignment[idx] = target;
+        counts[district] -= componentPopulation;
+        counts[target] += componentPopulation;
+        changed = true;
+      }
+    }
+    if (!changed) break;
+  }
+}
+
+function rebalanceRegionGrowLowerBound(
+  units: DistrictGeoUnit[],
+  assignment: number[],
+  centroids: GeoPoint[],
+  k: number,
+  tolerance: number
+) {
+  const totalPopulation = units.reduce((s, unit) => s + unit.population, 0);
+  const ideal = totalPopulation / k;
+  const lowerBound = ideal * (1 - tolerance);
+  const capacity = ideal * (1 + tolerance);
+  const counts = districtPopulations(units, assignment, k);
+  const unitIndex = new Map(units.map((unit, i) => [unit.geoid, i]));
+  const largeFixture = units.length > 5000;
+  const maxMoves = Math.min(units.length * k, largeFixture ? 120 : 1400);
+  const shortlistSize = largeFixture ? 12 : 48;
+
+  for (let move = 0; move < maxMoves; move++) {
+    const candidates: Array<{
+      unitIndex: number;
+      fromDistrict: number;
+      toDistrict: number;
+      score: number;
+    }> = [];
+
+    for (let targetDistrict = 0; targetDistrict < k; targetDistrict++) {
+      if (counts[targetDistrict] >= lowerBound) continue;
+
+      for (let i = 0; i < units.length; i++) {
+        const fromDistrict = assignment[i];
+        if (fromDistrict === targetDistrict) continue;
+
+        const population = units[i].population;
+        if (counts[targetDistrict] + population > capacity) continue;
+        if (counts[fromDistrict] - population <= counts[targetDistrict]) continue;
+
+        const touchesTarget = units[i].neighbors.some((neighbor) => {
+          const neighborIdx = unitIndex.get(neighbor);
+          return (
+            neighborIdx !== undefined &&
+            assignment[neighborIdx] === targetDistrict
+          );
+        });
+        if (!touchesTarget) continue;
+
+        const targetAfter = counts[targetDistrict] + population;
+        const donorAfter = counts[fromDistrict] - population;
+        const beforeBalance =
+          Math.pow((counts[targetDistrict] - ideal) / Math.max(1, ideal), 2) +
+          Math.pow((counts[fromDistrict] - ideal) / Math.max(1, ideal), 2);
+        const afterBalance =
+          Math.pow((targetAfter - ideal) / Math.max(1, ideal), 2) +
+          Math.pow((donorAfter - ideal) / Math.max(1, ideal), 2);
+        if (afterBalance >= beforeBalance) continue;
+
+        const targetDeficit =
+          Math.max(0, lowerBound - targetAfter) / Math.max(1, ideal);
+        const distancePenalty = dist(units[i].centroid, centroids[targetDistrict]);
+        const score = targetDeficit * 1000 + afterBalance * 100 + distancePenalty;
+
+        candidates.push({
+          unitIndex: i,
+          fromDistrict,
+          toDistrict: targetDistrict,
+          score,
+        });
+      }
+    }
+
+    const bestMove = candidates
+      .sort((a, b) => a.score - b.score)
+      .slice(0, shortlistSize)
+      .find((candidate) =>
+        isDistrictConnectedAfterRemoving(
+          units,
+          assignment,
+          candidate.fromDistrict,
+          candidate.unitIndex,
+          unitIndex
+        )
+      );
+
+    if (!bestMove) break;
+
+    const population = units[bestMove.unitIndex].population;
+    assignment[bestMove.unitIndex] = bestMove.toDistrict;
+    counts[bestMove.fromDistrict] -= population;
+    counts[bestMove.toDistrict] += population;
+  }
+
+  for (let move = 0; move < maxMoves; move++) {
+    const candidates: Array<{
+      unitIndex: number;
+      fromDistrict: number;
+      toDistrict: number;
+      score: number;
+    }> = [];
+
+    for (let fromDistrict = 0; fromDistrict < k; fromDistrict++) {
+      if (counts[fromDistrict] <= capacity) continue;
+
+      for (let i = 0; i < units.length; i++) {
+        if (assignment[i] !== fromDistrict) continue;
+        const population = units[i].population;
+        if (counts[fromDistrict] - population < lowerBound) continue;
+
+        const adjacentDistricts = new Set<number>();
+        for (const neighbor of units[i].neighbors) {
+          const neighborIdx = unitIndex.get(neighbor);
+          if (neighborIdx === undefined) continue;
+          const neighborDistrict = assignment[neighborIdx];
+          if (neighborDistrict !== fromDistrict) {
+            adjacentDistricts.add(neighborDistrict);
+          }
+        }
+
+        for (const toDistrict of adjacentDistricts) {
+          if (counts[toDistrict] + population > capacity) continue;
+
+          const fromAfter = counts[fromDistrict] - population;
+          const toAfter = counts[toDistrict] + population;
+          const beforeBalance =
+            Math.pow((counts[fromDistrict] - ideal) / Math.max(1, ideal), 2) +
+            Math.pow((counts[toDistrict] - ideal) / Math.max(1, ideal), 2);
+          const afterBalance =
+            Math.pow((fromAfter - ideal) / Math.max(1, ideal), 2) +
+            Math.pow((toAfter - ideal) / Math.max(1, ideal), 2);
+          if (afterBalance >= beforeBalance) continue;
+
+          const score =
+            Math.max(0, fromAfter - capacity) / Math.max(1, ideal) * 1000 +
+            afterBalance * 100 +
+            dist(units[i].centroid, centroids[toDistrict]);
+          candidates.push({ unitIndex: i, fromDistrict, toDistrict, score });
+        }
+      }
+    }
+
+    const bestMove = candidates
+      .sort((a, b) => a.score - b.score)
+      .slice(0, shortlistSize)
+      .find((candidate) =>
+        isDistrictConnectedAfterRemoving(
+          units,
+          assignment,
+          candidate.fromDistrict,
+          candidate.unitIndex,
+          unitIndex
+        )
+      );
+
+    if (!bestMove) break;
+
+    const population = units[bestMove.unitIndex].population;
+    assignment[bestMove.unitIndex] = bestMove.toDistrict;
+    counts[bestMove.fromDistrict] -= population;
+    counts[bestMove.toDistrict] += population;
+  }
+}
+
 function computeMetrics(
   dataset: RealStateDistrictingDataset,
   assignment: number[],
@@ -735,6 +1030,40 @@ export function districtRealByRegionGrow(
   }
 
   if (remaining > 0) {
+    while (remaining > 0) {
+      let madeFallbackProgress = false;
+      for (let i = 0; i < dataset.units.length; i++) {
+        if (assignment[i] >= 0) continue;
+        const adjacentDistricts = new Set<number>();
+        for (const neighbor of dataset.units[i].neighbors) {
+          const neighborIdx = unitIndex.get(neighbor);
+          if (neighborIdx === undefined || assignment[neighborIdx] < 0) continue;
+          adjacentDistricts.add(assignment[neighborIdx]);
+        }
+        if (!adjacentDistricts.size) continue;
+
+        const district = Array.from(adjacentDistricts).reduce((best, d) => {
+          const bestOver = Math.max(
+            0,
+            counts[best] + dataset.units[i].population - capacity
+          );
+          const nextOver = Math.max(
+            0,
+            counts[d] + dataset.units[i].population - capacity
+          );
+          if (nextOver !== bestOver) return nextOver < bestOver ? d : best;
+          return counts[d] < counts[best] ? d : best;
+        }, Array.from(adjacentDistricts)[0]);
+        assignment[i] = district;
+        counts[district] += dataset.units[i].population;
+        remaining--;
+        madeFallbackProgress = true;
+      }
+      if (!madeFallbackProgress) break;
+    }
+  }
+
+  if (remaining > 0) {
     for (let i = 0; i < dataset.units.length; i++) {
       if (assignment[i] >= 0) continue;
       const order = nearestOrder(dataset.units[i].centroid, seeds);
@@ -747,7 +1076,19 @@ export function districtRealByRegionGrow(
     }
   }
 
-  const centroids = recomputeCentroids(dataset.units, assignment, seeds, k);
+  let centroids = recomputeCentroids(dataset.units, assignment, seeds, k);
+  repairDisconnectedRegionComponents(dataset.units, assignment, k, tolerance);
+  centroids = recomputeCentroids(dataset.units, assignment, centroids, k);
+  rebalanceRegionGrowLowerBound(
+    dataset.units,
+    assignment,
+    centroids,
+    k,
+    tolerance
+  );
+  repairDisconnectedRegionComponents(dataset.units, assignment, k, tolerance);
+  centroids = recomputeCentroids(dataset.units, assignment, centroids, k);
+
   return {
     algorithm: 'Region growing',
     assignment: assignmentToRecord(dataset.units, assignment),

@@ -5,7 +5,9 @@ import {
   districtRealByRegionGrow,
   districtRealByWeightedCentroid,
 } from './realDistricting';
+import arizonaTracts from '../public/data/districting/arizona-tracts.json';
 import californiaTracts from '../public/data/districting/california-tracts.json';
+import marylandTracts from '../public/data/districting/maryland-tracts.json';
 
 const testDataset: RealStateDistrictingDataset = {
   stateFips: '00',
@@ -178,5 +180,21 @@ describe('real districting', () => {
 
     expect(weighted.metrics.maxDeviationFraction).toBeLessThanOrEqual(0.085);
     expect(county.metrics.maxDeviationFraction).toBeLessThanOrEqual(0.125);
+  });
+
+  test('region growing balances and keeps Arizona districts contiguous', () => {
+    const arizonaDataset = arizonaTracts as RealStateDistrictingDataset;
+    const result = districtRealByRegionGrow(arizonaDataset, { seed: 1 });
+
+    expect(result.metrics.contiguousDistricts).toBe(result.numDistricts);
+    expect(result.metrics.maxDeviationFraction).toBeLessThanOrEqual(0.101);
+  });
+
+  test('region growing balances and keeps Maryland districts contiguous', () => {
+    const marylandDataset = marylandTracts as RealStateDistrictingDataset;
+    const result = districtRealByRegionGrow(marylandDataset, { seed: 1 });
+
+    expect(result.metrics.contiguousDistricts).toBe(result.numDistricts);
+    expect(result.metrics.maxDeviationFraction).toBeLessThanOrEqual(0.101);
   });
 });
