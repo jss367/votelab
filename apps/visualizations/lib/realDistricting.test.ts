@@ -11,6 +11,8 @@ import georgiaTracts from '../public/data/districting/georgia-tracts.json';
 import hawaiiTracts from '../public/data/districting/hawaii-tracts.json';
 import illinoisTracts from '../public/data/districting/illinois-tracts.json';
 import marylandTracts from '../public/data/districting/maryland-tracts.json';
+import pennsylvaniaTracts from '../public/data/districting/pennsylvania-tracts.json';
+import tennesseeTracts from '../public/data/districting/tennessee-tracts.json';
 import virginiaTracts from '../public/data/districting/virginia-tracts.json';
 
 const testDataset: RealStateDistrictingDataset = {
@@ -243,6 +245,8 @@ describe('real districting', () => {
     const cases: Array<[RealStateDistrictingDataset, number, number]> = [
       [hawaiiTracts as RealStateDistrictingDataset, 1, 0.12],
       [illinoisTracts as RealStateDistrictingDataset, 1, 0.2],
+      [pennsylvaniaTracts as RealStateDistrictingDataset, 1, 0.12],
+      [tennesseeTracts as RealStateDistrictingDataset, 1, 0.12],
       [virginiaTracts as RealStateDistrictingDataset, 3, 0.2],
     ];
 

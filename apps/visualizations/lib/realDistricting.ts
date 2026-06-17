@@ -1263,15 +1263,17 @@ export function districtRealByRegionGrow(
 
   const adjacencyResult = finishWithFallback(true);
   let selected = adjacencyResult;
+  const overflowFallbackThreshold = Math.max(0.25, tolerance * 2);
   if (
-    adjacencyResult.metrics.maxDeviationFraction > Math.max(0.25, tolerance * 2)
+    adjacencyResult.metrics.maxDeviationFraction > overflowFallbackThreshold
   ) {
     const capacityAwareResult = finishWithFallback(false);
     const score = (result: typeof adjacencyResult) =>
       result.metrics.maxDeviationFraction +
       (k - result.metrics.contiguousDistricts) * 0.2;
     const severeAdjacentOverflow =
-      adjacencyResult.metrics.maxDeviationFraction > 0.5 &&
+      adjacencyResult.metrics.maxDeviationFraction >
+        overflowFallbackThreshold &&
       capacityAwareResult.metrics.maxDeviationFraction <
         adjacencyResult.metrics.maxDeviationFraction * 0.5;
     if (
