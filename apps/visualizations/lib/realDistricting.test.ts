@@ -197,4 +197,17 @@ describe('real districting', () => {
     expect(result.metrics.contiguousDistricts).toBe(result.numDistricts);
     expect(result.metrics.maxDeviationFraction).toBeLessThanOrEqual(0.101);
   });
+
+  test('region growing repairs bottlenecked Maryland districts via bridge moves', () => {
+    // Seeds 3 and 6 previously left a district starved (~0.86 and ~0.70
+    // deviation): the only tract bordering the underfilled district was a
+    // bridge whose single-unit move would disconnect its donor, so the
+    // lower-bound repair stalled. The bridge-plus-leaf group move clears it.
+    const marylandDataset = marylandTracts as RealStateDistrictingDataset;
+    for (const seed of [3, 6]) {
+      const result = districtRealByRegionGrow(marylandDataset, { seed });
+      expect(result.metrics.contiguousDistricts).toBe(result.numDistricts);
+      expect(result.metrics.maxDeviationFraction).toBeLessThanOrEqual(0.11);
+    }
+  });
 });

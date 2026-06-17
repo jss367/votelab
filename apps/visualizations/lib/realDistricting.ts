@@ -418,6 +418,38 @@ function isDistrictConnectedAfterRemoving(
   );
 }
 
+// When removing a single "bridge" unit from its donor district would split the
+// donor into multiple components, the bridge plus every component except the
+// largest can be relocated as one group: the donor keeps its largest remaining
+// component (so it stays contiguous) and the cut-off leaves/components travel
+// with the bridge they hang off of. Returns null when removing the bridge does
+// not actually disconnect the donor (the single-unit move already suffices).
+function bridgeMoveGroup(
+  units: DistrictGeoUnit[],
+  assignment: number[],
+  bridgeIndex: number,
+  unitIndex: Map<string, number>
+): number[] | null {
+  const donor = assignment[bridgeIndex];
+  const components = districtComponents(
+    units,
+    assignment,
+    donor,
+    unitIndex,
+    bridgeIndex
+  );
+  if (components.length <= 1) return null;
+  components.sort(
+    (a, b) =>
+      b.reduce((s, i) => s + units[i].population, 0) -
+      a.reduce((s, i) => s + units[i].population, 0)
+  );
+  // Keep the largest component with the donor; move the bridge plus the rest.
+  const group = [bridgeIndex];
+  for (const component of components.slice(1)) group.push(...component);
+  return group;
+}
+
 function repairDisconnectedRegionComponents(
   units: DistrictGeoUnit[],
   assignment: number[],
@@ -554,25 +586,69 @@ function rebalanceRegionGrowLowerBound(
       }
     }
 
-    const bestMove = candidates
+    const shortlist = candidates
       .sort((a, b) => a.score - b.score)
-      .slice(0, shortlistSize)
-      .find((candidate) =>
-        isDistrictConnectedAfterRemoving(
-          units,
-          assignment,
-          candidate.fromDistrict,
-          candidate.unitIndex,
-          unitIndex
-        )
+      .slice(0, shortlistSize);
+
+    const bestMove = shortlist.find((candidate) =>
+      isDistrictConnectedAfterRemoving(
+        units,
+        assignment,
+        candidate.fromDistrict,
+        candidate.unitIndex,
+        unitIndex
+      )
+    );
+
+    if (bestMove) {
+      const population = units[bestMove.unitIndex].population;
+      assignment[bestMove.unitIndex] = bestMove.toDistrict;
+      counts[bestMove.fromDistrict] -= population;
+      counts[bestMove.toDistrict] += population;
+      continue;
+    }
+
+    // No single-unit move keeps the donor connected. The candidates that fail
+    // are bridge tracts: moving one alone would orphan a leaf/component. Move
+    // the bridge together with the cut-off component(s) so the donor keeps its
+    // largest remaining piece and the underfilled target still grows.
+    let bridgeMove: { group: number[]; toDistrict: number } | null = null;
+    for (const candidate of shortlist) {
+      const group = bridgeMoveGroup(
+        units,
+        assignment,
+        candidate.unitIndex,
+        unitIndex
       );
+      if (!group) continue;
+      const groupPopulation = group.reduce(
+        (s, idx) => s + units[idx].population,
+        0
+      );
+      if (counts[candidate.toDistrict] + groupPopulation > capacity) continue;
+      // Mirror the single-unit donor rule: the donor may dip below its floor
+      // as long as it stays above the target it is feeding (later passes can
+      // refill the donor from overfilled neighbors). This lets a starved
+      // district pull a bridge + leaf through an at-floor conduit district.
+      if (
+        counts[candidate.fromDistrict] - groupPopulation <=
+        counts[candidate.toDistrict] + groupPopulation
+      )
+        continue;
+      bridgeMove = { group, toDistrict: candidate.toDistrict };
+      break;
+    }
 
-    if (!bestMove) break;
+    if (!bridgeMove) break;
 
-    const population = units[bestMove.unitIndex].population;
-    assignment[bestMove.unitIndex] = bestMove.toDistrict;
-    counts[bestMove.fromDistrict] -= population;
-    counts[bestMove.toDistrict] += population;
+    const fromDistrict = assignment[bridgeMove.group[0]];
+    const groupPopulation = bridgeMove.group.reduce(
+      (s, idx) => s + units[idx].population,
+      0
+    );
+    for (const idx of bridgeMove.group) assignment[idx] = bridgeMove.toDistrict;
+    counts[fromDistrict] -= groupPopulation;
+    counts[bridgeMove.toDistrict] += groupPopulation;
   }
 
   for (let move = 0; move < maxMoves; move++) {
