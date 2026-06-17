@@ -7,6 +7,7 @@ import {
 } from './realDistricting';
 import arizonaTracts from '../public/data/districting/arizona-tracts.json';
 import californiaTracts from '../public/data/districting/california-tracts.json';
+import illinoisTracts from '../public/data/districting/illinois-tracts.json';
 import marylandTracts from '../public/data/districting/maryland-tracts.json';
 
 const testDataset: RealStateDistrictingDataset = {
@@ -223,5 +224,18 @@ describe('real districting', () => {
       expect(result.metrics.contiguousDistricts).toBe(result.numDistricts);
       expect(result.metrics.maxDeviationFraction).toBeLessThanOrEqual(0.11);
     }
+  });
+
+  test('region growing keeps Illinois leftover fallback capacity aware', () => {
+    // Regression for the adjacency-only leftover pass: Illinois seed 1 left
+    // hundreds of tracts to the fallback and overfilled adjacent districts up
+    // to max deviation > 1.0. Leftovers that cannot fit an adjacent district
+    // should escape through the balanced fallback before contiguity repair,
+    // keeping the map contiguous without returning to the severe overfill.
+    const illinoisDataset = illinoisTracts as RealStateDistrictingDataset;
+    const result = districtRealByRegionGrow(illinoisDataset, { seed: 1 });
+
+    expect(result.metrics.contiguousDistricts).toBe(result.numDistricts);
+    expect(result.metrics.maxDeviationFraction).toBeLessThanOrEqual(0.32);
   });
 });
