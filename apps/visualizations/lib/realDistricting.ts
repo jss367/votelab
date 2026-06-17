@@ -541,6 +541,7 @@ function rebalanceRegionGrowLowerBound(
   const counts = districtPopulations(units, assignment, k);
   const unitIndex = new Map(units.map((unit, i) => [unit.geoid, i]));
   const largeFixture = units.length > 5000;
+  const mediumFixture = units.length >= 3000;
   // The loop already terminates on lack of progress (it `break`s as soon as an
   // iteration finds no qualifying single-unit or bridge move). `maxMoves` is a
   // backstop against a pathological non-converging case hanging the browser, so
@@ -549,12 +550,12 @@ function rebalanceRegionGrowLowerBound(
   // refill (the Arizona seed-2 case converged in ~1820 moves but a flat 1400
   // cap cut it off at deviation ≈ 0.345 with valid moves still pending). Keep
   // the non-large caps finite because each move runs an O(units) connectivity
-  // check synchronously from the visualization. Smaller fixtures get only the
-  // extra budget needed by the Georgia seed-1 regression without reopening the
-  // 12k-move UI freeze path.
+  // check synchronously from the visualization. Medium fixtures are large enough
+  // for thousands of moves to freeze the UI, while smaller fixtures get only the
+  // extra budget needed by the Georgia seed-1 regression.
   const maxMoves = largeFixture
     ? Math.min(units.length * k, 120)
-    : Math.min(units.length * k, units.length < 3000 ? 3250 : 2500);
+    : Math.min(units.length * k, mediumFixture ? 240 : 3250);
   const shortlistSize = largeFixture ? 12 : 48;
 
   for (let move = 0; move < maxMoves; move++) {
