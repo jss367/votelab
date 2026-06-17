@@ -1,3 +1,4 @@
+import { Card, CardContent, CardHeader, CardTitle } from '@repo/ui';
 import React from 'react';
 import ApprovalResults from './ApprovalResults';
 import BordaResults from './BordaResults';
@@ -16,6 +17,27 @@ import type { Election } from './types';
 
 const MethodResults: React.FC<{ election: Election }> = ({ election }) => {
   const method = election.votingMethod || 'smithApproval';
+
+  // The method-specific tally components sort zero counts and would surface an
+  // arbitrary "winner" for an election with no ballots. Guard centrally here so
+  // every method shows a no-votes state (ElectionResults already does this for
+  // the smithApproval path).
+  if (election.votes.length === 0) {
+    return (
+      <Card className="max-w-5xl mx-auto">
+        <CardHeader>
+          <CardTitle className="text-xl">
+            Election Results: {election.title}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            No votes have been cast yet.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   switch (method) {
     case 'plurality':
