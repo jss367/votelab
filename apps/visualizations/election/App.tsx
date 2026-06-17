@@ -549,7 +549,9 @@ function App() {
                     </label>
                     <div className="flex items-center gap-0">
                       <span className="text-sm text-slate-400 bg-slate-100 border border-r-0 border-slate-300 rounded-l-md px-3 py-2">
-                        votelab.web.app/?id=
+                        {typeof window !== 'undefined'
+                          ? `${window.location.host}${window.location.pathname}?id=`
+                          : '?id='}
                       </span>
                       <Input
                         value={electionSlug}
