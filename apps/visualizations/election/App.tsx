@@ -19,6 +19,7 @@ import BallotInput from './BallotInput';
 import CandidateDetails from './CandidateDetails';
 import CustomFieldsInput from './CustomFieldsInput';
 import CustomFieldsManager from './CustomFieldsManager';
+import { isCustomFieldValueMissing } from './customFieldValue';
 import { removeSavedElection, saveElection } from './electionStorage';
 import HomePage from './HomePage';
 import MethodResults from './MethodResults';
@@ -34,15 +35,6 @@ import {
 import { db } from './firebaseConfig';
 
 type Mode = 'home' | 'create' | 'vote' | 'success' | 'results' | 'admin';
-
-// A required custom field is only satisfied by a real value. A plain truthiness
-// check wrongly rejects 0 / false (numeric/boolean fields) and accepts an empty
-// multiselect array, so use a type-aware emptiness test.
-const isCustomFieldValueMissing = (value: unknown): boolean =>
-  value === undefined ||
-  value === null ||
-  value === '' ||
-  (Array.isArray(value) && value.length === 0);
 
 function App() {
   const [mode, setMode] = useState<Mode>('home');

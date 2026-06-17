@@ -1,5 +1,6 @@
 import { Input } from '@repo/ui';
 import { useState } from 'react';
+import { toJsDate } from './customFieldValue';
 import { CustomField, CustomFieldValue } from './types';
 
 interface CustomFieldsInputProps {
@@ -72,21 +73,11 @@ const CustomFieldsInput = ({
     }
 
     // A date may be a JS Date, or — when loaded back from Firestore — a Firebase
-    // Timestamp, which exposes toDate(). Normalize both to YYYY-MM-DD; otherwise
-    // a reopened/admin-edited date renders as "[object Object]" and can clobber
-    // the saved value.
-    const rawValue = fieldValue.value as unknown;
-    const asDate =
-      rawValue instanceof Date
-        ? rawValue
-        : rawValue &&
-            typeof (rawValue as { toDate?: unknown }).toDate === 'function'
-          ? (rawValue as { toDate: () => Date }).toDate()
-          : null;
+    // Timestamp. Normalize both to YYYY-MM-DD; otherwise a reopened/admin-edited
+    // date renders as "[object Object]" and can clobber the saved value.
+    const asDate = toJsDate(fieldValue.value);
     if (asDate) {
-      const isoString = asDate.toISOString();
-      const datePart = isoString.split('T')[0];
-      return datePart || ''; // Provide empty string fallback
+      return asDate.toISOString().split('T')[0] || '';
     }
 
     // Handle null/undefined case

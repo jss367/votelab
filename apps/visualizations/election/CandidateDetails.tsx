@@ -1,4 +1,5 @@
 import CategoryBadges from './CategoryBadge';
+import { formatCustomFieldValue } from './customFieldValue';
 import type { Candidate, CustomField } from './types';
 
 interface CandidateDetailsProps {
@@ -25,10 +26,7 @@ const CandidateDetails: React.FC<CandidateDetailsProps> = ({ candidate, customFi
             const fieldValue = candidate.customFields?.find(
               (cf) => cf.fieldId === fieldDef.id
             );
-            if (!fieldValue?.value) return null;
-            const display = Array.isArray(fieldValue.value)
-              ? fieldValue.value.join(', ')
-              : fieldValue.value.toString();
+            const display = formatCustomFieldValue(fieldValue?.value);
             if (!display) return null;
             return (
               <div key={fieldDef.id}>
