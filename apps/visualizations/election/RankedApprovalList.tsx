@@ -44,6 +44,22 @@ const RankedApprovalList: React.FC<RankedApprovalListProps> = ({
   const itemsRef = useRef(items);
   itemsRef.current = items;
 
+  // Emit the default selection once on mount. The approval line renders at the
+  // middle of the list by default, but onChange otherwise only fires when the
+  // voter drags the line or reorders. Without this, a Smith+Approval voter who
+  // accepts the visible default would submit an empty `approved` set, so the
+  // tally would ignore the approvals the UI displayed. Runs once.
+  const didEmitInitial = useRef(false);
+  useEffect(() => {
+    if (didEmitInitial.current || !showApprovalLine) return;
+    didEmitInitial.current = true;
+    onChange({
+      ranking: items,
+      approved: items.slice(0, approvalLine).map((c) => c.id),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Reconcile against the incoming candidate list without discarding the
   // voter's current ordering. Re-renders happen whenever the parent re-passes
   // `candidates` (e.g. a real-time election snapshot when another voter

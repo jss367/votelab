@@ -238,18 +238,28 @@ function App() {
       return;
     }
 
+    const method = election.votingMethod || 'smithApproval';
+    const scoreBasedMethods: VotingMethod[] = ['rrv', 'star', 'score', 'majorityJudgment', 'cumulative'];
+    // Drop any ids that no longer exist (a candidate can be deleted while the
+    // voter is mid-ballot, leaving a stale id in ballotRanking/approved that
+    // would otherwise be submitted as an unknown candidate).
+    const validIds = new Set(candidates.map((c) => c.id));
+    const filteredRanking = ballotRanking.filter((id) => validIds.has(id));
+
+    // Plurality counts only ranking[0], so the candidate-order fallback below
+    // would silently award the vote to whichever candidate is listed first if
+    // the voter submitted without picking anyone. Require an explicit choice.
+    if (method === 'plurality' && filteredRanking.length === 0) {
+      setError('Please select a candidate before submitting your ballot');
+      return;
+    }
+
     try {
       setLoading(true);
-      const method = election.votingMethod || 'smithApproval';
-      const scoreBasedMethods: VotingMethod[] = ['rrv', 'star', 'score', 'majorityJudgment', 'cumulative'];
-      // Drop any ids that no longer exist (a candidate can be deleted while the
-      // voter is mid-ballot, leaving a stale id in ballotRanking/approved that
-      // would otherwise be submitted as an unknown candidate).
-      const validIds = new Set(candidates.map((c) => c.id));
-      const filteredRanking = ballotRanking.filter((id) => validIds.has(id));
-      // For ranked/plurality methods, use the voter's ballot ordering. Fall
-      // back to the election's candidate order if they didn't reorder anything
-      // (or their only selections were since-deleted candidates).
+      // For ranked methods, use the voter's ballot ordering. Fall back to the
+      // election's candidate order if they didn't reorder anything (or their
+      // only selections were since-deleted candidates). Plurality is handled by
+      // the validation above and never reaches the fallback empty-handed.
       const ranking =
         filteredRanking.length > 0
           ? filteredRanking
