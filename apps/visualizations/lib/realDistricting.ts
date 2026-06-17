@@ -531,7 +531,18 @@ function rebalanceRegionGrowLowerBound(
   const counts = districtPopulations(units, assignment, k);
   const unitIndex = new Map(units.map((unit, i) => [unit.geoid, i]));
   const largeFixture = units.length > 5000;
-  const maxMoves = Math.min(units.length * k, largeFixture ? 120 : 1400);
+  // The loop already terminates on lack of progress (it `break`s as soon as an
+  // iteration finds no qualifying single-unit or bridge move). `maxMoves` is a
+  // backstop against a pathological non-converging case hanging the browser, so
+  // it must scale with the problem size rather than sit at an arbitrary flat
+  // cap: a starved district can legitimately need O(units) boundary moves to
+  // refill (the Arizona seed-2 case converged in ~1820 moves but a flat 1400
+  // cap cut it off at deviation ≈ 0.345 with valid moves still pending). Large
+  // fixtures keep a tight cap because each move runs an O(units) connectivity
+  // check and the frontier growth already balances them well.
+  const maxMoves = largeFixture
+    ? Math.min(units.length * k, 120)
+    : units.length * k;
   const shortlistSize = largeFixture ? 12 : 48;
 
   for (let move = 0; move < maxMoves; move++) {

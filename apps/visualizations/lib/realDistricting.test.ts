@@ -198,6 +198,20 @@ describe('real districting', () => {
     expect(result.metrics.maxDeviationFraction).toBeLessThanOrEqual(0.101);
   });
 
+  test('region growing keeps repairing Arizona seed 2 past the old move cap', () => {
+    // Regression for the flat 1400-move backstop: seed 2 left district 3
+    // starved (~520k vs ~795k ideal, deviation ≈ 0.345) because the lower-bound
+    // repair exhausted its arbitrary cap while valid balance-improving connected
+    // boundary moves into the underfilled district still remained. Scaling the
+    // cap with the unit count lets the loop run to its natural no-progress
+    // termination, halving the deviation while staying fully contiguous.
+    const arizonaDataset = arizonaTracts as RealStateDistrictingDataset;
+    const result = districtRealByRegionGrow(arizonaDataset, { seed: 2 });
+
+    expect(result.metrics.contiguousDistricts).toBe(result.numDistricts);
+    expect(result.metrics.maxDeviationFraction).toBeLessThanOrEqual(0.2);
+  });
+
   test('region growing repairs bottlenecked Maryland districts via bridge moves', () => {
     // Seeds 3 and 6 previously left a district starved (~0.86 and ~0.70
     // deviation): the only tract bordering the underfilled district was a
