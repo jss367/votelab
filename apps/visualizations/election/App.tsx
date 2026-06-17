@@ -367,6 +367,21 @@ function App() {
       return;
     }
 
+    // Enforce required custom fields here too, not just in the existing-election
+    // submission path — otherwise the creator's initial candidate list can be
+    // published with required metadata blank. In create mode the fields live in
+    // the local `customFields` state (the election doc does not exist yet).
+    const missingRequired = customFields
+      .filter((field) => field.required)
+      .some(
+        (field) =>
+          !newCandidateFields.find((f) => f.fieldId === field.id && f.value)
+      );
+    if (missingRequired) {
+      setError('Please fill in all required fields');
+      return;
+    }
+
     const newCand = {
       id: crypto.randomUUID(),
       name: newCandidate.trim(),
