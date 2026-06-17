@@ -26,6 +26,9 @@ function Navigation() {
         <Link href="/" className="font-semibold hover:underline">
           VoteLab
         </Link>
+        <Link href="/elections" className="hover:underline">
+          Run Elections
+        </Link>
         <Link href="/visualizations" className="hover:underline">
           Visualizations
         </Link>

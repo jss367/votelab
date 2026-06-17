@@ -48,17 +48,9 @@ export default function Home() {
             Create a poll, gather ballots, and see results across voting
             methods.
           </p>
-          <a
-            href="https://votelab.web.app"
-            className="text-blue-600 hover:underline"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
+          <Link href="/elections" className="text-blue-600 hover:underline">
             Open the election app
-          </a>
-          <p className="text-xs text-gray-400 mt-2">
-            Hosted separately for now; it will be integrated into this hub.
-          </p>
+          </Link>
         </section>
 
         {/* Writing */}
