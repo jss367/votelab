@@ -7,8 +7,8 @@ import {
   collection,
   deleteDoc,
   doc,
-  getDoc,
   onSnapshot,
+  runTransaction,
   setDoc,
   updateDoc,
 } from 'firebase/firestore';
@@ -153,14 +153,29 @@ function App() {
       const slug = electionSlug.trim();
 
       if (slug) {
-        // Check if slug is already taken
-        const existing = await getDoc(doc(db, 'elections', slug));
-        if (existing.exists()) {
-          setError(`The ID "${slug}" is already taken. Choose a different one.`);
-          setLoading(false);
-          return;
+        // Reserve and create the slug atomically. A plain getDoc-then-setDoc
+        // has a race: two creators choosing the same custom URL could both pass
+        // the existence check and the later setDoc would overwrite the first
+        // election. A transaction makes the check-and-create atomic.
+        const slugRef = doc(db, 'elections', slug);
+        try {
+          await runTransaction(db, async (tx) => {
+            const existing = await tx.get(slugRef);
+            if (existing.exists()) {
+              throw new Error('SLUG_TAKEN');
+            }
+            tx.set(slugRef, electionData);
+          });
+        } catch (err) {
+          if (err instanceof Error && err.message === 'SLUG_TAKEN') {
+            setError(
+              `The ID "${slug}" is already taken. Choose a different one.`
+            );
+            setLoading(false);
+            return;
+          }
+          throw err;
         }
-        await setDoc(doc(db, 'elections', slug), electionData);
         id = slug;
       } else {
         const docRef = await addDoc(collection(db, 'elections'), electionData);
