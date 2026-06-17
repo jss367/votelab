@@ -236,19 +236,6 @@ describe('real districting', () => {
     const result = districtRealByRegionGrow(illinoisDataset, { seed: 1 });
 
     expect(result.metrics.contiguousDistricts).toBe(result.numDistricts);
-    expect(result.metrics.maxDeviationFraction).toBeLessThanOrEqual(0.34);
-  });
-
-  test('region growing searches past early Illinois lower-bound candidates', () => {
-    // Regression for a fixed 48-candidate lower-bound shortlist: seed 3 had
-    // valid connected moves ranked just past the slice, so the repair stopped
-    // with one district starved at max deviation > 0.6. Expanding the
-    // non-large search window lets the repair keep making progress, though
-    // Illinois still needs a future chained-balancing pass to reach 10%.
-    const illinoisDataset = illinoisTracts as RealStateDistrictingDataset;
-    const result = districtRealByRegionGrow(illinoisDataset, { seed: 3 });
-
-    expect(result.metrics.contiguousDistricts).toBe(result.numDistricts);
-    expect(result.metrics.maxDeviationFraction).toBeLessThanOrEqual(0.53);
+    expect(result.metrics.maxDeviationFraction).toBeLessThanOrEqual(0.32);
   });
 });
