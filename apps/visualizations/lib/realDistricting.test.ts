@@ -243,6 +243,7 @@ describe('real districting', () => {
 
   test('region growing defers severe leftover overflows to balanced fallback', () => {
     const cases: Array<[RealStateDistrictingDataset, number, number]> = [
+      [californiaTracts as RealStateDistrictingDataset, 6, 0.15],
       [hawaiiTracts as RealStateDistrictingDataset, 1, 0.12],
       [illinoisTracts as RealStateDistrictingDataset, 1, 0.2],
       [pennsylvaniaTracts as RealStateDistrictingDataset, 1, 0.12],

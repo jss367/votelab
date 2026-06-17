@@ -1280,9 +1280,13 @@ export function districtRealByRegionGrow(
         adjacencyResult.metrics.contiguousDistricts &&
       capacityAwareResult.metrics.maxDeviationFraction <
         adjacencyResult.metrics.maxDeviationFraction * 0.5;
+    const catastrophicAdjacentOverflow =
+      adjacencyResult.metrics.maxDeviationFraction > 1 &&
+      capacityAwareResult.metrics.maxDeviationFraction < 0.2;
     if (
       score(capacityAwareResult) < score(adjacencyResult) ||
-      severeAdjacentOverflow
+      severeAdjacentOverflow ||
+      catastrophicAdjacentOverflow
     ) {
       selected = capacityAwareResult;
     }
