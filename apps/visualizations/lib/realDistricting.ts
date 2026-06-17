@@ -556,7 +556,7 @@ function rebalanceRegionGrowLowerBound(
   const maxMoves = largeFixture
     ? Math.min(units.length * k, 120)
     : units.length * k;
-  const shortlistSize = largeFixture ? 12 : 48;
+  const shortlistSize = largeFixture ? 12 : 96;
 
   for (let move = 0; move < maxMoves; move++) {
     const candidates: Array<{
