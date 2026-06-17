@@ -1269,12 +1269,15 @@ export function districtRealByRegionGrow(
     adjacencyResult.metrics.maxDeviationFraction > overflowFallbackThreshold
   ) {
     const capacityAwareResult = finishWithFallback(false);
+    const contiguityPenalty = 0.05;
     const score = (result: typeof adjacencyResult) =>
       result.metrics.maxDeviationFraction +
-      (k - result.metrics.contiguousDistricts) * 0.2;
+      (k - result.metrics.contiguousDistricts) * contiguityPenalty;
     const severeAdjacentOverflow =
       adjacencyResult.metrics.maxDeviationFraction >
         overflowFallbackThreshold &&
+      capacityAwareResult.metrics.contiguousDistricts >=
+        adjacencyResult.metrics.contiguousDistricts &&
       capacityAwareResult.metrics.maxDeviationFraction <
         adjacencyResult.metrics.maxDeviationFraction * 0.5;
     if (

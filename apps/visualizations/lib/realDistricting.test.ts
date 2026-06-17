@@ -258,4 +258,11 @@ describe('real districting', () => {
       );
     }
   });
+
+  test('region growing does not trade a contiguous completion for a disconnected fallback', () => {
+    const georgiaDataset = georgiaTracts as RealStateDistrictingDataset;
+    const result = districtRealByRegionGrow(georgiaDataset, { seed: 2 });
+
+    expect(result.metrics.contiguousDistricts).toBe(result.numDistricts);
+  });
 });
