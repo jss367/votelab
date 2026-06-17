@@ -5,6 +5,31 @@ import React from 'react';
 import type { Election } from './types';
 
 const STARResults: React.FC<{ election: Election }> = ({ election }) => {
+  // STAR needs two finalists for the automatic runoff; tallyStar assumes a
+  // second-place candidate exists and would throw on a one-candidate election
+  // (possible via open submissions). Show a trivial result instead of crashing.
+  if (election.candidates.length < 2) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center space-y-2">
+          <h1 className="text-3xl font-bold text-slate-900">{election.title}</h1>
+          <p className="text-sm text-slate-500">
+            STAR Voting (Score Then Automatic Runoff)
+          </p>
+        </div>
+        <Card>
+          <CardContent className="py-6 text-center text-slate-600">
+            A STAR election needs at least two candidates to run the automatic
+            runoff.
+            {election.candidates.length === 1
+              ? ` "${election.candidates[0]!.name}" is the only candidate.`
+              : ' No candidates have been added yet.'}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   const result = tallyStar(election.votes, election.candidates);
   const maxScore = result.scoringRound[0]?.score || 1;
 
