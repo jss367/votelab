@@ -2,6 +2,7 @@ import { Button, Card, CardContent, CardHeader, Input } from '@repo/ui';
 import { Copy } from 'lucide-react';
 import { useState } from 'react';
 import CategoryBadges from './CategoryBadge';
+import { isCustomFieldValueMissing } from './customFieldValue';
 import CustomFieldsInput from './CustomFieldsInput';
 import type { CustomField, CustomFieldValue, Election, FieldType } from './types';
 
@@ -47,6 +48,7 @@ const AdminView: React.FC<AdminViewProps> = ({
   const [unlocked, setUnlocked] = useState(false);
   const [nameInput, setNameInput] = useState('');
   const [nameError, setNameError] = useState('');
+  const [candidateEditError, setCandidateEditError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(election.title);
@@ -122,6 +124,21 @@ const AdminView: React.FC<AdminViewProps> = ({
   };
 
   const saveCandidate = async (candidateId: string) => {
+    // The add/create paths validate required custom fields; the admin edit form
+    // (a plain button, not a form submit) must too, or an admin could clear a
+    // required value and persist blank required metadata.
+    const requiredMissing = (election.customFields || [])
+      .filter((field) => field.required)
+      .some((field) =>
+        isCustomFieldValueMissing(
+          editCandidateFields.find((f) => f.fieldId === field.id)?.value
+        )
+      );
+    if (requiredMissing) {
+      setCandidateEditError('Please fill in all required fields.');
+      return;
+    }
+    setCandidateEditError('');
     await onEditCandidate(candidateId, {
       name: editCandidateName,
       customFields: editCandidateFields,
@@ -474,11 +491,21 @@ const AdminView: React.FC<AdminViewProps> = ({
                           onChange={setEditCandidateFields}
                         />
                       )}
+                      {candidateEditError && (
+                        <p className="text-sm text-red-600">{candidateEditError}</p>
+                      )}
                       <div className="flex gap-2">
                         <Button size="sm" onClick={() => saveCandidate(c.id)}>
                           Save
                         </Button>
-                        <Button size="sm" variant="secondary" onClick={() => setEditingCandidateId(null)}>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => {
+                            setCandidateEditError('');
+                            setEditingCandidateId(null);
+                          }}
+                        >
                           Cancel
                         </Button>
                       </div>
@@ -508,6 +535,7 @@ const AdminView: React.FC<AdminViewProps> = ({
                       <div className="flex gap-2 shrink-0 ml-2">
                         <button
                           onClick={() => {
+                            setCandidateEditError('');
                             setEditingCandidateId(c.id);
                             setEditCandidateName(c.name);
                             setEditCandidateFields(c.customFields || []);
