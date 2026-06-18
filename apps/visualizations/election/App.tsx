@@ -296,6 +296,20 @@ function App() {
       return;
     }
 
+    // Majority Judgment: an ungraded candidate is emitted as -1 by the ballot.
+    // tallyMajorityJudgment treats a missing/zero score as Reject, so submitting
+    // a partly-graded ballot would silently record Reject for candidates the
+    // voter never graded. Require an explicit grade for every candidate.
+    if (method === 'majorityJudgment') {
+      const hasUngraded = candidates.some(
+        (c) => (candidateScores[c.id] ?? -1) < 0
+      );
+      if (hasUngraded) {
+        setError('Please grade every candidate before submitting your ballot');
+        return;
+      }
+    }
+
     try {
       setLoading(true);
       // For ranked methods, use the voter's ballot ordering. Fall back to the

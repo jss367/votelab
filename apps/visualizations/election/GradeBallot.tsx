@@ -28,11 +28,10 @@ const GradeBallot: React.FC<GradeBallotProps> = ({ candidates, customFields, onC
   const handleChange = (candidateId: string, grade: number) => {
     const next = { ...grades, [candidateId]: grade };
     setGrades(next);
-    const scores: Record<string, number> = {};
-    for (const [id, g] of Object.entries(next)) {
-      scores[id] = g < 0 ? 0 : g;
-    }
-    onChange({ ranking: [], approved: [], scores });
+    // Emit the raw grade, keeping -1 for ungraded candidates so the parent can
+    // require an explicit grade before submitting. Collapsing -1 to 0 here would
+    // silently record an ungraded candidate as Reject.
+    onChange({ ranking: [], approved: [], scores: { ...next } });
   };
 
   return (
