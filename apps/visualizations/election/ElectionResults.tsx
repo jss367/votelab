@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import React from 'react';
 import ApprovalVotes from './ApprovalVotes';
+import { formatCustomFieldValue } from './customFieldValue';
 import type { Election } from './types';
 
 const formatDescription = (description: string) => {
@@ -75,7 +76,7 @@ const CustomFieldDisplay: React.FC<CustomFieldDisplayProps> = ({
         return (
           <div key={field.fieldId} className="text-sm">
             <span className="font-medium text-slate-700">{fieldDef.name}:</span>{' '}
-            <span className="text-slate-600">{Array.isArray(field.value) ? field.value.join(', ') : field.value?.toString()}</span>
+            <span className="text-slate-600">{formatCustomFieldValue(field.value)}</span>
           </div>
         );
       })}
