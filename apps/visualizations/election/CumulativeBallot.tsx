@@ -16,7 +16,14 @@ const CumulativeBallot: React.FC<CumulativeBallotProps> = ({ candidates, customF
     return initial;
   });
 
-  const totalUsed = Object.values(points).reduce((sum, p) => sum + p, 0);
+  // Only count points for candidates still on the ballot. If an admin removes a
+  // candidate mid-vote, its stale entry lingers in `points` with no control to
+  // clear it; counting it would silently consume the budget and let the voter
+  // get stuck at 0 remaining with points the tally ignores.
+  const sumVisible = (pts: Record<string, number>) =>
+    candidates.reduce((sum, c) => sum + (pts[c.id] ?? 0), 0);
+
+  const totalUsed = sumVisible(points);
   const remaining = pointBudget - totalUsed;
 
   const handleChange = (candidateId: string, value: number) => {
@@ -25,7 +32,13 @@ const CumulativeBallot: React.FC<CumulativeBallotProps> = ({ candidates, customF
     const clamped = Math.max(0, Math.min(maxForThis, value));
     const next = { ...points, [candidateId]: clamped };
     setPoints(next);
-    onChange({ ranking: [], approved: [], scores: next });
+    // Emit scores only for current candidates so removed candidates' stale
+    // points are never submitted.
+    const scores: Record<string, number> = {};
+    candidates.forEach((c) => {
+      scores[c.id] = next[c.id] ?? 0;
+    });
+    onChange({ ranking: [], approved: [], scores });
   };
 
   return (
