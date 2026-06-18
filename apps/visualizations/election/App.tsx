@@ -317,14 +317,28 @@ function App() {
       };
 
       const electionRef = doc(db, 'elections', electionId);
-      await updateDoc(electionRef, {
-        votes: arrayUnion(vote),
+      // Re-read inside a transaction and abort if voting has closed since the
+      // ballot was opened — a plain append would record a vote after close from
+      // a stale votingOpen snapshot.
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(electionRef);
+        if (!snap.exists()) {
+          throw new Error('ELECTION_NOT_FOUND');
+        }
+        if (!(snap.data() as Election).votingOpen) {
+          throw new Error('VOTING_CLOSED');
+        }
+        tx.update(electionRef, { votes: arrayUnion(vote) });
       });
 
       // onSnapshot handles the update automatically
       setMode('success');
     } catch (err) {
-      setError('Error submitting vote');
+      if (err instanceof Error && err.message === 'VOTING_CLOSED') {
+        setError('Voting has closed for this election.');
+      } else {
+        setError('Error submitting vote');
+      }
       console.error(err);
     } finally {
       setLoading(false);
