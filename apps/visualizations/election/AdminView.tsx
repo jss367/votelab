@@ -23,6 +23,14 @@ interface AdminViewProps {
   onReopenVoting: () => void;
   onDelete: () => void;
   onUpdate: (fields: Partial<Election>) => Promise<void>;
+  // Candidate edits/removals go through dedicated transactional handlers (rather
+  // than onUpdate with a whole candidates array) so a candidate a voter submits
+  // concurrently isn't dropped by an admin write built from a stale snapshot.
+  onEditCandidate: (
+    candidateId: string,
+    updates: { name: string; customFields: CustomFieldValue[] }
+  ) => Promise<void>;
+  onRemoveCandidate: (candidateId: string) => Promise<void>;
 }
 
 const AdminView: React.FC<AdminViewProps> = ({
@@ -33,6 +41,8 @@ const AdminView: React.FC<AdminViewProps> = ({
   onReopenVoting,
   onDelete,
   onUpdate,
+  onEditCandidate,
+  onRemoveCandidate,
 }) => {
   const [unlocked, setUnlocked] = useState(false);
   const [nameInput, setNameInput] = useState('');
@@ -108,20 +118,13 @@ const AdminView: React.FC<AdminViewProps> = ({
   };
 
   const removeCandidate = async (candidateId: string) => {
-    await onUpdate({
-      candidates: election.candidates.filter((c) => c.id !== candidateId),
-    });
+    await onRemoveCandidate(candidateId);
   };
 
   const saveCandidate = async (candidateId: string) => {
-    const original = election.candidates.find((c) => c.id === candidateId);
-    if (!original) return;
-    await onUpdate({
-      candidates: election.candidates.map((c) =>
-        c.id === candidateId
-          ? { ...c, name: editCandidateName.trim() || c.name, customFields: editCandidateFields }
-          : c
-      ),
+    await onEditCandidate(candidateId, {
+      name: editCandidateName,
+      customFields: editCandidateFields,
     });
     setEditingCandidateId(null);
   };

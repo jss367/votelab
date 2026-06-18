@@ -903,6 +903,51 @@ function App() {
                     console.error(err);
                   }
                 }}
+                onEditCandidate={async (candidateId, updates) => {
+                  if (!electionId) return;
+                  // Re-read inside a transaction and apply the edit to the
+                  // freshest candidates array so a candidate submitted
+                  // concurrently by a voter is not clobbered.
+                  try {
+                    const ref = doc(db, 'elections', electionId);
+                    await runTransaction(db, async (tx) => {
+                      const snap = await tx.get(ref);
+                      if (!snap.exists()) return;
+                      const data = snap.data() as Election;
+                      const candidates = (data.candidates || []).map((c) =>
+                        c.id === candidateId
+                          ? {
+                              ...c,
+                              name: updates.name.trim() || c.name,
+                              customFields: updates.customFields,
+                            }
+                          : c
+                      );
+                      tx.update(ref, { candidates });
+                    });
+                  } catch (err) {
+                    setError('Error updating candidate');
+                    console.error(err);
+                  }
+                }}
+                onRemoveCandidate={async (candidateId) => {
+                  if (!electionId) return;
+                  try {
+                    const ref = doc(db, 'elections', electionId);
+                    await runTransaction(db, async (tx) => {
+                      const snap = await tx.get(ref);
+                      if (!snap.exists()) return;
+                      const data = snap.data() as Election;
+                      const candidates = (data.candidates || []).filter(
+                        (c) => c.id !== candidateId
+                      );
+                      tx.update(ref, { candidates });
+                    });
+                  } catch (err) {
+                    setError('Error removing candidate');
+                    console.error(err);
+                  }
+                }}
               />
             )}
           </CardContent>
