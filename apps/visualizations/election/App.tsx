@@ -461,16 +461,31 @@ function App() {
       };
 
       const electionRef = doc(db, 'elections', electionId);
-      await updateDoc(electionRef, {
-        candidates: arrayUnion(newCand),
+      // Re-read inside a transaction and abort if submissions have closed since
+      // the form was opened — a plain append could add a candidate after close
+      // (and after voting started) from a stale snapshot, changing the candidate
+      // set out from under already-cast ballots.
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(electionRef);
+        if (!snap.exists()) {
+          throw new Error('ELECTION_NOT_FOUND');
+        }
+        if ((snap.data() as Election).submissionsClosed) {
+          throw new Error('SUBMISSIONS_CLOSED');
+        }
+        tx.update(electionRef, { candidates: arrayUnion(newCand) });
       });
 
       // onSnapshot handles the update automatically
       setNewCandidate('');
       setNewCandidateFields([]);
     } catch (err) {
+      if (err instanceof Error && err.message === 'SUBMISSIONS_CLOSED') {
+        setError('Submissions have closed for this election.');
+      } else {
+        setError('Error adding candidate');
+      }
       console.error('Error adding candidate:', err);
-      setError('Error adding candidate');
     } finally {
       setLoading(false);
     }
