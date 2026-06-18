@@ -132,6 +132,25 @@ function App() {
       return;
     }
 
+    // Revalidate every candidate against the required fields before publishing.
+    // Candidates added before a field was marked required (or before a template
+    // with required fields was loaded) are only checked at append time, so the
+    // initial list could otherwise be published with required metadata blank.
+    const requiredFields = customFields.filter((field) => field.required);
+    const hasCandidateMissingRequired = candidates.some((candidate) =>
+      requiredFields.some((field) =>
+        isCustomFieldValueMissing(
+          candidate.customFields?.find((cf) => cf.fieldId === field.id)?.value
+        )
+      )
+    );
+    if (hasCandidateMissingRequired) {
+      setError(
+        'Some candidates are missing required fields. Fill them in before creating the election.'
+      );
+      return;
+    }
+
     try {
       setLoading(true);
       const electionData: Election = {
