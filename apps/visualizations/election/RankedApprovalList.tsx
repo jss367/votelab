@@ -92,10 +92,19 @@ const RankedApprovalList: React.FC<RankedApprovalListProps> = ({
       next.length !== prev.length ||
       next.some((c, i) => c.id !== prev[i]?.id);
     if (membershipOrOrderChanged) {
+      // Clamp the approval line to the reconciled list length. If candidates
+      // were removed below where the voter dragged the line, an un-clamped
+      // approvalLine would hide the line entirely while slice(0, approvalLine)
+      // silently approves every remaining candidate.
+      const clampedLine = Math.min(approvalLine, next.length);
+      if (clampedLine !== approvalLine) {
+        setApprovalLine(clampedLine);
+        setLastSnapIndex(clampedLine);
+      }
       onChange({
         ranking: next,
         approved: showApprovalLine
-          ? next.slice(0, approvalLine).map((c) => c.id)
+          ? next.slice(0, clampedLine).map((c) => c.id)
           : [],
       });
     }
