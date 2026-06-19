@@ -252,6 +252,13 @@ function seedRecursive(
     for (const node of nodes) assignment[node] = startId;
     return startId + 1;
   }
+  // Too few units to bisect into `parts` connected districts (degenerate /
+  // pathological graphs). Give each unit its own district; any leftover ids
+  // stay empty, which surfaces as an invalid result rather than a crash.
+  if (nodes.length <= parts) {
+    for (let i = 0; i < nodes.length; i++) assignment[nodes[i]] = startId + i;
+    return startId + parts;
+  }
   const left = Math.floor(parts / 2);
   const right = parts - left;
   const targetPopulation = ideal * left;
@@ -282,9 +289,24 @@ function seedRecursive(
     }
     if (error <= ideal * 0.05) break; // good enough, stop early
   }
+  // No balanced cut respected the per-side district counts across all sampled
+  // trees (sparse / articulation-heavy graphs). Fall back to any non-trivial
+  // edge: with nodes.length > parts >= 2 a spanning tree always has one. This
+  // keeps the seed contiguous and non-crashing; ReCom steps fix the balance.
+  if (!chosen) {
+    const tree = spanningTree(nodes, inSet, adj, rand);
+    chosen = bestCut(tree, nodes, population, total, targetPopulation, 1, 1);
+  }
+  if (!chosen) {
+    // Unreachable for nodes.length >= 2, but stay non-crashing regardless.
+    for (let i = 0; i < nodes.length; i++) {
+      assignment[nodes[i]] = startId + Math.min(i, parts - 1);
+    }
+    return startId + parts;
+  }
   // `assignment` is module-global to keep recursion cheap.
-  const sideSet = new Set(chosen!.side);
-  const leftNodes = chosen!.side;
+  const sideSet = new Set(chosen.side);
+  const leftNodes = chosen.side;
   const rightNodes = nodes.filter((node) => !sideSet.has(node));
 
   const afterLeft = seedRecursive(

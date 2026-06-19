@@ -121,6 +121,49 @@ describe('ReCom districting', () => {
     expect(result.metrics.totalPopulation).toBe(assigned);
   });
 
+  test('does not crash when no balanced cut exists (star graph)', () => {
+    // A star (center + 4 leaves) split into 4 districts: no spanning-tree edge
+    // can put >=2 nodes on each side, so recursive seeding finds no balanced
+    // cut. It must fall back gracefully and emit a result, not throw.
+    const center = {
+      geoid: 'c',
+      name: 'C',
+      type: 'tract' as const,
+      countyGeoid: 'k',
+      countyName: 'K',
+      population: 100,
+      areaLand: 1,
+      centroid: { x: 0, y: 0 },
+      neighbors: ['l0', 'l1', 'l2', 'l3'],
+    };
+    const leaves = [0, 1, 2, 3].map((i) => ({
+      geoid: `l${i}`,
+      name: `L${i}`,
+      type: 'tract' as const,
+      countyGeoid: 'k',
+      countyName: 'K',
+      population: 100,
+      areaLand: 1,
+      centroid: { x: Math.cos(i), y: Math.sin(i) },
+      neighbors: ['c'],
+    }));
+    const star: RealStateDistrictingDataset = {
+      stateFips: '00',
+      stateName: 'Star',
+      unitType: 'tract',
+      defaultDistricts: 4,
+      bbox: [-1, -1, 1, 1],
+      units: [center, ...leaves],
+      geometries: { type: 'FeatureCollection', features: [] },
+    };
+    expect(() =>
+      districtByRecom(structuredClone(star), { seed: 1 })
+    ).not.toThrow();
+    const { result } = districtByRecom(structuredClone(star), { seed: 1 });
+    expect(result.numDistricts).toBe(4);
+    expect(Object.keys(result.assignment)).toHaveLength(5);
+  });
+
   test('bridges disconnected island components (Hawaii)', () => {
     const { result, bridges } = districtByRecom(
       structuredClone(hawaiiTracts as RealStateDistrictingDataset),
