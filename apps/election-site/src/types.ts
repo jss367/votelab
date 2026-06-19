@@ -49,6 +49,7 @@ export interface Election {
   submissionsClosed: boolean;
   votingOpen: boolean;
   createdBy: string;
+  createdByUid?: string;
   customFields?: CustomField[];
   candidateLabel?: string;
 }

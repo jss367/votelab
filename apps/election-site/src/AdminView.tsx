@@ -18,6 +18,8 @@ const METHOD_NAMES: Record<string, string> = {
 interface AdminViewProps {
   election: Election;
   electionId: string;
+  currentUserUid: string | null;
+  authReady: boolean;
   onCloseSubmissions: () => void;
   onCloseVoting: () => void;
   onReopenVoting: () => void;
@@ -28,15 +30,14 @@ interface AdminViewProps {
 const AdminView: React.FC<AdminViewProps> = ({
   election,
   electionId,
+  currentUserUid,
+  authReady,
   onCloseSubmissions,
   onCloseVoting,
   onReopenVoting,
   onDelete,
   onUpdate,
 }) => {
-  const [unlocked, setUnlocked] = useState(false);
-  const [nameInput, setNameInput] = useState('');
-  const [nameError, setNameError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(election.title);
@@ -58,6 +59,9 @@ const AdminView: React.FC<AdminViewProps> = ({
     : election.votingOpen
       ? 'Voting open'
       : 'Voting closed';
+  const isCreator = Boolean(
+    election.createdByUid && currentUserUid === election.createdByUid
+  );
 
   const handleSave = async () => {
     let fieldsToSave = editFields;
@@ -126,37 +130,28 @@ const AdminView: React.FC<AdminViewProps> = ({
     setEditingCandidateId(null);
   };
 
-  const handleUnlock = () => {
-    if (nameInput.trim().toLowerCase() === election.createdBy.trim().toLowerCase()) {
-      setUnlocked(true);
-      setNameError('');
-    } else {
-      setNameError("That name doesn't match the election creator.");
-    }
-  };
-
-  if (!unlocked) {
+  if (!authReady) {
     return (
       <div className="space-y-4 max-w-md mx-auto py-8">
         <div className="text-center space-y-1">
           <h3 className="text-lg font-semibold text-slate-900">{election.title}</h3>
           <p className="text-sm text-slate-500">
-            Enter the creator's name to manage this election.
+            Checking admin access...
           </p>
         </div>
-        <Input
-          value={nameInput}
-          onChange={(e) => setNameInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleUnlock()}
-          placeholder="Creator name"
-          className="w-full"
-        />
-        {nameError && (
-          <p className="text-sm text-red-600">{nameError}</p>
-        )}
-        <Button onClick={handleUnlock} className="w-full">
-          Access Admin Panel
-        </Button>
+      </div>
+    );
+  }
+
+  if (!isCreator) {
+    return (
+      <div className="space-y-4 max-w-md mx-auto py-8">
+        <div className="text-center space-y-1">
+          <h3 className="text-lg font-semibold text-slate-900">{election.title}</h3>
+          <p className="text-sm text-slate-500">
+            Admin access is limited to the Firebase user that created this election.
+          </p>
+        </div>
       </div>
     );
   }
