@@ -36,6 +36,22 @@ least-bad of two flawed completions.
 Scope: **one best map per state** at its real congressional district count
 (option A). No reseed, no district-count slider.
 
+## Revision (during implementation): use ReCom, not region growing
+
+Empirically the existing region-grow algorithm could not produce maps that are
+simultaneously contiguous and population-balanced for medium/large states —
+across 20 seeds it found **zero** valid plans for Illinois, Texas, New York,
+Florida, Pennsylvania, or California (e.g. fully contiguous Texas at 35%
+deviation, fully balanced California at 51/52 contiguous). The bottleneck was
+the algorithm, not the architecture.
+
+We therefore generate maps with **ReCom (recombination)** — the standard modern
+redistricting method (MGGG / GerryChain) — which keeps districts contiguous by
+construction and splits district pairs along balanced spanning-tree edges. ReCom
+produces a fully contiguous, sub-6%-deviation plan for **all 50 states** in well
+under a second per run. Region growing is removed from the codebase; the offline
+generator uses ReCom exclusively. See `lib/recom.ts`.
+
 ## Definition of "best"
 
 Generate many candidates per state (all three algorithms × many seeds) and
@@ -54,37 +70,48 @@ than presenting a bad map as a real plan.
 
 ## Components
 
-### 1. Offline generator — `apps/visualizations/scripts/build-district-maps.ts`
+### 1. ReCom algorithm — `apps/visualizations/lib/recom.ts`
 
-- For each state in `DISTRICTING_STATES`, at `defaultDistricts`:
-  - Run `districtRealByWeightedCentroid`, `districtRealByCountyIntegrity`,
-    `districtRealByRegionGrow` over a seed range.
-  - The fast algorithms (centroid, county) sweep the full seed range cheaply.
-    Region grow is the slow one; cap its seeds lower and **early-stop** as soon
-    as it yields a valid candidate.
-  - Pick the overall best by the ranking above.
-- Run via `tsx`. No time pressure — it can take minutes. Prints per-state
-  progress (chosen algorithm, seed, deviation, contiguity, valid?).
+- `districtByRecom(dataset, options)`:
+  1. Build the dual graph from each unit's neighbors; bridge disconnected
+     components (islands/offshore tracts) with nearest-unit edges so a spanning
+     tree can span the whole state.
+  2. Seed with recursive spanning-tree bisection → `k` contiguous districts.
+  3. Run ReCom steps: pick an adjacent district pair, draw a spanning tree of
+     their union, cut it at a balanced edge so both halves land within
+     tolerance. Track the best (lowest max-deviation) plan seen.
+- Returns a `RealDistrictingResult` (via `buildRealDistrictingResult`) plus the
+  bridge count.
+
+### 2. Offline generator — `apps/visualizations/scripts/build-district-maps.ts`
+
+- For each state in `DISTRICTING_STATES`, at the authoritative
+  `state.defaultDistricts` (not the dataset's viz floor), run ReCom across
+  several seeds and pick the best by `selectBestDistricting`.
+- Run via `npm --workspace apps/visualizations run build:maps` (tsx). Sub-second
+  per run; prints per-state progress (seed, contiguity, deviation, valid?).
 - Output: one file per state under
   `apps/visualizations/public/data/districting/results/<state-id>.json`:
-  `{ stateId, algorithm, seed, numDistricts, assignment, metrics, valid }`.
+  `{ stateId, stateName, algorithm, seed, numDistricts, valid, bridges,
+  metrics, centroids, assignment }`.
 - Results are **committed to the repo** so deploy stays pure-static.
 
-### 2. Algorithm library — `apps/visualizations/lib/realDistricting.ts`
+### 3. Shared library — `apps/visualizations/lib/realDistricting.ts`
 
-- Add `valid: boolean` to `RealDistrictingMetrics`, computed as
-  `contiguousDistricts === k && maxDeviationFraction <= tolerance`. Thread the
-  tolerance into `computeMetrics`.
-- **Delete** the region-grow selector ladder (`overflowFallbackThreshold`,
-  `severeAdjacentOverflow`, `catastrophicAdjacentOverflow`, fixed `0.05`
-  penalty) and the per-fixture move-cap tangle (`largeFixture`/`mediumFixture`
-  → `120/240/3250`). Offline generation doesn't need a synchronous cap; the
-  generator simply ranks candidates. Keep a single generous O(units·k) cap as a
-  pure non-hang backstop.
-- Extract a small pure `rankCandidates` / `selectBest` helper so the generator
-  and tests share one ranking definition.
+- Add `valid: boolean` to `RealDistrictingMetrics`
+  (`contiguousDistricts === k && maxDeviationFraction <= VALIDITY_TOLERANCE`,
+  a fixed 10% bar).
+- Add `compareDistrictingMetrics` (contiguity-first lexicographic ordering) and
+  `selectBestDistricting`, shared by the generator and tests.
+- Add `buildRealDistrictingResult` so ReCom and the in-repo algorithms produce
+  identical metrics.
+- **Remove region growing entirely** (`districtRealByRegionGrow` and its
+  repair/connectivity helpers, and the selector ladder + per-fixture move-cap
+  tangle that caused the original review churn). It was reachable only from
+  tests and is fully superseded by ReCom. The lightweight weighted-centroid and
+  county-integrity algorithms remain (used by the partisan/metrics tests).
 
-### 3. Website — `apps/visualizations/app/components/DistrictingViz.tsx`
+### 4. Website — `apps/visualizations/app/components/DistrictingViz.tsx`
 
 - Render-only: on state select, fetch
   `data/districting/results/<state>.json` and draw it. No `districtRealBy*`

@@ -3,25 +3,23 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { DISTRICT_COLORS } from '../../lib/districting';
 import {
-  CountyElectionDataset,
   DistrictingFeature,
   MultiPolygonCoordinates,
   PolygonCoordinates,
   RealDistrictingResult,
   RealStateDistrictingDataset,
-  districtRealByCountyIntegrity,
-  districtRealByRegionGrow,
-  districtRealByWeightedCentroid,
+  VALIDITY_TOLERANCE,
 } from '../../lib/realDistricting';
-import {
-  DISTRICTING_RESOLUTIONS,
-  DISTRICTING_STATES,
-  DistrictingResolution,
-} from '../../lib/realDistrictingStates';
+import { DISTRICTING_STATES } from '../../lib/realDistrictingStates';
 
 const CANVAS_WIDTH = 420;
 const CANVAS_HEIGHT = 500;
-const ELECTION_URL = '/data/elections/county-president-2020.json';
+
+// Precomputed plan shape on disk: a RealDistrictingResult plus generator
+// metadata (see scripts/build-district-maps.ts).
+type PrecomputedPlan = RealDistrictingResult & {
+  bridges?: number;
+};
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
   const v = parseInt(hex.slice(1), 16);
@@ -207,9 +205,28 @@ const RealDistrictMap: React.FC<RealDistrictMapProps> = ({ dataset, result }) =>
 
   const metrics = result.metrics;
 
+  const validityLabel = metrics.valid
+    ? 'Valid plan'
+    : metrics.contiguousDistricts < result.numDistricts
+      ? `Non-contiguous (${metrics.contiguousDistricts}/${result.numDistricts})`
+      : `Over ${formatPercent(VALIDITY_TOLERANCE)} population deviation`;
+
   return (
     <div className="border border-gray-200 rounded-lg bg-white p-4">
-      <h3 className="text-base font-semibold text-gray-900">{result.algorithm}</h3>
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-base font-semibold text-gray-900">
+          {result.algorithm}
+        </h3>
+        <span
+          className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+            metrics.valid
+              ? 'bg-green-100 text-green-800'
+              : 'bg-amber-100 text-amber-800'
+          }`}
+        >
+          {validityLabel}
+        </span>
+      </div>
       <canvas
         ref={canvasRef}
         width={CANVAS_WIDTH}
@@ -271,63 +288,48 @@ const RealDistrictMap: React.FC<RealDistrictMapProps> = ({ dataset, result }) =>
 
 const DistrictingViz: React.FC = () => {
   const [stateId, setStateId] = useState(DISTRICTING_STATES[0].id);
-  const [resolution, setResolution] =
-    useState<DistrictingResolution>('block-groups');
-  const [dataset, setDataset] = useState<RealStateDistrictingDataset | null>(null);
-  const [election, setElection] = useState<CountyElectionDataset | null>(null);
+  const [dataset, setDataset] = useState<RealStateDistrictingDataset | null>(
+    null
+  );
+  const [result, setResult] = useState<PrecomputedPlan | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [numDistricts, setNumDistricts] = useState(3);
-  const [seed, setSeed] = useState(1);
-  const [results, setResults] = useState<RealDistrictingResult[]>([]);
-  const [isComputing, setIsComputing] = useState(false);
 
   const selectedState =
     DISTRICTING_STATES.find((state) => state.id === stateId) ??
     DISTRICTING_STATES[0];
-  const availableResolutions = DISTRICTING_RESOLUTIONS.filter(
-    (entry) => selectedState.datasets[entry.id]
-  );
-  const selectedResolution = selectedState.datasets[resolution]
-    ? resolution
-    : availableResolutions[0].id;
 
+  // Maps are precomputed offline (scripts/build-district-maps.ts) and committed
+  // under public/data/districting/results. Selecting a state just loads the
+  // tract geometry plus its prebuilt plan — no districting runs in the browser.
   useEffect(() => {
     let cancelled = false;
-    fetch(ELECTION_URL)
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error(`Unable to load election data (${response.status})`);
-        }
-        return response.json();
-      })
-      .then((data: CountyElectionDataset) => {
-        if (!cancelled) setElection(data);
-      })
-      .catch(() => {
-        if (!cancelled) setElection(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    const selectedUrl = selectedState.datasets[selectedResolution];
-    if (!selectedUrl) return;
     setDataset(null);
+    setResult(null);
     setError(null);
-    fetch(selectedUrl)
-      .then((response) => {
+    const datasetUrl = selectedState.datasets.tracts;
+    const resultUrl = `/data/districting/results/${selectedState.id}.json`;
+    if (!datasetUrl) {
+      setError('No tract data is available for this state.');
+      return;
+    }
+    Promise.all([
+      fetch(datasetUrl).then((response) => {
         if (!response.ok) {
-          throw new Error(`Unable to load district data (${response.status})`);
+          throw new Error(`Unable to load map data (${response.status})`);
         }
-        return response.json();
-      })
-      .then((data: RealStateDistrictingDataset) => {
+        return response.json() as Promise<RealStateDistrictingDataset>;
+      }),
+      fetch(resultUrl).then((response) => {
+        if (!response.ok) {
+          throw new Error(`Unable to load district plan (${response.status})`);
+        }
+        return response.json() as Promise<PrecomputedPlan>;
+      }),
+    ])
+      .then(([data, plan]) => {
         if (cancelled) return;
         setDataset(data);
-        setNumDistricts(selectedState.defaultDistricts);
+        setResult(plan);
       })
       .catch((err: Error) => {
         if (!cancelled) setError(err.message);
@@ -335,41 +337,32 @@ const DistrictingViz: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [selectedResolution, selectedState]);
+  }, [selectedState]);
 
-  useEffect(() => {
-    if (!dataset) {
-      setResults([]);
-      setIsComputing(false);
-      return;
-    }
-
-    let cancelled = false;
-    setIsComputing(true);
-    setResults([]);
-    const timeout = window.setTimeout(() => {
-      const options = { numDistricts, seed, election: election ?? undefined };
-      const nextResults = [
-        districtRealByWeightedCentroid(dataset, options),
-        districtRealByCountyIntegrity(dataset, options),
-        districtRealByRegionGrow(dataset, options),
-      ];
-      if (!cancelled) {
-        setResults(nextResults);
-        setIsComputing(false);
-      }
-    }, 0);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timeout);
-    };
-  }, [dataset, election, numDistricts, seed]);
+  const statePicker = (
+    <div className="mb-6 max-w-xs">
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        State
+      </label>
+      <select
+        value={stateId}
+        onChange={(event) => setStateId(event.target.value)}
+        className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
+      >
+        {DISTRICTING_STATES.map((entry) => (
+          <option key={entry.id} value={entry.id}>
+            {entry.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
 
   if (error) {
     return (
       <div className="max-w-5xl mx-auto p-6">
         <h1 className="text-3xl font-bold mb-2">Real District Maps</h1>
+        {statePicker}
         <p className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           {error}
         </p>
@@ -377,11 +370,12 @@ const DistrictingViz: React.FC = () => {
     );
   }
 
-  if (!dataset) {
+  if (!dataset || !result) {
     return (
       <div className="max-w-5xl mx-auto p-6">
         <h1 className="text-3xl font-bold mb-2">Real District Maps</h1>
-        <p className="text-gray-600">Loading Census tract data...</p>
+        {statePicker}
+        <p className="text-gray-600">Loading {selectedState.name} map...</p>
       </div>
     );
   }
@@ -390,102 +384,27 @@ const DistrictingViz: React.FC = () => {
     (sum, unit) => sum + unit.population,
     0
   );
-  const votingAgePopulation = dataset.units.some(
-    (unit) => typeof unit.votingAgePopulation === 'number'
-  )
-    ? dataset.units.reduce(
-        (sum, unit) => sum + (unit.votingAgePopulation ?? 0),
-        0
-      )
-    : null;
-  const hasDemographics = votingAgePopulation !== null;
   const counties = new Set(dataset.units.map((unit) => unit.countyGeoid)).size;
   const unitLabel =
     dataset.unitType === 'blockGroup' ? 'block groups' : `${dataset.unitType}s`;
-  const maxDistricts = Math.max(6, selectedState.defaultDistricts);
 
   return (
-    <div className="max-w-7xl mx-auto p-6">
+    <div className="max-w-5xl mx-auto p-6">
       <h1 className="text-3xl font-bold mb-2">Real District Maps</h1>
-      <p className="text-gray-700 mb-6 max-w-4xl">
-        This real-data version uses {dataset.stateName} 2020 Census {unitLabel}
-        from TIGERweb. {hasDemographics
-          ? 'This dataset also includes P.L. 94-171 voting-age population and demographic fields.'
-          : 'This dataset currently uses TIGERweb population fields; it can be regenerated with P.L. 94-171 demographics when the Census API is available.'}
+      <p className="text-gray-700 mb-6 max-w-3xl">
+        Each map is the best of several ReCom (recombination) plans built
+        offline from {dataset.stateName} 2020 Census {unitLabel}, then selected
+        for full district contiguity and the smallest population deviation. The
+        website only displays the precomputed result — no districting runs in
+        your browser.
       </p>
 
-      <div className="mb-6 grid grid-cols-1 gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4 md:grid-cols-[1fr_1fr_1fr_auto] md:items-end">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            State
-          </label>
-          <select
-            value={stateId}
-            onChange={(event) => {
-              const nextStateId = event.target.value;
-              const nextState =
-                DISTRICTING_STATES.find((state) => state.id === nextStateId) ??
-                DISTRICTING_STATES[0];
-              setStateId(nextState.id);
-              if (!nextState.datasets[resolution]) {
-                const nextResolution = DISTRICTING_RESOLUTIONS.find(
-                  (entry) => nextState.datasets[entry.id]
-                );
-                if (nextResolution) setResolution(nextResolution.id);
-              }
-            }}
-            className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
-          >
-            {DISTRICTING_STATES.map((entry) => (
-              <option key={entry.id} value={entry.id}>
-                {entry.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Geography
-          </label>
-          <select
-            value={selectedResolution}
-            onChange={(event) =>
-              setResolution(event.target.value as DistrictingResolution)
-            }
-            className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
-          >
-            {availableResolutions.map((entry) => (
-              <option key={entry.id} value={entry.id}>
-                {entry.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Districts: {numDistricts}
-          </label>
-          <input
-            type="range"
-            min={1}
-            max={maxDistricts}
-            value={numDistricts}
-            onChange={(event) => setNumDistricts(Number(event.target.value))}
-            className="w-full"
-          />
-        </div>
-        <button
-          onClick={() => setSeed((value) => value + 1)}
-          className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-        >
-          Reseed
-        </button>
-      </div>
+      {statePicker}
 
       <div className="mb-6 grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
         <div className="rounded border border-gray-200 bg-white p-3">
-          <div className="text-gray-500">Geography</div>
-          <div className="font-semibold capitalize">{unitLabel}</div>
+          <div className="text-gray-500">Districts</div>
+          <div className="font-semibold">{result.numDistricts}</div>
         </div>
         <div className="rounded border border-gray-200 bg-white p-3">
           <div className="text-gray-500">Units</div>
@@ -499,44 +418,25 @@ const DistrictingViz: React.FC = () => {
           <div className="text-gray-500">Population</div>
           <div className="font-semibold">{formatPopulation(totalPopulation)}</div>
         </div>
-        {votingAgePopulation !== null && (
-          <div className="rounded border border-gray-200 bg-white p-3">
-            <div className="text-gray-500">Voting-age pop.</div>
-            <div className="font-semibold">
-              {formatPopulation(votingAgePopulation)}
-            </div>
-          </div>
-        )}
       </div>
 
-      {isComputing ? (
-        <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-600">
-          Computing district plans...
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-          {results.map((result) => (
-            <RealDistrictMap
-              key={result.algorithm}
-              dataset={dataset}
-              result={result}
-            />
-          ))}
-        </div>
-      )}
+      <div className="max-w-md">
+        <RealDistrictMap dataset={dataset} result={result} />
+      </div>
 
       <div className="mt-8 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-gray-700">
         <p>
-          Block groups improve fidelity, but this is still a prototype. The next
-          step is replacing the county-level election approximation with
-          precinct or VTD returns; block-level plans will need more aggressive
-          preprocessing before they are practical in the browser.
+          Plans are generated with recursive spanning-tree bisection plus ReCom
+          balancing steps, which keep every district contiguous by construction.
+          {result.bridges
+            ? ` Offshore/island units in ${dataset.stateName} were bridged to the mainland by nearest neighbor so the dual graph is connected.`
+            : ''}
         </p>
-        {election && (
+        {result.metrics.partisanScores && (
           <p className="mt-2">
-            Election scoring uses {election.title} and allocates county votes to
-            map units by population share. Treat the seat counts and margins as
-            approximate comparison signals, not official district results.
+            Approximate seat counts allocate 2020 county presidential votes to
+            map units by population share. Treat them as rough comparison
+            signals, not official results.
           </p>
         )}
       </div>
