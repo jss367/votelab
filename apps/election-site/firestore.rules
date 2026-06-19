@@ -40,6 +40,15 @@ service cloud.firestore {
         && request.resource.data.createdByUid == resource.data.createdByUid;
     }
 
+    function isLegacyElection() {
+      return !(resource.data.createdByUid is string);
+    }
+
+    function legacyUpdate() {
+      return isLegacyElection()
+        && !(request.resource.data.createdByUid is string);
+    }
+
     function publicVoteAppend() {
       return signedIn()
         && resource.data.votingOpen == true
@@ -57,8 +66,8 @@ service cloud.firestore {
     match /elections/{electionId} {
       allow read: if true;
       allow create: if validElectionCreate();
-      allow update: if ownerUpdate() || publicVoteAppend() || publicCandidateAppend();
-      allow delete: if isOwner();
+      allow update: if ownerUpdate() || legacyUpdate() || publicVoteAppend() || publicCandidateAppend();
+      allow delete: if isOwner() || isLegacyElection();
     }
   }
 }

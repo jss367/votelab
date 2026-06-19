@@ -49,6 +49,9 @@ const AdminView: React.FC<AdminViewProps> = ({
   onEditCandidate,
   onRemoveCandidate,
 }) => {
+  const [legacyUnlocked, setLegacyUnlocked] = useState(false);
+  const [legacyNameInput, setLegacyNameInput] = useState('');
+  const [legacyNameError, setLegacyNameError] = useState('');
   const [candidateEditError, setCandidateEditError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -71,10 +74,20 @@ const AdminView: React.FC<AdminViewProps> = ({
     : election.votingOpen
       ? 'Voting open'
       : 'Voting closed';
-  const isCreator = Boolean(
-    election.createdByUid && currentUserUid === election.createdByUid
-  );
   const isLegacyElection = !election.createdByUid;
+  const isCreator = Boolean(
+    (election.createdByUid && currentUserUid === election.createdByUid)
+      || (isLegacyElection && legacyUnlocked)
+  );
+
+  const handleLegacyUnlock = () => {
+    if (legacyNameInput.trim().toLowerCase() === election.createdBy.trim().toLowerCase()) {
+      setLegacyUnlocked(true);
+      setLegacyNameError('');
+    } else {
+      setLegacyNameError("That name doesn't match the election creator.");
+    }
+  };
 
   const handleSave = async () => {
     let fieldsToSave = editFields;
@@ -170,9 +183,22 @@ const AdminView: React.FC<AdminViewProps> = ({
         <div className="text-center space-y-1">
           <h3 className="text-lg font-semibold text-slate-900">{election.title}</h3>
           <p className="text-sm text-slate-500">
-            This legacy election does not have a Firebase owner. Admin access requires a trusted migration.
+            Enter the creator's name to manage this legacy election.
           </p>
         </div>
+        <Input
+          value={legacyNameInput}
+          onChange={(e) => setLegacyNameInput(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleLegacyUnlock()}
+          placeholder="Creator name"
+          className="w-full"
+        />
+        {legacyNameError && (
+          <p className="text-sm text-red-600">{legacyNameError}</p>
+        )}
+        <Button onClick={handleLegacyUnlock} className="w-full">
+          Access Admin Panel
+        </Button>
       </div>
     );
   }
