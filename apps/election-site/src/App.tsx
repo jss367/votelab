@@ -943,6 +943,17 @@ function App() {
                 authReady={authReady}
                 onCloseSubmissions={closeSubmissions}
                 onCloseVoting={closeVoting}
+                onClaimLegacyOwner={async () => {
+                  if (!electionId) return;
+                  try {
+                    const createdByUid = await ensureSignedIn();
+                    await updateDoc(doc(db, 'elections', electionId), { createdByUid });
+                  } catch (err) {
+                    setError('Error claiming admin access');
+                    console.error(err);
+                    throw err;
+                  }
+                }}
                 onReopenVoting={async () => {
                   if (!electionId) return;
                   try {

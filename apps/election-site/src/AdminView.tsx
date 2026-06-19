@@ -25,6 +25,7 @@ interface AdminViewProps {
   onReopenVoting: () => void;
   onDelete: () => void;
   onUpdate: (fields: Partial<Election>) => Promise<void>;
+  onClaimLegacyOwner: () => Promise<void>;
 }
 
 const AdminView: React.FC<AdminViewProps> = ({
@@ -37,7 +38,11 @@ const AdminView: React.FC<AdminViewProps> = ({
   onReopenVoting,
   onDelete,
   onUpdate,
+  onClaimLegacyOwner,
 }) => {
+  const [legacyNameInput, setLegacyNameInput] = useState('');
+  const [legacyNameError, setLegacyNameError] = useState('');
+  const [claimingLegacyOwner, setClaimingLegacyOwner] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(election.title);
@@ -62,6 +67,25 @@ const AdminView: React.FC<AdminViewProps> = ({
   const isCreator = Boolean(
     election.createdByUid && currentUserUid === election.createdByUid
   );
+  const isLegacyElection = !election.createdByUid;
+
+  const handleLegacyClaim = async () => {
+    if (legacyNameInput.trim().toLowerCase() !== election.createdBy.trim().toLowerCase()) {
+      setLegacyNameError("That name doesn't match the election creator.");
+      return;
+    }
+
+    try {
+      setClaimingLegacyOwner(true);
+      setLegacyNameError('');
+      await onClaimLegacyOwner();
+    } catch (err) {
+      setLegacyNameError('Unable to claim admin access for this election.');
+      console.error(err);
+    } finally {
+      setClaimingLegacyOwner(false);
+    }
+  };
 
   const handleSave = async () => {
     let fieldsToSave = editFields;
@@ -139,6 +163,36 @@ const AdminView: React.FC<AdminViewProps> = ({
             Checking admin access...
           </p>
         </div>
+      </div>
+    );
+  }
+
+  if (!isCreator && isLegacyElection) {
+    return (
+      <div className="space-y-4 max-w-md mx-auto py-8">
+        <div className="text-center space-y-1">
+          <h3 className="text-lg font-semibold text-slate-900">{election.title}</h3>
+          <p className="text-sm text-slate-500">
+            Enter the creator's name to claim admin access for this legacy election.
+          </p>
+        </div>
+        <Input
+          value={legacyNameInput}
+          onChange={(e) => setLegacyNameInput(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleLegacyClaim()}
+          placeholder="Creator name"
+          className="w-full"
+        />
+        {legacyNameError && (
+          <p className="text-sm text-red-600">{legacyNameError}</p>
+        )}
+        <Button
+          onClick={handleLegacyClaim}
+          disabled={claimingLegacyOwner || !currentUserUid}
+          className="w-full"
+        >
+          {claimingLegacyOwner ? 'Claiming...' : 'Claim Admin Access'}
+        </Button>
       </div>
     );
   }
