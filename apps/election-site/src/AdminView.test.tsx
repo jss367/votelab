@@ -13,6 +13,7 @@ const baseElection: Election = {
   submissionsClosed: false,
   votingOpen: false,
   createdBy: 'Julius',
+  createdByUid: 'creator-uid',
 };
 
 const noop = vi.fn();
@@ -21,6 +22,8 @@ const noopAsync = vi.fn().mockResolvedValue(undefined);
 const defaultProps = {
   election: baseElection,
   electionId: 'test-id',
+  currentUserUid: 'creator-uid',
+  authReady: true,
   onCloseSubmissions: noop,
   onCloseVoting: noop,
   onReopenVoting: noopAsync,
@@ -28,44 +31,80 @@ const defaultProps = {
   onUpdate: noopAsync,
 };
 
-describe('AdminView name gate', () => {
-  test('shows election title and name prompt instead of admin controls by default', () => {
-    render(<AdminView {...defaultProps} />);
+describe('AdminView owner gate', () => {
+  test('shows loading state while auth initializes', () => {
+    render(<AdminView {...defaultProps} authReady={false} currentUserUid={null} />);
     expect(screen.getByText('Test Election')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/creator/i)).toBeInTheDocument();
+    expect(screen.getByText(/checking admin access/i)).toBeInTheDocument();
     expect(screen.queryByText('Controls')).not.toBeInTheDocument();
   });
 
-  test('shows error on wrong name', async () => {
-    const user = userEvent.setup();
-    render(<AdminView {...defaultProps} />);
-    await user.type(screen.getByPlaceholderText(/creator/i), 'WrongName');
-    await user.click(screen.getByRole('button', { name: /unlock|access|manage/i }));
-    expect(screen.getByText(/doesn.*match/i)).toBeInTheDocument();
+  test('blocks admin controls when current Firebase user is not the creator', () => {
+    render(<AdminView {...defaultProps} currentUserUid="other-uid" />);
+    expect(screen.getByText('Test Election')).toBeInTheDocument();
+    expect(screen.getByText(/firebase user that created/i)).toBeInTheDocument();
     expect(screen.queryByText('Controls')).not.toBeInTheDocument();
   });
 
-  test('unlocks admin controls on correct name (case-insensitive)', async () => {
+  test('shows legacy name gate when the election has no owner uid', () => {
+    const legacyElection: Election = {
+      ...baseElection,
+      createdByUid: undefined,
+    };
+    render(
+      <AdminView
+        {...defaultProps}
+        election={legacyElection}
+        currentUserUid="creator-uid"
+      />
+    );
+    expect(screen.getByPlaceholderText(/creator name/i)).toBeInTheDocument();
+    expect(screen.queryByText('Controls')).not.toBeInTheDocument();
+  });
+
+  test('unlocks legacy admin controls on matching creator name', async () => {
     const user = userEvent.setup();
-    render(<AdminView {...defaultProps} />);
-    await user.type(screen.getByPlaceholderText(/creator/i), 'julius');
-    await user.click(screen.getByRole('button', { name: /unlock|access|manage/i }));
+    const legacyElection: Election = {
+      ...baseElection,
+      createdByUid: undefined,
+    };
+    render(
+      <AdminView
+        {...defaultProps}
+        election={legacyElection}
+        currentUserUid="other-uid"
+      />
+    );
+
+    await user.type(screen.getByPlaceholderText(/creator name/i), ' julius ');
+    await user.click(screen.getByRole('button', { name: /access admin panel/i }));
+
     expect(screen.getByText('Controls')).toBeInTheDocument();
   });
 
-  test('unlocks via Enter key', async () => {
+  test('keeps legacy admin controls locked when creator name does not match', async () => {
     const user = userEvent.setup();
-    render(<AdminView {...defaultProps} />);
-    const input = screen.getByPlaceholderText(/creator/i);
-    await user.type(input, 'Julius{Enter}');
-    expect(screen.getByText('Controls')).toBeInTheDocument();
+    const legacyElection: Election = {
+      ...baseElection,
+      createdByUid: undefined,
+    };
+    render(
+      <AdminView
+        {...defaultProps}
+        election={legacyElection}
+        currentUserUid="other-uid"
+      />
+    );
+
+    await user.type(screen.getByPlaceholderText(/creator name/i), 'Someone Else');
+    await user.click(screen.getByRole('button', { name: /access admin panel/i }));
+
+    expect(screen.getByText(/doesn't match/i)).toBeInTheDocument();
+    expect(screen.queryByText('Controls')).not.toBeInTheDocument();
   });
 
-  test('unlocks on correct name with extra whitespace', async () => {
-    const user = userEvent.setup();
+  test('shows admin controls when current Firebase user matches creator uid', () => {
     render(<AdminView {...defaultProps} />);
-    await user.type(screen.getByPlaceholderText(/creator/i), '  Julius  ');
-    await user.click(screen.getByRole('button', { name: /unlock|access|manage/i }));
     expect(screen.getByText('Controls')).toBeInTheDocument();
   });
 });

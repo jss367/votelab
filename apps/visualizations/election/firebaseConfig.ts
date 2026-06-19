@@ -1,4 +1,5 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 const requiredEnv = (name: string, value: string | undefined) => {
@@ -43,4 +44,5 @@ const firebaseConfig = {
 // Guard against re-initialization under Next.js fast refresh / repeated imports.
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
+export const auth = getAuth(app);
 export const db = getFirestore(app);

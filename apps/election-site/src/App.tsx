@@ -1,5 +1,6 @@
 import { Button, Card, CardContent, CardHeader, Input } from '@repo/ui';
 import { initializeApp } from 'firebase/app';
+import { getAuth, onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import {
   addDoc,
   arrayUnion,
@@ -13,7 +14,7 @@ import {
   updateDoc,
 } from 'firebase/firestore';
 import { Copy } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import AdminView from './AdminView';
 import BallotInput from './BallotInput';
 import CandidateDetails from './CandidateDetails';
@@ -46,6 +47,7 @@ const firebaseConfig = {
 type Mode = 'home' | 'create' | 'vote' | 'success' | 'results' | 'admin';
 
 const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
 const db = getFirestore(app);
 
 function App() {
@@ -77,11 +79,18 @@ function App() {
   const [ballotRanking, setBallotRanking] = useState<string[]>([]);
   const [electionSlug, setElectionSlug] = useState('');
   const [slugTouched, setSlugTouched] = useState(false);
-  const [editingCandidateId, setEditingCandidateId] = useState<string | null>(null);
-  const [editCandidateName, setEditCandidateName] = useState('');
-  const [editCandidateFields, setEditCandidateFields] = useState<CustomFieldValue[]>([]);
   const [sortByField, setSortByField] = useState<string>('');
   const [candidateLabel, setCandidateLabel] = useState('');
+  const [currentUserUid, setCurrentUserUid] = useState<string | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+
+  const ensureSignedIn = useCallback(async () => {
+    if (auth.currentUser) {
+      return auth.currentUser.uid;
+    }
+    const credential = await signInAnonymously(auth);
+    return credential.user.uid;
+  }, []);
 
   const sortedVoterCandidates = (() => {
     if (!election || !sortByField) return election?.candidates || [];
@@ -136,6 +145,21 @@ function App() {
     return () => unsubscribe();
   }, []);
 
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUserUid(user?.uid ?? null);
+      setAuthReady(true);
+    });
+
+    ensureSignedIn().catch((err) => {
+      setError('Error initializing anonymous sign-in');
+      console.error('Anonymous sign-in error:', err);
+      setAuthReady(true);
+    });
+
+    return () => unsubscribe();
+  }, [ensureSignedIn]);
+
   const createElection = async () => {
     if (!creatorName.trim()) {
       setError('Please enter your name');
@@ -149,6 +173,7 @@ function App() {
 
     try {
       setLoading(true);
+      const createdByUid = await ensureSignedIn();
       const electionData: Election = {
         title: electionTitle.trim(),
         votingMethod,
@@ -158,6 +183,7 @@ function App() {
         submissionsClosed: !isOpen,
         votingOpen: !isOpen,
         createdBy: creatorName.trim(),
+        createdByUid,
         customFields: customFields,
         ...(candidateLabel ? { candidateLabel } : {}),
       };
@@ -206,6 +232,7 @@ function App() {
 
     try {
       setLoading(true);
+      await ensureSignedIn();
       const electionRef = doc(db, 'elections', electionId);
       await updateDoc(electionRef, {
         submissionsClosed: true,
@@ -227,6 +254,7 @@ function App() {
 
     try {
       setLoading(true);
+      await ensureSignedIn();
       const electionRef = doc(db, 'elections', electionId);
       await updateDoc(electionRef, {
         votingOpen: false,
@@ -253,6 +281,7 @@ function App() {
 
     try {
       setLoading(true);
+      await ensureSignedIn();
       const method = election.votingMethod || 'smithApproval';
       const scoreBasedMethods: VotingMethod[] = ['rrv', 'star', 'score', 'majorityJudgment', 'cumulative'];
       // Drop any ids that no longer exist (a candidate can be deleted while the
@@ -317,6 +346,7 @@ function App() {
 
     try {
       setLoading(true);
+      await ensureSignedIn();
       const newCand: Candidate = {
         id: Date.now().toString(),
         name: newCandidate.trim(),
@@ -386,6 +416,7 @@ function App() {
 
     try {
       setLoading(true);
+      await ensureSignedIn();
       const newCand = {
         id: Date.now().toString(),
         name: newCandidate.trim(),
@@ -413,42 +444,6 @@ function App() {
     const newApproved = new Set(approvedCandidates);
     newApproved.delete(id);
     setApprovedCandidates(newApproved);
-  };
-
-  const updateCandidate = async (updatedCandidate: Candidate) => {
-    if (!electionId || !election) return;
-    setError('');
-    try {
-      setLoading(true);
-      const updatedCandidates = election.candidates.map((c) =>
-        c.id === updatedCandidate.id ? updatedCandidate : c
-      );
-      const electionRef = doc(db, 'elections', electionId);
-      await updateDoc(electionRef, { candidates: updatedCandidates });
-    } catch (err) {
-      setError('Error updating candidate');
-      console.error(err);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const deleteCandidate = async (candidateId: string) => {
-    if (!electionId || !election) return;
-    setError('');
-    try {
-      setLoading(true);
-      const updatedCandidates = election.candidates.filter((c) => c.id !== candidateId);
-      const electionRef = doc(db, 'elections', electionId);
-      await updateDoc(electionRef, { candidates: updatedCandidates });
-    } catch (err) {
-      setError('Error deleting candidate');
-      console.error(err);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
   };
 
   if (loading) {
@@ -584,7 +579,7 @@ function App() {
                       <p>
                         After creating the election, you can close submissions, edit
                         candidates, and manage voting from the admin page. You'll need
-                        the creator name you enter above to access it.
+                        the browser that creates the election to manage it.
                       </p>
                     </div>
                   )}
@@ -683,7 +678,7 @@ function App() {
                       </Button>
                     </div>
                     <p className="text-sm text-slate-500 mt-1">
-                      You'll need your creator name (<span className="font-medium">{creatorName}</span>) to manage this election.
+                      Manage this election from this browser, which is signed in as the creator.
                     </p>
                   </div>
                 )}
@@ -770,72 +765,7 @@ function App() {
                             key={candidate.id}
                             className="p-3 bg-slate-50 rounded-md border border-slate-200"
                           >
-                            {editingCandidateId === candidate.id ? (
-                              <div className="space-y-3">
-                                <Input
-                                  value={editCandidateName}
-                                  onChange={(e) => setEditCandidateName(e.target.value)}
-                                  placeholder={election?.candidateLabel || "Candidate Name"}
-                                  className="w-full"
-                                />
-                                {election.customFields && election.customFields.length > 0 && (
-                                  <CustomFieldsInput
-                                    fields={election.customFields}
-                                    values={editCandidateFields}
-                                    onChange={setEditCandidateFields}
-                                  />
-                                )}
-                                <div className="flex gap-2">
-                                  <Button
-                                    size="sm"
-                                    disabled={loading}
-                                    onClick={async () => {
-                                      try {
-                                        await updateCandidate({
-                                          ...candidate,
-                                          name: editCandidateName.trim() || candidate.name,
-                                          customFields: editCandidateFields,
-                                        });
-                                        setEditingCandidateId(null);
-                                      } catch {
-                                        // error already set by updateCandidate; keep editor open
-                                      }
-                                    }}
-                                  >
-                                    Save
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="secondary"
-                                    onClick={() => setEditingCandidateId(null)}
-                                  >
-                                    Cancel
-                                  </Button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="flex items-start justify-between">
-                                <CandidateDetails candidate={candidate} customFields={election.customFields} />
-                                <div className="flex gap-2 ml-2 shrink-0">
-                                  <button
-                                    onClick={() => {
-                                      setEditingCandidateId(candidate.id);
-                                      setEditCandidateName(candidate.name);
-                                      setEditCandidateFields(candidate.customFields || []);
-                                    }}
-                                    className="text-xs text-blue-600 hover:text-blue-800 underline"
-                                  >
-                                    Edit
-                                  </button>
-                                  <button
-                                    onClick={() => deleteCandidate(candidate.id)}
-                                    className="text-xs text-red-500 hover:text-red-700 underline"
-                                  >
-                                    Delete
-                                  </button>
-                                </div>
-                              </div>
-                            )}
+                            <CandidateDetails candidate={candidate} customFields={election.customFields} />
                           </div>
                         ))}
                       </div>
@@ -903,12 +833,15 @@ function App() {
               <AdminView
                 election={election}
                 electionId={electionId}
+                currentUserUid={currentUserUid}
+                authReady={authReady}
                 onCloseSubmissions={closeSubmissions}
                 onCloseVoting={closeVoting}
                 onReopenVoting={async () => {
                   if (!electionId) return;
                   try {
                     setLoading(true);
+                    await ensureSignedIn();
                     await updateDoc(doc(db, 'elections', electionId), { votingOpen: true });
                     // onSnapshot handles the update automatically
                   } catch (err) {
@@ -922,6 +855,7 @@ function App() {
                   if (!electionId) return;
                   try {
                     setLoading(true);
+                    await ensureSignedIn();
                     await deleteDoc(doc(db, 'elections', electionId));
                     removeSavedElection(electionId);
                     setMode('home');
@@ -938,6 +872,7 @@ function App() {
                 onUpdate={async (fields) => {
                   if (!electionId) return;
                   try {
+                    await ensureSignedIn();
                     await updateDoc(doc(db, 'elections', electionId), fields);
                   } catch (err) {
                     setError('Error updating election');

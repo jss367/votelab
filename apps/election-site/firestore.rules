@@ -1,11 +1,73 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner() {
+      return signedIn()
+        && resource.data.createdByUid is string
+        && request.auth.uid == resource.data.createdByUid;
+    }
+
+    function changedOnly(fields) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields);
+    }
+
+    function hasSameExistingItems(newItems, oldItems) {
+      return newItems is list
+        && oldItems is list
+        && newItems.size() == oldItems.size() + 1
+        && newItems[0:oldItems.size()] == oldItems;
+    }
+
+    function validElectionCreate() {
+      return signedIn()
+        && request.resource.data.createdByUid == request.auth.uid
+        && request.resource.data.createdBy is string
+        && request.resource.data.title is string
+        && request.resource.data.createdAt is string
+        && request.resource.data.candidates is list
+        && request.resource.data.votes is list
+        && request.resource.data.votes.size() == 0
+        && request.resource.data.submissionsClosed is bool
+        && request.resource.data.votingOpen is bool;
+    }
+
+    function ownerUpdate() {
+      return isOwner()
+        && request.resource.data.createdByUid == resource.data.createdByUid;
+    }
+
+    function isLegacyElection() {
+      return !(resource.data.createdByUid is string);
+    }
+
+    function legacyUpdate() {
+      return isLegacyElection()
+        && !(request.resource.data.createdByUid is string);
+    }
+
+    function publicVoteAppend() {
+      return signedIn()
+        && resource.data.votingOpen == true
+        && changedOnly(['votes'])
+        && hasSameExistingItems(request.resource.data.votes, resource.data.votes);
+    }
+
+    function publicCandidateAppend() {
+      return signedIn()
+        && resource.data.submissionsClosed == false
+        && changedOnly(['candidates'])
+        && hasSameExistingItems(request.resource.data.candidates, resource.data.candidates);
+    }
+
     match /elections/{electionId} {
       allow read: if true;
-      allow create: if true;
-      allow update: if true;
-      allow delete: if true;
+      allow create: if validElectionCreate();
+      allow update: if ownerUpdate() || legacyUpdate() || publicVoteAppend() || publicCandidateAppend();
+      allow delete: if isOwner() || isLegacyElection();
     }
   }
 }
