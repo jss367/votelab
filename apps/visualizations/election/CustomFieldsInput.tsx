@@ -106,6 +106,23 @@ const CustomFieldsInput = ({
                   {opt}
                 </label>
               ))}
+              {/* Render selected "type your own" values too — they aren't in the
+                  predefined options, so without this a custom value the voter
+                  added would be stored but show no checkbox at all. */}
+              {getMultiValue(field.id)
+                .filter((v) => !(field.options || []).includes(v))
+                .map((opt) => (
+                  <label key={opt} className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked
+                      onChange={() => toggleMultiOption(field.id, opt)}
+                      disabled={disabled}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                    {opt}
+                  </label>
+                ))}
               {field.allowCustomOptions && (
                 <div className="flex items-center gap-2 mt-1">
                   <Input
