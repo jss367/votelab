@@ -1,5 +1,4 @@
 import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { describe, expect, test, vi } from 'vitest';
 import AdminView from './AdminView';
 import type { Election } from './types';
@@ -29,7 +28,6 @@ const defaultProps = {
   onReopenVoting: noopAsync,
   onDelete: noopAsync,
   onUpdate: noopAsync,
-  onClaimLegacyOwner: noopAsync,
 };
 
 describe('AdminView owner gate', () => {
@@ -47,7 +45,7 @@ describe('AdminView owner gate', () => {
     expect(screen.queryByText('Controls')).not.toBeInTheDocument();
   });
 
-  test('shows legacy claim gate when the election has no owner uid', () => {
+  test('blocks legacy admin controls when the election has no owner uid', () => {
     const legacyElection: Election = {
       ...baseElection,
       createdByUid: undefined,
@@ -59,51 +57,8 @@ describe('AdminView owner gate', () => {
         currentUserUid="creator-uid"
       />
     );
-    expect(screen.getByRole('button', { name: /claim admin access/i })).toBeInTheDocument();
+    expect(screen.getByText(/trusted migration/i)).toBeInTheDocument();
     expect(screen.queryByText('Controls')).not.toBeInTheDocument();
-  });
-
-  test('claims legacy admin access after matching creator name', async () => {
-    const user = userEvent.setup();
-    const onClaimLegacyOwner = vi.fn().mockResolvedValue(undefined);
-    const legacyElection: Election = {
-      ...baseElection,
-      createdByUid: undefined,
-    };
-    render(
-      <AdminView
-        {...defaultProps}
-        election={legacyElection}
-        onClaimLegacyOwner={onClaimLegacyOwner}
-      />
-    );
-
-    await user.type(screen.getByPlaceholderText(/creator name/i), ' julius ');
-    await user.click(screen.getByRole('button', { name: /claim admin access/i }));
-
-    expect(onClaimLegacyOwner).toHaveBeenCalledTimes(1);
-  });
-
-  test('does not claim legacy admin access when creator name does not match', async () => {
-    const user = userEvent.setup();
-    const onClaimLegacyOwner = vi.fn().mockResolvedValue(undefined);
-    const legacyElection: Election = {
-      ...baseElection,
-      createdByUid: undefined,
-    };
-    render(
-      <AdminView
-        {...defaultProps}
-        election={legacyElection}
-        onClaimLegacyOwner={onClaimLegacyOwner}
-      />
-    );
-
-    await user.type(screen.getByPlaceholderText(/creator name/i), 'Someone Else');
-    await user.click(screen.getByRole('button', { name: /claim admin access/i }));
-
-    expect(screen.getByText(/doesn't match/i)).toBeInTheDocument();
-    expect(onClaimLegacyOwner).not.toHaveBeenCalled();
   });
 
   test('shows admin controls when current Firebase user matches creator uid', () => {
