@@ -19,7 +19,7 @@ export default function Home() {
         </p>
       </header>
 
-      <div className="grid gap-6 md:grid-cols-3 pb-12">
+      <div className="grid gap-6 md:grid-cols-2 pb-12">
         {/* Visualize */}
         <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
           <h2 className="text-xl font-semibold mb-2">Visualize</h2>
@@ -53,17 +53,6 @@ export default function Home() {
           </Link>
         </section>
 
-        {/* Writing */}
-        <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-semibold mb-2">Writing</h2>
-          <p className="text-sm text-gray-600 mb-4">
-            Essays and articles about elections, voting methods, and their
-            tradeoffs.
-          </p>
-          <span className="inline-block rounded bg-gray-100 px-2 py-1 text-xs text-gray-500">
-            Coming soon
-          </span>
-        </section>
       </div>
     </main>
   );
