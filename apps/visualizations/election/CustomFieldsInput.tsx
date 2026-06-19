@@ -141,6 +141,15 @@ const CustomFieldsInput = ({
                 {(field.options || []).map((opt) => (
                   <option key={opt} value={opt}>{opt}</option>
                 ))}
+                {/* A value typed via "type your own" won't match any predefined
+                    option, so the <select> couldn't display it and would snap
+                    back to another option. Render it as its own option. */}
+                {getValue(field.id) &&
+                  !(field.options || []).includes(getValue(field.id)) && (
+                    <option value={getValue(field.id)}>
+                      {getValue(field.id)}
+                    </option>
+                  )}
               </select>
               {field.allowCustomOptions && (
                 <Input

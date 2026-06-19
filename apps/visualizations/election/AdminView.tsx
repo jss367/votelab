@@ -76,7 +76,7 @@ const AdminView: React.FC<AdminViewProps> = ({
     if (newFieldName.trim()) {
       fieldsToSave = [
         ...editFields,
-        { id: Date.now().toString(), name: newFieldName.trim(), type: newFieldType, required: false },
+        { id: crypto.randomUUID(), name: newFieldName.trim(), type: newFieldType, required: false },
       ];
       setNewFieldName('');
       setNewFieldType('text');
@@ -100,7 +100,7 @@ const AdminView: React.FC<AdminViewProps> = ({
     if (!newFieldName.trim()) return;
     setEditFields([
       ...editFields,
-      { id: Date.now().toString(), name: newFieldName.trim(), type: newFieldType, required: false },
+      { id: crypto.randomUUID(), name: newFieldName.trim(), type: newFieldType, required: false },
     ]);
     setNewFieldName('');
     setNewFieldType('text');
