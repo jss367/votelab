@@ -229,21 +229,25 @@ function weightedAssign(
   const counts = new Array(k).fill(0);
 
   for (const entry of ranked) {
-    const district = entry.distances.reduce((best, candidate, rank) => {
-      const projected = counts[candidate.idx] + entry.population;
-      const overCapacity = Math.max(0, projected - capacity) / Math.max(1, ideal);
-      const deficitBefore =
-        Math.max(0, lowerBound - counts[candidate.idx]) / Math.max(1, ideal);
-      const deficitAfter =
-        Math.max(0, lowerBound - projected) / Math.max(1, ideal);
-      const rankPenalty = rank / Math.max(1, k - 1);
-      const score =
-        overCapacity * 10000 +
-        deficitAfter * 6 -
-        deficitBefore * 8 +
-        rankPenalty;
-      return score < best.score ? { idx: candidate.idx, score } : best;
-    }, { idx: entry.distances[0].idx, score: Infinity }).idx;
+    const district = entry.distances.reduce(
+      (best, candidate, rank) => {
+        const projected = counts[candidate.idx] + entry.population;
+        const overCapacity =
+          Math.max(0, projected - capacity) / Math.max(1, ideal);
+        const deficitBefore =
+          Math.max(0, lowerBound - counts[candidate.idx]) / Math.max(1, ideal);
+        const deficitAfter =
+          Math.max(0, lowerBound - projected) / Math.max(1, ideal);
+        const rankPenalty = rank / Math.max(1, k - 1);
+        const score =
+          overCapacity * 10000 +
+          deficitAfter * 6 -
+          deficitBefore * 8 +
+          rankPenalty;
+        return score < best.score ? { idx: candidate.idx, score } : best;
+      },
+      { idx: entry.distances[0].idx, score: Infinity }
+    ).idx;
     assignment[entry.i] = district;
     counts[district] += entry.population;
   }
@@ -350,6 +354,402 @@ function recomputeCentroids(
   });
 }
 
+function districtPopulations(
+  units: DistrictGeoUnit[],
+  assignment: number[],
+  k: number
+): number[] {
+  const populations = new Array(k).fill(0);
+  for (let i = 0; i < units.length; i++) {
+    populations[assignment[i]] += units[i].population;
+  }
+  return populations;
+}
+
+function districtComponents(
+  units: DistrictGeoUnit[],
+  assignment: number[],
+  district: number,
+  unitIndex: Map<string, number>,
+  excludedIndex?: number
+): number[][] {
+  const districtIndexes = units
+    .map((unit, i) => ({ unit, i }))
+    .filter(({ i }) => assignment[i] === district && i !== excludedIndex);
+  if (districtIndexes.length === 0) return [];
+
+  const districtSet = new Set(districtIndexes.map(({ i }) => i));
+  const seen = new Set<number>();
+  const components: number[][] = [];
+
+  for (const { i } of districtIndexes) {
+    if (seen.has(i)) continue;
+    const component: number[] = [];
+    const queue = [i];
+    seen.add(i);
+    while (queue.length) {
+      const idx = queue.shift()!;
+      component.push(idx);
+      for (const neighbor of units[idx].neighbors) {
+        const neighborIdx = unitIndex.get(neighbor);
+        if (
+          neighborIdx === undefined ||
+          !districtSet.has(neighborIdx) ||
+          seen.has(neighborIdx)
+        ) {
+          continue;
+        }
+        seen.add(neighborIdx);
+        queue.push(neighborIdx);
+      }
+    }
+    components.push(component);
+  }
+
+  return components;
+}
+
+function isDistrictConnectedAfterRemoving(
+  units: DistrictGeoUnit[],
+  assignment: number[],
+  district: number,
+  removedIndex: number,
+  unitIndex: Map<string, number>
+): boolean {
+  return (
+    districtComponents(units, assignment, district, unitIndex, removedIndex)
+      .length <= 1
+  );
+}
+
+// When removing a single "bridge" unit from its donor district would split the
+// donor into multiple components, the bridge plus every component except the
+// largest can be relocated as one group: the donor keeps its largest remaining
+// component (so it stays contiguous) and the cut-off leaves/components travel
+// with the bridge they hang off of. Returns null when removing the bridge does
+// not actually disconnect the donor (the single-unit move already suffices).
+function bridgeMoveGroup(
+  units: DistrictGeoUnit[],
+  assignment: number[],
+  bridgeIndex: number,
+  unitIndex: Map<string, number>
+): number[] | null {
+  const donor = assignment[bridgeIndex];
+  const components = districtComponents(
+    units,
+    assignment,
+    donor,
+    unitIndex,
+    bridgeIndex
+  );
+  if (components.length <= 1) return null;
+  components.sort(
+    (a, b) =>
+      b.reduce((s, i) => s + units[i].population, 0) -
+      a.reduce((s, i) => s + units[i].population, 0)
+  );
+  // Keep the largest component with the donor; move the bridge plus the rest.
+  const group = [bridgeIndex];
+  for (const component of components.slice(1)) group.push(...component);
+  return group;
+}
+
+function repairDisconnectedRegionComponents(
+  units: DistrictGeoUnit[],
+  assignment: number[],
+  k: number,
+  tolerance: number
+) {
+  const totalPopulation = units.reduce((s, unit) => s + unit.population, 0);
+  const ideal = totalPopulation / k;
+  const lowerBound = ideal * (1 - tolerance);
+  const capacity = ideal * (1 + tolerance);
+  const unitIndex = new Map(units.map((unit, i) => [unit.geoid, i]));
+  const counts = districtPopulations(units, assignment, k);
+
+  for (let pass = 0; pass < 4; pass++) {
+    let changed = false;
+    for (let district = 0; district < k; district++) {
+      const components = districtComponents(
+        units,
+        assignment,
+        district,
+        unitIndex
+      );
+      if (components.length <= 1) continue;
+
+      components.sort(
+        (a, b) =>
+          b.reduce((s, i) => s + units[i].population, 0) -
+          a.reduce((s, i) => s + units[i].population, 0)
+      );
+
+      for (const component of components.slice(1)) {
+        const componentSet = new Set(component);
+        const componentPopulation = component.reduce(
+          (s, i) => s + units[i].population,
+          0
+        );
+        if (counts[district] - componentPopulation < lowerBound) continue;
+
+        const adjacentDistricts = new Set<number>();
+        for (const idx of component) {
+          for (const neighbor of units[idx].neighbors) {
+            const neighborIdx = unitIndex.get(neighbor);
+            if (neighborIdx === undefined || componentSet.has(neighborIdx)) {
+              continue;
+            }
+            const neighborDistrict = assignment[neighborIdx];
+            if (neighborDistrict !== district)
+              adjacentDistricts.add(neighborDistrict);
+          }
+        }
+
+        let target = -1;
+        let bestPopulation = Infinity;
+        for (const candidate of adjacentDistricts) {
+          const projected = counts[candidate] + componentPopulation;
+          if (projected > capacity) continue;
+          if (counts[candidate] < bestPopulation) {
+            bestPopulation = counts[candidate];
+            target = candidate;
+          }
+        }
+        if (target < 0) continue;
+
+        for (const idx of component) assignment[idx] = target;
+        counts[district] -= componentPopulation;
+        counts[target] += componentPopulation;
+        changed = true;
+      }
+    }
+    if (!changed) break;
+  }
+}
+
+function rebalanceRegionGrowLowerBound(
+  units: DistrictGeoUnit[],
+  assignment: number[],
+  centroids: GeoPoint[],
+  k: number,
+  tolerance: number
+) {
+  const totalPopulation = units.reduce((s, unit) => s + unit.population, 0);
+  const ideal = totalPopulation / k;
+  const lowerBound = ideal * (1 - tolerance);
+  const capacity = ideal * (1 + tolerance);
+  const counts = districtPopulations(units, assignment, k);
+  const unitIndex = new Map(units.map((unit, i) => [unit.geoid, i]));
+  const largeFixture = units.length > 5000;
+  const mediumFixture = units.length >= 3000;
+  // The loop already terminates on lack of progress (it `break`s as soon as an
+  // iteration finds no qualifying single-unit or bridge move). `maxMoves` is a
+  // backstop against a pathological non-converging case hanging the browser, so
+  // it must scale with the problem size rather than sit at an arbitrary flat
+  // cap: a starved district can legitimately need O(units) boundary moves to
+  // refill (the Arizona seed-2 case converged in ~1820 moves but a flat 1400
+  // cap cut it off at deviation ≈ 0.345 with valid moves still pending). Keep
+  // the non-large caps finite because each move runs an O(units) connectivity
+  // check synchronously from the visualization. Medium fixtures are large enough
+  // for thousands of moves to freeze the UI, while smaller fixtures get only the
+  // extra budget needed by the Georgia seed-1 regression.
+  const maxMoves = largeFixture
+    ? Math.min(units.length * k, 120)
+    : Math.min(units.length * k, mediumFixture ? 240 : 3250);
+  const shortlistSize = largeFixture ? 12 : 48;
+
+  for (let move = 0; move < maxMoves; move++) {
+    const candidates: Array<{
+      unitIndex: number;
+      fromDistrict: number;
+      toDistrict: number;
+      score: number;
+    }> = [];
+
+    for (let targetDistrict = 0; targetDistrict < k; targetDistrict++) {
+      if (counts[targetDistrict] >= lowerBound) continue;
+
+      for (let i = 0; i < units.length; i++) {
+        const fromDistrict = assignment[i];
+        if (fromDistrict === targetDistrict) continue;
+
+        const population = units[i].population;
+        if (counts[targetDistrict] + population > capacity) continue;
+        if (counts[fromDistrict] - population <= counts[targetDistrict])
+          continue;
+
+        const touchesTarget = units[i].neighbors.some((neighbor) => {
+          const neighborIdx = unitIndex.get(neighbor);
+          return (
+            neighborIdx !== undefined &&
+            assignment[neighborIdx] === targetDistrict
+          );
+        });
+        if (!touchesTarget) continue;
+
+        const targetAfter = counts[targetDistrict] + population;
+        const donorAfter = counts[fromDistrict] - population;
+        const beforeBalance =
+          Math.pow((counts[targetDistrict] - ideal) / Math.max(1, ideal), 2) +
+          Math.pow((counts[fromDistrict] - ideal) / Math.max(1, ideal), 2);
+        const afterBalance =
+          Math.pow((targetAfter - ideal) / Math.max(1, ideal), 2) +
+          Math.pow((donorAfter - ideal) / Math.max(1, ideal), 2);
+        if (afterBalance >= beforeBalance) continue;
+
+        const targetDeficit =
+          Math.max(0, lowerBound - targetAfter) / Math.max(1, ideal);
+        const distancePenalty = dist(
+          units[i].centroid,
+          centroids[targetDistrict]
+        );
+        const score =
+          targetDeficit * 1000 + afterBalance * 100 + distancePenalty;
+
+        candidates.push({
+          unitIndex: i,
+          fromDistrict,
+          toDistrict: targetDistrict,
+          score,
+        });
+      }
+    }
+
+    const shortlist = candidates
+      .sort((a, b) => a.score - b.score)
+      .slice(0, shortlistSize);
+
+    const bestMove = shortlist.find((candidate) =>
+      isDistrictConnectedAfterRemoving(
+        units,
+        assignment,
+        candidate.fromDistrict,
+        candidate.unitIndex,
+        unitIndex
+      )
+    );
+
+    if (bestMove) {
+      const population = units[bestMove.unitIndex].population;
+      assignment[bestMove.unitIndex] = bestMove.toDistrict;
+      counts[bestMove.fromDistrict] -= population;
+      counts[bestMove.toDistrict] += population;
+      continue;
+    }
+
+    // No single-unit move keeps the donor connected. The candidates that fail
+    // are bridge tracts: moving one alone would orphan a leaf/component. Move
+    // the bridge together with the cut-off component(s) so the donor keeps its
+    // largest remaining piece and the underfilled target still grows.
+    let bridgeMove: { group: number[]; toDistrict: number } | null = null;
+    for (const candidate of shortlist) {
+      const group = bridgeMoveGroup(
+        units,
+        assignment,
+        candidate.unitIndex,
+        unitIndex
+      );
+      if (!group) continue;
+      const groupPopulation = group.reduce(
+        (s, idx) => s + units[idx].population,
+        0
+      );
+      if (counts[candidate.toDistrict] + groupPopulation > capacity) continue;
+      // Mirror the single-unit donor rule: the donor may dip below its floor
+      // as long as it stays above the target it is feeding (later passes can
+      // refill the donor from overfilled neighbors). This lets a starved
+      // district pull a bridge + leaf through an at-floor conduit district.
+      if (
+        counts[candidate.fromDistrict] - groupPopulation <=
+        counts[candidate.toDistrict] + groupPopulation
+      )
+        continue;
+      bridgeMove = { group, toDistrict: candidate.toDistrict };
+      break;
+    }
+
+    if (!bridgeMove) break;
+
+    const fromDistrict = assignment[bridgeMove.group[0]];
+    const groupPopulation = bridgeMove.group.reduce(
+      (s, idx) => s + units[idx].population,
+      0
+    );
+    for (const idx of bridgeMove.group) assignment[idx] = bridgeMove.toDistrict;
+    counts[fromDistrict] -= groupPopulation;
+    counts[bridgeMove.toDistrict] += groupPopulation;
+  }
+
+  for (let move = 0; move < maxMoves; move++) {
+    const candidates: Array<{
+      unitIndex: number;
+      fromDistrict: number;
+      toDistrict: number;
+      score: number;
+    }> = [];
+
+    for (let fromDistrict = 0; fromDistrict < k; fromDistrict++) {
+      if (counts[fromDistrict] <= capacity) continue;
+
+      for (let i = 0; i < units.length; i++) {
+        if (assignment[i] !== fromDistrict) continue;
+        const population = units[i].population;
+        if (counts[fromDistrict] - population < lowerBound) continue;
+
+        const adjacentDistricts = new Set<number>();
+        for (const neighbor of units[i].neighbors) {
+          const neighborIdx = unitIndex.get(neighbor);
+          if (neighborIdx === undefined) continue;
+          const neighborDistrict = assignment[neighborIdx];
+          if (neighborDistrict !== fromDistrict) {
+            adjacentDistricts.add(neighborDistrict);
+          }
+        }
+
+        for (const toDistrict of adjacentDistricts) {
+          if (counts[toDistrict] + population > capacity) continue;
+
+          const fromAfter = counts[fromDistrict] - population;
+          const toAfter = counts[toDistrict] + population;
+          const beforeBalance =
+            Math.pow((counts[fromDistrict] - ideal) / Math.max(1, ideal), 2) +
+            Math.pow((counts[toDistrict] - ideal) / Math.max(1, ideal), 2);
+          const afterBalance =
+            Math.pow((fromAfter - ideal) / Math.max(1, ideal), 2) +
+            Math.pow((toAfter - ideal) / Math.max(1, ideal), 2);
+          if (afterBalance >= beforeBalance) continue;
+
+          const score =
+            (Math.max(0, fromAfter - capacity) / Math.max(1, ideal)) * 1000 +
+            afterBalance * 100 +
+            dist(units[i].centroid, centroids[toDistrict]);
+          candidates.push({ unitIndex: i, fromDistrict, toDistrict, score });
+        }
+      }
+    }
+
+    const bestMove = candidates
+      .sort((a, b) => a.score - b.score)
+      .slice(0, shortlistSize)
+      .find((candidate) =>
+        isDistrictConnectedAfterRemoving(
+          units,
+          assignment,
+          candidate.fromDistrict,
+          candidate.unitIndex,
+          unitIndex
+        )
+      );
+
+    if (!bestMove) break;
+
+    const population = units[bestMove.unitIndex].population;
+    assignment[bestMove.unitIndex] = bestMove.toDistrict;
+    counts[bestMove.fromDistrict] -= population;
+    counts[bestMove.toDistrict] += population;
+  }
+}
+
 function computeMetrics(
   dataset: RealStateDistrictingDataset,
   assignment: number[],
@@ -371,7 +771,8 @@ function computeMetrics(
       votingAgePopulations[district] += unit.votingAgePopulation;
       hasVotingAgePopulation = true;
     }
-    weightedDistance += unit.population * dist(unit.centroid, centroids[district]);
+    weightedDistance +=
+      unit.population * dist(unit.centroid, centroids[district]);
     totalPopulation += unit.population;
   }
 
@@ -414,9 +815,7 @@ function computeMetrics(
   const minPopulation = Math.min(...populations);
   const maxPopulation = Math.max(...populations);
   const maxDeviation = Math.max(
-    ...populations.map((population) =>
-      Math.abs(population - idealPopulation)
-    )
+    ...populations.map((population) => Math.abs(population - idealPopulation))
   );
 
   const partisanScores = election
@@ -533,7 +932,13 @@ export function districtRealByWeightedCentroid(
     assignment: assignmentToRecord(dataset.units, assignment),
     centroids,
     numDistricts: k,
-    metrics: computeMetrics(dataset, assignment, centroids, k, options.election),
+    metrics: computeMetrics(
+      dataset,
+      assignment,
+      centroids,
+      k,
+      options.election
+    ),
   };
 }
 
@@ -549,7 +954,10 @@ export function districtRealByCountyIntegrity(
   } = options;
 
   const rand = mulberry32(seed * 40503 + 7);
-  const totalPopulation = dataset.units.reduce((s, unit) => s + unit.population, 0);
+  const totalPopulation = dataset.units.reduce(
+    (s, unit) => s + unit.population,
+    0
+  );
   const ideal = totalPopulation / k;
   const capacity = ideal * (1 + tolerance);
   const countyUnits = new Map<string, number[]>();
@@ -611,24 +1019,27 @@ export function districtRealByCountyIntegrity(
       for (const i of county.idxs) {
         const unit = dataset.units[i];
         const order = nearestOrder(unit.centroid, centroids);
-        const district = order.reduce((best, d, rank) => {
-          const projected = counts[d] + unit.population;
-          const overCapacity =
-            Math.max(0, projected - capacity) / Math.max(1, ideal);
-          const deficitBefore =
-            Math.max(0, ideal * (1 - tolerance) - counts[d]) /
-            Math.max(1, ideal);
-          const deficitAfter =
-            Math.max(0, ideal * (1 - tolerance) - projected) /
-            Math.max(1, ideal);
-          const rankPenalty = rank / Math.max(1, k - 1);
-          const score =
-            overCapacity * 10000 +
-            deficitAfter * 6 -
-            deficitBefore * 8 +
-            rankPenalty;
-          return score < best.score ? { idx: d, score } : best;
-        }, { idx: order[0], score: Infinity }).idx;
+        const district = order.reduce(
+          (best, d, rank) => {
+            const projected = counts[d] + unit.population;
+            const overCapacity =
+              Math.max(0, projected - capacity) / Math.max(1, ideal);
+            const deficitBefore =
+              Math.max(0, ideal * (1 - tolerance) - counts[d]) /
+              Math.max(1, ideal);
+            const deficitAfter =
+              Math.max(0, ideal * (1 - tolerance) - projected) /
+              Math.max(1, ideal);
+            const rankPenalty = rank / Math.max(1, k - 1);
+            const score =
+              overCapacity * 10000 +
+              deficitAfter * 6 -
+              deficitBefore * 8 +
+              rankPenalty;
+            return score < best.score ? { idx: d, score } : best;
+          },
+          { idx: order[0], score: Infinity }
+        ).idx;
         next[i] = district;
         counts[district] += unit.population;
       }
@@ -654,7 +1065,13 @@ export function districtRealByCountyIntegrity(
     assignment: assignmentToRecord(dataset.units, assignment),
     centroids,
     numDistricts: k,
-    metrics: computeMetrics(dataset, assignment, centroids, k, options.election),
+    metrics: computeMetrics(
+      dataset,
+      assignment,
+      centroids,
+      k,
+      options.election
+    ),
   };
 }
 
@@ -710,7 +1127,8 @@ export function districtRealByRegionGrow(
       for (const idx of frontiers[d]) {
         for (const neighbor of dataset.units[idx].neighbors) {
           const neighborIdx = unitIndex.get(neighbor);
-          if (neighborIdx === undefined || assignment[neighborIdx] >= 0) continue;
+          if (neighborIdx === undefined || assignment[neighborIdx] >= 0)
+            continue;
           candidates.add(neighborIdx);
         }
       }
@@ -734,25 +1152,151 @@ export function districtRealByRegionGrow(
     if (!madeProgress) break;
   }
 
-  if (remaining > 0) {
-    for (let i = 0; i < dataset.units.length; i++) {
-      if (assignment[i] >= 0) continue;
-      const order = nearestOrder(dataset.units[i].centroid, seeds);
-      const district = order.reduce(
-        (best, d) => (counts[d] < counts[best] ? d : best),
-        order[0]
-      );
-      assignment[i] = district;
-      counts[district] += dataset.units[i].population;
+  const grownAssignment = assignment.slice();
+  const grownCounts = counts.slice();
+  const grownRemaining = remaining;
+
+  function finishWithFallback(allowOverflowAdjacentFallback: boolean) {
+    const nextAssignment = grownAssignment.slice();
+    const nextCounts = grownCounts.slice();
+    let nextRemaining = grownRemaining;
+
+    if (nextRemaining > 0) {
+      while (nextRemaining > 0) {
+        let madeFallbackProgress = false;
+        for (let i = 0; i < dataset.units.length; i++) {
+          if (nextAssignment[i] >= 0) continue;
+          const adjacentDistricts = new Set<number>();
+          for (const neighbor of dataset.units[i].neighbors) {
+            const neighborIdx = unitIndex.get(neighbor);
+            if (neighborIdx === undefined || nextAssignment[neighborIdx] < 0)
+              continue;
+            adjacentDistricts.add(nextAssignment[neighborIdx]);
+          }
+          if (!adjacentDistricts.size) continue;
+
+          const population = dataset.units[i].population;
+          const choices = allowOverflowAdjacentFallback
+            ? Array.from(adjacentDistricts)
+            : Array.from(adjacentDistricts).filter(
+                (d) => nextCounts[d] + population <= capacity
+              );
+          if (!choices.length) continue;
+
+          const district = choices.reduce((best, d) => {
+            const bestOver = Math.max(
+              0,
+              nextCounts[best] + population - capacity
+            );
+            const nextOver = Math.max(0, nextCounts[d] + population - capacity);
+            if (nextOver !== bestOver) return nextOver < bestOver ? d : best;
+            return nextCounts[d] < nextCounts[best] ? d : best;
+          }, choices[0]);
+          nextAssignment[i] = district;
+          nextCounts[district] += population;
+          nextRemaining--;
+          madeFallbackProgress = true;
+        }
+        if (!madeFallbackProgress) break;
+      }
+    }
+
+    if (nextRemaining > 0) {
+      for (let i = 0; i < dataset.units.length; i++) {
+        if (nextAssignment[i] >= 0) continue;
+        const order = nearestOrder(dataset.units[i].centroid, seeds);
+        const district = order.reduce(
+          (best, d) => (nextCounts[d] < nextCounts[best] ? d : best),
+          order[0]
+        );
+        nextAssignment[i] = district;
+        nextCounts[district] += dataset.units[i].population;
+      }
+    }
+
+    let nextCentroids = recomputeCentroids(
+      dataset.units,
+      nextAssignment,
+      seeds,
+      k
+    );
+    repairDisconnectedRegionComponents(
+      dataset.units,
+      nextAssignment,
+      k,
+      tolerance
+    );
+    nextCentroids = recomputeCentroids(
+      dataset.units,
+      nextAssignment,
+      nextCentroids,
+      k
+    );
+    rebalanceRegionGrowLowerBound(
+      dataset.units,
+      nextAssignment,
+      nextCentroids,
+      k,
+      tolerance
+    );
+    repairDisconnectedRegionComponents(
+      dataset.units,
+      nextAssignment,
+      k,
+      tolerance
+    );
+    nextCentroids = recomputeCentroids(
+      dataset.units,
+      nextAssignment,
+      nextCentroids,
+      k
+    );
+    const metrics = computeMetrics(
+      dataset,
+      nextAssignment,
+      nextCentroids,
+      k,
+      options.election
+    );
+
+    return { assignment: nextAssignment, centroids: nextCentroids, metrics };
+  }
+
+  const adjacencyResult = finishWithFallback(true);
+  let selected = adjacencyResult;
+  const overflowFallbackThreshold = tolerance * 2;
+  if (
+    adjacencyResult.metrics.maxDeviationFraction > overflowFallbackThreshold
+  ) {
+    const capacityAwareResult = finishWithFallback(false);
+    const contiguityPenalty = 0.05;
+    const score = (result: typeof adjacencyResult) =>
+      result.metrics.maxDeviationFraction +
+      (k - result.metrics.contiguousDistricts) * contiguityPenalty;
+    const severeAdjacentOverflow =
+      adjacencyResult.metrics.maxDeviationFraction >
+        overflowFallbackThreshold &&
+      capacityAwareResult.metrics.contiguousDistricts >=
+        adjacencyResult.metrics.contiguousDistricts &&
+      capacityAwareResult.metrics.maxDeviationFraction <
+        adjacencyResult.metrics.maxDeviationFraction * 0.5;
+    const catastrophicAdjacentOverflow =
+      adjacencyResult.metrics.maxDeviationFraction > 0.5 &&
+      capacityAwareResult.metrics.maxDeviationFraction < 0.2;
+    if (
+      score(capacityAwareResult) < score(adjacencyResult) ||
+      severeAdjacentOverflow ||
+      catastrophicAdjacentOverflow
+    ) {
+      selected = capacityAwareResult;
     }
   }
 
-  const centroids = recomputeCentroids(dataset.units, assignment, seeds, k);
   return {
     algorithm: 'Region growing',
-    assignment: assignmentToRecord(dataset.units, assignment),
-    centroids,
+    assignment: assignmentToRecord(dataset.units, selected.assignment),
+    centroids: selected.centroids,
     numDistricts: k,
-    metrics: computeMetrics(dataset, assignment, centroids, k, options.election),
+    metrics: selected.metrics,
   };
 }

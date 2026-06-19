@@ -5,7 +5,16 @@ import {
   districtRealByRegionGrow,
   districtRealByWeightedCentroid,
 } from './realDistricting';
+import arizonaTracts from '../public/data/districting/arizona-tracts.json';
 import californiaTracts from '../public/data/districting/california-tracts.json';
+import georgiaTracts from '../public/data/districting/georgia-tracts.json';
+import hawaiiTracts from '../public/data/districting/hawaii-tracts.json';
+import illinoisTracts from '../public/data/districting/illinois-tracts.json';
+import marylandTracts from '../public/data/districting/maryland-tracts.json';
+import pennsylvaniaTracts from '../public/data/districting/pennsylvania-tracts.json';
+import tennesseeTracts from '../public/data/districting/tennessee-tracts.json';
+import texasTracts from '../public/data/districting/texas-tracts.json';
+import virginiaTracts from '../public/data/districting/virginia-tracts.json';
 
 const testDataset: RealStateDistrictingDataset = {
   stateFips: '00',
@@ -178,5 +187,85 @@ describe('real districting', () => {
 
     expect(weighted.metrics.maxDeviationFraction).toBeLessThanOrEqual(0.085);
     expect(county.metrics.maxDeviationFraction).toBeLessThanOrEqual(0.125);
+  });
+
+  test('region growing balances and keeps Arizona districts contiguous', () => {
+    const arizonaDataset = arizonaTracts as RealStateDistrictingDataset;
+    const result = districtRealByRegionGrow(arizonaDataset, { seed: 1 });
+
+    expect(result.metrics.contiguousDistricts).toBe(result.numDistricts);
+    expect(result.metrics.maxDeviationFraction).toBeLessThanOrEqual(0.101);
+  });
+
+  test('region growing balances and keeps Maryland districts contiguous', () => {
+    const marylandDataset = marylandTracts as RealStateDistrictingDataset;
+    const result = districtRealByRegionGrow(marylandDataset, { seed: 1 });
+
+    expect(result.metrics.contiguousDistricts).toBe(result.numDistricts);
+    expect(result.metrics.maxDeviationFraction).toBeLessThanOrEqual(0.101);
+  });
+
+  test('region growing keeps repairing Arizona seed 2 past the old move cap', () => {
+    // Regression for the flat 1400-move backstop: seed 2 left district 3
+    // starved (~520k vs ~795k ideal, deviation ≈ 0.345) because the lower-bound
+    // repair exhausted its arbitrary cap while valid balance-improving connected
+    // boundary moves into the underfilled district still remained. Scaling the
+    // cap with the unit count lets the loop run to its natural no-progress
+    // termination, halving the deviation while staying fully contiguous.
+    const arizonaDataset = arizonaTracts as RealStateDistrictingDataset;
+    const result = districtRealByRegionGrow(arizonaDataset, { seed: 2 });
+
+    expect(result.metrics.contiguousDistricts).toBe(result.numDistricts);
+    expect(result.metrics.maxDeviationFraction).toBeLessThanOrEqual(0.2);
+  });
+
+  test('region growing repairs bottlenecked Maryland districts via bridge moves', () => {
+    // Seeds 3 and 6 previously left a district starved (~0.86 and ~0.70
+    // deviation): the only tract bordering the underfilled district was a
+    // bridge whose single-unit move would disconnect its donor, so the
+    // lower-bound repair stalled. The bridge-plus-leaf group move clears it.
+    const marylandDataset = marylandTracts as RealStateDistrictingDataset;
+    for (const seed of [3, 6]) {
+      const result = districtRealByRegionGrow(marylandDataset, { seed });
+      expect(result.metrics.contiguousDistricts).toBe(result.numDistricts);
+      expect(result.metrics.maxDeviationFraction).toBeLessThanOrEqual(0.11);
+    }
+  });
+
+  test('region growing continues smaller tract repairs beyond the base cap', () => {
+    // Georgia seed 1 needs more than the Illinois-safe base cap to finish the
+    // lower-bound repair, but is small enough to allow a larger bounded budget.
+    const georgiaDataset = georgiaTracts as RealStateDistrictingDataset;
+    const result = districtRealByRegionGrow(georgiaDataset, { seed: 1 });
+
+    expect(result.metrics.contiguousDistricts).toBe(result.numDistricts);
+    expect(result.metrics.maxDeviationFraction).toBeLessThanOrEqual(0.12);
+  });
+
+  test('region growing defers severe leftover overflows to balanced fallback', () => {
+    const cases: Array<[RealStateDistrictingDataset, number, number]> = [
+      [californiaTracts as RealStateDistrictingDataset, 6, 0.15],
+      [hawaiiTracts as RealStateDistrictingDataset, 1, 0.12],
+      [illinoisTracts as RealStateDistrictingDataset, 1, 0.2],
+      [pennsylvaniaTracts as RealStateDistrictingDataset, 1, 0.12],
+      [tennesseeTracts as RealStateDistrictingDataset, 1, 0.12],
+      [texasTracts as RealStateDistrictingDataset, 1, 0.2],
+      [virginiaTracts as RealStateDistrictingDataset, 1, 0.12],
+      [virginiaTracts as RealStateDistrictingDataset, 3, 0.2],
+    ];
+
+    for (const [dataset, seed, maxDeviation] of cases) {
+      const result = districtRealByRegionGrow(dataset, { seed });
+      expect(result.metrics.maxDeviationFraction).toBeLessThanOrEqual(
+        maxDeviation
+      );
+    }
+  });
+
+  test('region growing does not trade a contiguous completion for a disconnected fallback', () => {
+    const georgiaDataset = georgiaTracts as RealStateDistrictingDataset;
+    const result = districtRealByRegionGrow(georgiaDataset, { seed: 2 });
+
+    expect(result.metrics.contiguousDistricts).toBe(result.numDistricts);
   });
 });
