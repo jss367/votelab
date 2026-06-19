@@ -1,4 +1,4 @@
-import { Input } from '@repo/ui';
+import { Button, Input } from '@repo/ui';
 import { useState } from 'react';
 import { toJsDate } from './customFieldValue';
 import { CustomField, CustomFieldValue } from './types';
@@ -66,6 +66,22 @@ const CustomFieldsInput = ({
     }
   };
 
+  // Commit whatever is typed in a field's "type your own" box. Used by the Add
+  // button, Enter, and blur — so a custom value is never silently lost just
+  // because the user didn't press Enter (e.g. on a phone keyboard).
+  const commitCustomOption = (field: CustomField) => {
+    const val = customOptionInput[field.id]?.trim();
+    if (!val) return;
+    if (field.type === 'multiselect') {
+      if (!getMultiValue(field.id).includes(val)) {
+        toggleMultiOption(field.id, val);
+      }
+    } else {
+      updateFieldValue(field.id, val);
+    }
+    setCustomOptionInput({ ...customOptionInput, [field.id]: '' });
+  };
+
   const getValue = (fieldId: string): string => {
     const fieldValue = values.find((v) => v.fieldId === fieldId);
     if (!fieldValue) {
@@ -106,6 +122,23 @@ const CustomFieldsInput = ({
                   {opt}
                 </label>
               ))}
+              {/* Render selected "type your own" values too — they aren't in the
+                  predefined options, so without this a custom value the voter
+                  added would be stored but show no checkbox at all. */}
+              {getMultiValue(field.id)
+                .filter((v) => !(field.options || []).includes(v))
+                .map((opt) => (
+                  <label key={opt} className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked
+                      onChange={() => toggleMultiOption(field.id, opt)}
+                      disabled={disabled}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                    {opt}
+                  </label>
+                ))}
               {field.allowCustomOptions && (
                 <div className="flex items-center gap-2 mt-1">
                   <Input
@@ -114,17 +147,24 @@ const CustomFieldsInput = ({
                     placeholder="Add your own..."
                     disabled={disabled}
                     className="h-7 text-xs flex-grow"
-                    onKeyPress={(e) => {
+                    onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
-                        const val = customOptionInput[field.id]?.trim();
-                        if (val && !getMultiValue(field.id).includes(val)) {
-                          toggleMultiOption(field.id, val);
-                          setCustomOptionInput({ ...customOptionInput, [field.id]: '' });
-                        }
+                        commitCustomOption(field);
                       }
                     }}
+                    onBlur={() => commitCustomOption(field)}
                   />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    disabled={disabled}
+                    onClick={() => commitCustomOption(field)}
+                    className="h-7 text-xs"
+                  >
+                    Add
+                  </Button>
                 </div>
               )}
             </div>
@@ -141,25 +181,43 @@ const CustomFieldsInput = ({
                 {(field.options || []).map((opt) => (
                   <option key={opt} value={opt}>{opt}</option>
                 ))}
+                {/* A value typed via "type your own" won't match any predefined
+                    option, so the <select> couldn't display it and would snap
+                    back to another option. Render it as its own option. */}
+                {getValue(field.id) &&
+                  !(field.options || []).includes(getValue(field.id)) && (
+                    <option value={getValue(field.id)}>
+                      {getValue(field.id)}
+                    </option>
+                  )}
               </select>
               {field.allowCustomOptions && (
-                <Input
-                  value={customOptionInput[field.id] || ''}
-                  onChange={(e) => setCustomOptionInput({ ...customOptionInput, [field.id]: e.target.value })}
-                  placeholder="Or type your own..."
-                  disabled={disabled}
-                  className="h-7 text-xs"
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      const val = customOptionInput[field.id]?.trim();
-                      if (val) {
-                        updateFieldValue(field.id, val);
-                        setCustomOptionInput({ ...customOptionInput, [field.id]: '' });
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={customOptionInput[field.id] || ''}
+                    onChange={(e) => setCustomOptionInput({ ...customOptionInput, [field.id]: e.target.value })}
+                    placeholder="Or type your own..."
+                    disabled={disabled}
+                    className="h-7 text-xs flex-grow"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        commitCustomOption(field);
                       }
-                    }
-                  }}
-                />
+                    }}
+                    onBlur={() => commitCustomOption(field)}
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    disabled={disabled}
+                    onClick={() => commitCustomOption(field)}
+                    className="h-7 text-xs"
+                  >
+                    Add
+                  </Button>
+                </div>
               )}
             </div>
           ) : field.type === 'textarea' ? (

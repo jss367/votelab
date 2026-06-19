@@ -19,7 +19,7 @@ const CustomFieldsManager = ({
 
   const addField = () => {
     const newField: CustomField = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       name: '',
       type: 'text',
       required: false,
@@ -51,7 +51,7 @@ const CustomFieldsManager = ({
 
     const newFields: CustomField[] = template.fields.map((f) => ({
       ...f,
-      id: Date.now().toString() + Math.random().toString(36).slice(2),
+      id: crypto.randomUUID(),
     }));
 
     onChange(newFields);
