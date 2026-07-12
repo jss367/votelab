@@ -31,7 +31,7 @@ export function partisanColor(margin: number): string {
 
 export function populationColor(deviation: number): string {
   const strength = Math.min(1, Math.abs(deviation) / 0.08);
-  return mix(NEUTRAL, deviation >= 0 ? TEAL : ORANGE, 0.12 + strength * 0.88);
+  return mix(NEUTRAL, deviation >= 0 ? TEAL : ORANGE, strength);
 }
 
 export function districtFill(

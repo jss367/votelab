@@ -5,6 +5,7 @@ import {
   formatPartisanMargin,
   formatPopulationDeviation,
   partisanColor,
+  populationColor,
 } from './districtMapPresentation';
 
 describe('district map presentation', () => {
@@ -31,5 +32,9 @@ describe('district map presentation', () => {
     expect(formatPartisanMargin(-0.071)).toBe('R+7.1');
     expect(formatPopulationDeviation(105, 100)).toBe('+5.0%');
     expect(formatPopulationDeviation(95, 100)).toBe('-5.0%');
+  });
+
+  test('keeps an ideally populated district visually neutral', () => {
+    expect(populationColor(0)).toBe('rgb(241, 245, 249)');
   });
 });
