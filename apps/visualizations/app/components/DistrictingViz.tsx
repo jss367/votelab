@@ -86,7 +86,7 @@ function mapHeight(dataset: RealStateDistrictingDataset): number {
   );
   const latSpan = Math.max(0.01, maxLat - minLat);
   const projectedWidth =
-    lonSpan * Math.cos(((minLat + maxLat) / 4) * (Math.PI / 180));
+    lonSpan * Math.cos(((minLat + maxLat) / 2) * (Math.PI / 180));
   const naturalHeight = MAP_WIDTH * (latSpan / Math.max(0.01, projectedWidth));
   return Math.round(
     Math.max(MIN_MAP_HEIGHT, Math.min(MAX_MAP_HEIGHT, naturalHeight))
