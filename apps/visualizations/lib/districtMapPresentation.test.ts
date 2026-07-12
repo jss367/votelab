@@ -37,4 +37,8 @@ describe('district map presentation', () => {
   test('keeps an ideally populated district visually neutral', () => {
     expect(populationColor(0)).toBe('rgb(241, 245, 249)');
   });
+
+  test('keeps a tied district visually neutral', () => {
+    expect(partisanColor(0)).toBe('rgb(241, 245, 249)');
+  });
 });
