@@ -435,8 +435,7 @@ const DistrictingViz: React.FC = () => {
         {result.metrics.partisanScores && (
           <p className="mt-2">
             Approximate seat counts allocate 2020 county presidential votes to
-            map units by population share. Treat them as rough comparison
-            signals, not official results.
+            map units by population share.
           </p>
         )}
       </div>
