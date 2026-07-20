@@ -19,7 +19,7 @@ export function getSavedElections(): SavedElection[] {
 }
 
 export function saveElection(election: SavedElection): void {
-  const elections = getSavedElections();
+  const elections = getSavedElections().filter((e) => e.id !== election.id);
   elections.unshift(election);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(elections));
 }

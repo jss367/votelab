@@ -1,7 +1,14 @@
 'use client';
 
 import { Button, Card, CardContent, CardHeader, Input } from '@repo/ui';
-import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
+import {
+  GoogleAuthProvider,
+  linkWithPopup,
+  onAuthStateChanged,
+  signInAnonymously,
+  signInWithPopup,
+  signOut,
+} from 'firebase/auth';
 import {
   addDoc,
   arrayUnion,
@@ -9,19 +16,26 @@ import {
   deleteDoc,
   doc,
   onSnapshot,
+  query,
   runTransaction,
   setDoc,
   updateDoc,
+  where,
 } from 'firebase/firestore';
 import { Copy } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import AdminView from './AdminView';
 import BallotInput from './BallotInput';
 import CandidateDetails from './CandidateDetails';
 import CustomFieldsInput from './CustomFieldsInput';
 import CustomFieldsManager from './CustomFieldsManager';
 import { isCustomFieldValueMissing } from './customFieldValue';
-import { removeSavedElection, saveElection } from './electionStorage';
+import {
+  getSavedElections,
+  removeSavedElection,
+  saveElection,
+  type SavedElection,
+} from './electionStorage';
 import HomePage from './HomePage';
 import MethodResults from './MethodResults';
 import RankedApprovalList from './RankedApprovalList';
@@ -36,6 +50,32 @@ import {
 import { auth, db } from './firebaseConfig';
 
 type Mode = 'home' | 'create' | 'vote' | 'success' | 'results' | 'admin';
+
+const getFirebaseAuthCode = (err: unknown) =>
+  typeof err === 'object' && err !== null && 'code' in err
+    ? String((err as { code?: string }).code)
+    : '';
+
+const getGoogleAuthMessage = (err: unknown) => {
+  const code = getFirebaseAuthCode(err);
+
+  if (code === 'auth/popup-closed-by-user') {
+    return 'Google sign-in was closed before it finished.';
+  }
+
+  if (code === 'auth/popup-blocked') {
+    return 'The browser blocked the Google sign-in popup.';
+  }
+
+  if (code === 'auth/operation-not-allowed') {
+    return 'Google sign-in is not enabled for this Firebase project.';
+  }
+
+  return 'Google sign-in failed. Try again.';
+};
+
+const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 function App() {
   const [mode, setMode] = useState<Mode>('home');
@@ -69,7 +109,17 @@ function App() {
   const [sortByField, setSortByField] = useState<string>('');
   const [candidateLabel, setCandidateLabel] = useState('');
   const [currentUserUid, setCurrentUserUid] = useState<string | null>(null);
+  const [currentUserName, setCurrentUserName] = useState<string | null>(null);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+  const [currentUserIsAnonymous, setCurrentUserIsAnonymous] = useState(true);
   const [authReady, setAuthReady] = useState(false);
+  const [authActionLoading, setAuthActionLoading] = useState(false);
+  const [accountError, setAccountError] = useState('');
+  const [localSavedElections, setLocalSavedElections] =
+    useState<SavedElection[]>(getSavedElections);
+  const [cloudSavedElections, setCloudSavedElections] = useState<SavedElection[]>(
+    []
+  );
 
   const ensureSignedIn = useCallback(async () => {
     if (auth.currentUser) {
@@ -89,6 +139,22 @@ function App() {
       return aVal.localeCompare(bVal);
     });
   })();
+
+  const savedElections = useMemo(() => {
+    const byId = new Map<string, SavedElection>();
+
+    for (const election of localSavedElections) {
+      byId.set(election.id, election);
+    }
+
+    for (const election of cloudSavedElections) {
+      byId.set(election.id, election);
+    }
+
+    return Array.from(byId.values()).sort(
+      (a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)
+    );
+  }, [cloudSavedElections, localSavedElections]);
 
   // Subscribe to real-time election updates
   useEffect(() => {
@@ -135,6 +201,9 @@ function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUserUid(user?.uid ?? null);
+      setCurrentUserName(user?.displayName ?? null);
+      setCurrentUserEmail(user?.email ?? null);
+      setCurrentUserIsAnonymous(user?.isAnonymous ?? true);
       setAuthReady(true);
     });
 
@@ -146,6 +215,84 @@ function App() {
 
     return () => unsubscribe();
   }, [ensureSignedIn]);
+
+  useEffect(() => {
+    if (!currentUserUid) {
+      setCloudSavedElections([]);
+      return;
+    }
+
+    const ownedElections = query(
+      collection(db, 'elections'),
+      where('createdByUid', '==', currentUserUid)
+    );
+
+    return onSnapshot(
+      ownedElections,
+      (snapshot) => {
+        setCloudSavedElections(
+          snapshot.docs.map((snapshotDoc) => {
+            const data = snapshotDoc.data() as Election;
+
+            return {
+              id: snapshotDoc.id,
+              title: data.title,
+              method: data.votingMethod || 'smithApproval',
+              createdAt: data.createdAt,
+            };
+          })
+        );
+      },
+      (err) => {
+        console.error('Error loading account elections:', err);
+      }
+    );
+  }, [currentUserUid]);
+
+  const signInWithGoogle = async () => {
+    setAccountError('');
+    setAuthActionLoading(true);
+
+    try {
+      if (auth.currentUser?.isAnonymous) {
+        try {
+          await linkWithPopup(auth.currentUser, googleProvider);
+          return;
+        } catch (err) {
+          const code = getFirebaseAuthCode(err);
+
+          if (
+            code !== 'auth/credential-already-in-use' &&
+            code !== 'auth/email-already-in-use'
+          ) {
+            throw err;
+          }
+        }
+      }
+
+      await signInWithPopup(auth, googleProvider);
+    } catch (err) {
+      setAccountError(getGoogleAuthMessage(err));
+      console.error('Google sign-in error:', err);
+    } finally {
+      setAuthActionLoading(false);
+    }
+  };
+
+  const signOutOfGoogle = async () => {
+    setAccountError('');
+    setAuthActionLoading(true);
+
+    try {
+      await signOut(auth);
+      await ensureSignedIn();
+    } catch (err) {
+      setAccountError('Sign-out failed. Try again.');
+      console.error('Sign-out error:', err);
+    } finally {
+      setAuthActionLoading(false);
+    }
+  };
 
   const createElection = async () => {
     if (!creatorName.trim()) {
@@ -227,12 +374,15 @@ function App() {
         id = docRef.id;
       }
 
-      saveElection({
+      const savedElection = {
         id,
         title: electionTitle.trim(),
         method: votingMethod,
         createdAt: electionData.createdAt,
-      });
+      };
+
+      saveElection(savedElection);
+      setLocalSavedElections(getSavedElections());
       const votingUrl = `${window.location.origin}${window.location.pathname}?id=${id}`;
       const resultsUrl = `${window.location.origin}${window.location.pathname}?id=${id}&view=results`;
       setShareUrl(votingUrl);
@@ -582,6 +732,15 @@ function App() {
             {/* Home mode */}
             {mode === 'home' && (
               <HomePage
+                savedElections={savedElections}
+                authReady={authReady}
+                isAnonymous={currentUserIsAnonymous}
+                accountName={currentUserName}
+                accountEmail={currentUserEmail}
+                accountError={accountError}
+                authActionLoading={authActionLoading}
+                onSignInWithGoogle={signInWithGoogle}
+                onSignOut={signOutOfGoogle}
                 onSelectMethod={(method) => {
                   setVotingMethod(method);
                   setMode('create');
@@ -963,6 +1122,7 @@ function App() {
                     await ensureSignedIn();
                     await deleteDoc(doc(db, 'elections', electionId));
                     removeSavedElection(electionId);
+                    setLocalSavedElections(getSavedElections());
                     setMode('home');
                     setElection(null);
                     setElectionId(null);

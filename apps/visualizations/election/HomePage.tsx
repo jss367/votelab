@@ -1,6 +1,5 @@
 import { Button, Card, CardContent, CardHeader } from '@repo/ui';
-import { getSavedElections, type SavedElection } from './electionStorage';
-import { useState } from 'react';
+import type { SavedElection } from './electionStorage';
 import type { VotingMethod } from './types';
 
 const VOTING_METHODS: Array<{
@@ -107,11 +106,29 @@ const METHOD_NAMES: Record<string, string> = {
 
 interface HomePageProps {
   onSelectMethod: (method: VotingMethod) => void;
+  savedElections: SavedElection[];
+  authReady: boolean;
+  isAnonymous: boolean;
+  accountName: string | null;
+  accountEmail: string | null;
+  accountError: string;
+  authActionLoading: boolean;
+  onSignInWithGoogle: () => void;
+  onSignOut: () => void;
 }
 
-const HomePage: React.FC<HomePageProps> = ({ onSelectMethod }) => {
-  const [savedElections] = useState<SavedElection[]>(getSavedElections);
-
+const HomePage: React.FC<HomePageProps> = ({
+  onSelectMethod,
+  savedElections,
+  authReady,
+  isAnonymous,
+  accountName,
+  accountEmail,
+  accountError,
+  authActionLoading,
+  onSignInWithGoogle,
+  onSignOut,
+}) => {
   return (
     <div className="space-y-8">
       <div className="text-center space-y-2">
@@ -119,6 +136,44 @@ const HomePage: React.FC<HomePageProps> = ({ onSelectMethod }) => {
         <p className="text-lg text-slate-500">
           Explore different ways to vote. Create an election using any of these voting methods.
         </p>
+      </div>
+
+      <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 md:flex-row md:items-center md:justify-between">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-slate-900">
+            {authReady && !isAnonymous
+              ? accountName || accountEmail || 'Signed in'
+              : 'Use VoteLab without an account'}
+          </p>
+          <p className="text-sm text-slate-500">
+            {authReady && !isAnonymous
+              ? accountEmail || 'Your elections are saved to this Google account.'
+              : 'Sign in with Google to manage your elections across browsers and devices.'}
+          </p>
+          {accountError && (
+            <p className="mt-1 text-sm text-red-600">{accountError}</p>
+          )}
+        </div>
+        {authReady && !isAnonymous ? (
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onSignOut}
+            disabled={authActionLoading}
+            className="shrink-0"
+          >
+            Sign Out
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            onClick={onSignInWithGoogle}
+            disabled={!authReady || authActionLoading}
+            className="shrink-0"
+          >
+            Sign in with Google
+          </Button>
+        )}
       </div>
 
       {/* My Elections */}
