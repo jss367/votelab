@@ -275,6 +275,86 @@ function buildDistrictRaster(
   return { labels: districtLabels, exterior };
 }
 
+function findDistrictLabelAnchors(
+  raster: DistrictRaster,
+  width: number,
+  height: number,
+  targets: Array<{ x: number; y: number }>
+) {
+  const { labels } = raster;
+  const distances = new Int16Array(labels.length);
+  distances.fill(-1);
+  const queue = new Int32Array(labels.length);
+  let head = 0;
+  let tail = 0;
+  const districtAt = (x: number, y: number) => {
+    if (x < 0 || x >= width || y < 0 || y >= height) return 0;
+    return labels[y * width + x];
+  };
+
+  for (let pixel = 0; pixel < labels.length; pixel++) {
+    const district = labels[pixel];
+    if (district === 0) continue;
+    const x = pixel % width;
+    const y = Math.floor(pixel / width);
+    if (
+      districtAt(x - 1, y) !== district ||
+      districtAt(x + 1, y) !== district ||
+      districtAt(x, y - 1) !== district ||
+      districtAt(x, y + 1) !== district
+    ) {
+      distances[pixel] = 0;
+      queue[tail++] = pixel;
+    }
+  }
+
+  while (head < tail) {
+    const pixel = queue[head++];
+    const district = labels[pixel];
+    const x = pixel % width;
+    for (const neighbor of [
+      x > 0 ? pixel - 1 : -1,
+      x < width - 1 ? pixel + 1 : -1,
+      pixel >= width ? pixel - width : -1,
+      pixel < width * (height - 1) ? pixel + width : -1,
+    ]) {
+      if (
+        neighbor < 0 ||
+        labels[neighbor] !== district ||
+        distances[neighbor] !== -1
+      ) {
+        continue;
+      }
+      distances[neighbor] = distances[pixel] + 1;
+      queue[tail++] = neighbor;
+    }
+  }
+
+  const anchors = targets.map((target) => ({ ...target }));
+  const bestDistances = new Int16Array(targets.length);
+  bestDistances.fill(-1);
+  const bestTargetDistances = new Float64Array(targets.length);
+  bestTargetDistances.fill(Number.POSITIVE_INFINITY);
+  for (let pixel = 0; pixel < labels.length; pixel++) {
+    const district = labels[pixel] - 1;
+    if (district < 0 || !anchors[district]) continue;
+    const x = (pixel % width) + 0.5;
+    const y = Math.floor(pixel / width) + 0.5;
+    const target = targets[district];
+    const targetDistance = (x - target.x) ** 2 + (y - target.y) ** 2;
+    if (
+      distances[pixel] > bestDistances[district] ||
+      (distances[pixel] === bestDistances[district] &&
+        targetDistance < bestTargetDistances[district])
+    ) {
+      bestDistances[district] = distances[pixel];
+      bestTargetDistances[district] = targetDistance;
+      anchors[district] = { x, y };
+    }
+  }
+  return anchors;
+}
+
 function buildDistrictBoundaryLayer(
   raster: DistrictRaster,
   width: number,
@@ -565,13 +645,18 @@ const DistrictMap: React.FC<DistrictMapProps> = ({
       const labelsContext = labelsCanvas.getContext('2d');
       if (!labelsContext) return;
       const project = createProjection(dataset, MAP_WIDTH, height);
+      const labelAnchors = findDistrictLabelAnchors(
+        raster,
+        MAP_WIDTH,
+        height,
+        result.centroids.map((centroid) => project([centroid.x, centroid.y]))
+      );
       const labelSize =
         result.numDistricts <= 20 ? 15 : result.numDistricts <= 40 ? 11 : 9;
       labelsContext.textAlign = 'center';
       labelsContext.textBaseline = 'middle';
       labelsContext.font = `700 ${labelSize}px ui-sans-serif, system-ui, sans-serif`;
-      result.centroids.forEach((centroid, district) => {
-        const point = project([centroid.x, centroid.y]);
+      labelAnchors.forEach((point, district) => {
         const label = String(district + 1);
         labelsContext.lineWidth = Math.max(3, labelSize / 3);
         labelsContext.strokeStyle = 'rgba(255, 255, 255, 0.96)';
