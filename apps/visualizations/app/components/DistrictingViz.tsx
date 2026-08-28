@@ -603,7 +603,7 @@ const DistrictMap: React.FC<DistrictMapProps> = ({
   onSelectDistrict,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const pathsRef = useRef<Path2D[]>([]);
+  const rasterRef = useRef<DistrictRaster | null>(null);
   const geometryRef = useRef<{
     dataset: RealStateDistrictingDataset;
     result: RealDistrictingResult;
@@ -649,7 +649,7 @@ const DistrictMap: React.FC<DistrictMapProps> = ({
       raster = buildDistrictRaster(paths, MAP_WIDTH, height);
       geometryRef.current = { dataset, result, height, paths, raster };
     }
-    pathsRef.current = paths;
+    rasterRef.current = raster;
 
     let rendered = renderRef.current;
     if (
@@ -729,21 +729,16 @@ const DistrictMap: React.FC<DistrictMapProps> = ({
   const districtAtPointer = useCallback(
     (event: { clientX: number; clientY: number }) => {
       const canvas = canvasRef.current;
-      const ctx = canvas?.getContext('2d');
-      if (!canvas || !ctx) return null;
+      const raster = rasterRef.current;
+      if (!canvas || !raster) return null;
       const rect = canvas.getBoundingClientRect();
-      const x = ((event.clientX - rect.left) / rect.width) * MAP_WIDTH;
-      const y = ((event.clientY - rect.top) / rect.height) * height;
-      for (
-        let district = pathsRef.current.length - 1;
-        district >= 0;
-        district--
-      ) {
-        if (ctx.isPointInPath(pathsRef.current[district], x, y, 'evenodd')) {
-          return district;
-        }
-      }
-      return null;
+      const x = Math.floor(
+        ((event.clientX - rect.left) / rect.width) * MAP_WIDTH
+      );
+      const y = Math.floor(((event.clientY - rect.top) / rect.height) * height);
+      if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= height) return null;
+      const districtId = raster.labels[y * MAP_WIDTH + x];
+      return districtId === 0 ? null : districtId - 1;
     },
     [height]
   );
