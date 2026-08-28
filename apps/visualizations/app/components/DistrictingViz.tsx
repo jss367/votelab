@@ -893,6 +893,7 @@ const DistrictingViz: React.FC = () => {
                   key={entry.id}
                   type="button"
                   disabled={disabled}
+                  aria-pressed={mode === entry.id}
                   onClick={() => setMode(entry.id)}
                   className={`rounded-full px-3 py-1.5 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-40 ${
                     mode === entry.id
