@@ -1,27 +1,47 @@
 'use client';
 
 import { Button, Card, CardContent, CardHeader, Input } from '@repo/ui';
-import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
+import {
+  GoogleAuthProvider,
+  linkWithPopup,
+  onAuthStateChanged,
+  signInAnonymously,
+  signInWithCredential,
+  signInWithPopup,
+  signOut,
+  type AuthCredential,
+  type User,
+} from 'firebase/auth';
 import {
   addDoc,
   arrayUnion,
   collection,
   deleteDoc,
   doc,
+  documentId,
+  getDocsFromServer,
   onSnapshot,
+  query,
   runTransaction,
   setDoc,
   updateDoc,
+  where,
 } from 'firebase/firestore';
 import { Copy } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import AdminView from './AdminView';
 import BallotInput from './BallotInput';
 import CandidateDetails from './CandidateDetails';
 import CustomFieldsInput from './CustomFieldsInput';
 import CustomFieldsManager from './CustomFieldsManager';
 import { isCustomFieldValueMissing } from './customFieldValue';
-import { removeSavedElection, saveElection } from './electionStorage';
+import {
+  getSavedElections,
+  removeSavedElection,
+  saveElection,
+  setSavedElections,
+  type SavedElection,
+} from './electionStorage';
 import HomePage from './HomePage';
 import MethodResults from './MethodResults';
 import RankedApprovalList from './RankedApprovalList';
@@ -36,6 +56,51 @@ import {
 import { auth, db } from './firebaseConfig';
 
 type Mode = 'home' | 'create' | 'vote' | 'success' | 'results' | 'admin';
+
+const getFirebaseAuthCode = (err: unknown) =>
+  typeof err === 'object' && err !== null && 'code' in err
+    ? String((err as { code?: string }).code)
+    : '';
+
+const getFirebaseAuthEmail = (err: unknown) =>
+  typeof err === 'object' && err !== null && 'customData' in err
+    ? String(
+        (err as { customData?: { email?: string } }).customData?.email || ''
+      )
+    : '';
+
+const getGoogleAuthMessage = (err: unknown) => {
+  const code = getFirebaseAuthCode(err);
+
+  if (code === 'auth/popup-closed-by-user') {
+    return 'Google sign-in was closed before it finished.';
+  }
+
+  if (code === 'auth/popup-blocked') {
+    return 'The browser blocked the Google sign-in popup.';
+  }
+
+  if (code === 'auth/operation-not-allowed') {
+    return 'Google sign-in is not enabled for this Firebase project.';
+  }
+
+  return 'Google sign-in failed. Try again.';
+};
+
+const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: 'select_account' });
+
+const FIRESTORE_IN_FILTER_LIMIT = 30;
+
+const getIdChunks = (ids: string[]) => {
+  const chunks: string[][] = [];
+
+  for (let index = 0; index < ids.length; index += FIRESTORE_IN_FILTER_LIMIT) {
+    chunks.push(ids.slice(index, index + FIRESTORE_IN_FILTER_LIMIT));
+  }
+
+  return chunks;
+};
 
 function App() {
   const [mode, setMode] = useState<Mode>('home');
@@ -69,7 +134,27 @@ function App() {
   const [sortByField, setSortByField] = useState<string>('');
   const [candidateLabel, setCandidateLabel] = useState('');
   const [currentUserUid, setCurrentUserUid] = useState<string | null>(null);
+  const [currentUserName, setCurrentUserName] = useState<string | null>(null);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+  const [currentUserIsAnonymous, setCurrentUserIsAnonymous] = useState(true);
   const [authReady, setAuthReady] = useState(false);
+  const [authActionLoading, setAuthActionLoading] = useState(false);
+  const [accountError, setAccountError] = useState('');
+  const [confirmAccountSwitch, setConfirmAccountSwitch] = useState(false);
+  const [pendingGoogleCredential, setPendingGoogleCredential] =
+    useState<AuthCredential | null>(null);
+  const [localSavedElections, setLocalSavedElections] =
+    useState<SavedElection[]>(getSavedElections);
+  const [cloudSavedElections, setCloudSavedElections] = useState<SavedElection[]>(
+    []
+  );
+
+  const syncCurrentUserState = useCallback((user: User | null) => {
+    setCurrentUserUid(user?.uid ?? null);
+    setCurrentUserName(user?.displayName ?? null);
+    setCurrentUserEmail(user?.email ?? null);
+    setCurrentUserIsAnonymous(user?.isAnonymous ?? true);
+  }, []);
 
   const ensureSignedIn = useCallback(async () => {
     if (auth.currentUser) {
@@ -89,6 +174,36 @@ function App() {
       return aVal.localeCompare(bVal);
     });
   })();
+
+  const savedElections = useMemo(() => {
+    const byId = new Map<string, SavedElection>();
+
+    for (const election of localSavedElections) {
+      if (
+        election.createdByUid &&
+        election.createdByUid !== currentUserUid
+      ) {
+        continue;
+      }
+
+      byId.set(election.id, election);
+    }
+
+    for (const election of cloudSavedElections) {
+      if (
+        election.createdByUid &&
+        election.createdByUid !== currentUserUid
+      ) {
+        continue;
+      }
+
+      byId.set(election.id, election);
+    }
+
+    return Array.from(byId.values()).sort(
+      (a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)
+    );
+  }, [cloudSavedElections, currentUserUid, localSavedElections]);
 
   // Subscribe to real-time election updates
   useEffect(() => {
@@ -133,19 +248,249 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setCurrentUserUid(user?.uid ?? null);
-      setAuthReady(true);
-    });
+    let anonymousSignInPending = false;
 
-    ensureSignedIn().catch((err) => {
-      setError('Error initializing anonymous sign-in');
-      console.error('Anonymous sign-in error:', err);
-      setAuthReady(true);
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        syncCurrentUserState(user);
+        setAuthReady(true);
+        anonymousSignInPending = false;
+        return;
+      }
+
+      if (anonymousSignInPending) {
+        return;
+      }
+
+      syncCurrentUserState(null);
+      setAuthReady(false);
+      anonymousSignInPending = true;
+      signInAnonymously(auth)
+        .then((credential) => {
+          syncCurrentUserState(credential.user);
+          setAuthReady(true);
+        })
+        .catch((err) => {
+          setError('Error initializing anonymous sign-in');
+          console.error('Anonymous sign-in error:', err);
+          setAuthReady(true);
+        })
+        .finally(() => {
+          anonymousSignInPending = false;
+        });
     });
 
     return () => unsubscribe();
-  }, [ensureSignedIn]);
+  }, [syncCurrentUserState]);
+
+  const reconcileLocalElectionCache = useCallback(
+    async (cloudElectionIds: Set<string>, ownerUid: string) => {
+      const savedElections = getSavedElections();
+      const ownerlessSavedIds = savedElections
+        .filter(
+          (savedElection) =>
+            !savedElection.createdByUid &&
+            !cloudElectionIds.has(savedElection.id)
+        )
+        .map(({ id }) => id);
+      const ownerlessCheckedIds = new Set(ownerlessSavedIds);
+      const remoteElections = new Map<string, Election>();
+
+      for (const ids of getIdChunks(ownerlessSavedIds)) {
+        if (ids.length === 0) {
+          continue;
+        }
+
+        const snapshot = await getDocsFromServer(
+          query(collection(db, 'elections'), where(documentId(), 'in', ids))
+        );
+
+        for (const snapshotDoc of snapshot.docs) {
+          remoteElections.set(snapshotDoc.id, snapshotDoc.data() as Election);
+        }
+      }
+
+      setLocalSavedElections((elections) => {
+        let changed = false;
+        const reconciledElections = elections.flatMap((savedElection) => {
+          if (savedElection.createdByUid === ownerUid) {
+            if (cloudElectionIds.has(savedElection.id)) {
+              return [savedElection];
+            }
+
+            changed = true;
+            return [];
+          }
+
+          if (!savedElection.createdByUid) {
+            if (cloudElectionIds.has(savedElection.id)) {
+              changed = true;
+              return [{ ...savedElection, createdByUid: ownerUid }];
+            }
+
+            const remoteElection = remoteElections.get(savedElection.id);
+
+            if (remoteElection?.createdByUid) {
+              changed = true;
+              return [
+                { ...savedElection, createdByUid: remoteElection.createdByUid },
+              ];
+            }
+
+            if (ownerlessCheckedIds.has(savedElection.id) && !remoteElection) {
+              changed = true;
+              return [];
+            }
+          }
+
+          return [savedElection];
+        });
+
+        if (changed) {
+          setSavedElections(reconciledElections);
+        }
+
+        return reconciledElections;
+      });
+    },
+    []
+  );
+
+  useEffect(() => {
+    setCloudSavedElections([]);
+
+    if (!currentUserUid) {
+      return;
+    }
+
+    const ownedElections = query(
+      collection(db, 'elections'),
+      where('createdByUid', '==', currentUserUid)
+    );
+
+    return onSnapshot(
+      ownedElections,
+      (snapshot) => {
+        const cloudElections = snapshot.docs.map((snapshotDoc) => {
+          const data = snapshotDoc.data() as Election;
+
+          return {
+            id: snapshotDoc.id,
+            title: data.title,
+            method: data.votingMethod || 'smithApproval',
+            createdAt: data.createdAt,
+            createdByUid: data.createdByUid,
+          };
+        });
+        const cloudElectionIds = new Set(cloudElections.map(({ id }) => id));
+
+        setCloudSavedElections(cloudElections);
+
+        if (!snapshot.metadata.fromCache) {
+          reconcileLocalElectionCache(cloudElectionIds, currentUserUid).catch(
+            (err) => {
+              console.error('Error reconciling account elections:', err);
+            }
+          );
+        }
+      },
+      (err) => {
+        console.error('Error loading account elections:', err);
+      }
+    );
+  }, [currentUserUid, reconcileLocalElectionCache]);
+
+  const signInWithGoogle = async () => {
+    setAuthActionLoading(true);
+
+    try {
+      if (confirmAccountSwitch && pendingGoogleCredential) {
+        setAccountError('');
+        const credential = await signInWithCredential(
+          auth,
+          pendingGoogleCredential
+        );
+        syncCurrentUserState(credential.user);
+        setConfirmAccountSwitch(false);
+        setPendingGoogleCredential(null);
+        return;
+      }
+
+      setPendingGoogleCredential(null);
+
+      if (auth.currentUser?.isAnonymous && !confirmAccountSwitch) {
+        setAccountError('');
+
+        try {
+          const credential = await linkWithPopup(auth.currentUser, googleProvider);
+          syncCurrentUserState(credential.user);
+          credential.user
+            .reload()
+            .then(() => syncCurrentUserState(auth.currentUser ?? credential.user))
+            .catch((err) => {
+              console.error('Linked user reload error:', err);
+            });
+          setConfirmAccountSwitch(false);
+          return;
+        } catch (err) {
+          const code = getFirebaseAuthCode(err);
+
+          if (
+            code !== 'auth/credential-already-in-use' &&
+            code !== 'auth/email-already-in-use'
+          ) {
+            throw err;
+          }
+
+          const credential = GoogleAuthProvider.credentialFromError(
+            err as Parameters<typeof GoogleAuthProvider.credentialFromError>[0]
+          );
+          const email = getFirebaseAuthEmail(err);
+
+          if (!credential) {
+            setAccountError(
+              'That Google account is already linked to VoteLab. Reload this page before switching accounts.'
+            );
+            return;
+          }
+
+          setPendingGoogleCredential(credential);
+          setConfirmAccountSwitch(true);
+          setAccountError(
+            `The Google account${email ? ` ${email}` : ''} is already linked to VoteLab. Click again to switch to it; elections created in this browser before sign-in may remain tied to this browser.`
+          );
+          return;
+        }
+      }
+
+      setAccountError('');
+      const credential = await signInWithPopup(auth, googleProvider);
+      syncCurrentUserState(credential.user);
+      setConfirmAccountSwitch(false);
+      setPendingGoogleCredential(null);
+    } catch (err) {
+      setAccountError(getGoogleAuthMessage(err));
+      console.error('Google sign-in error:', err);
+    } finally {
+      setAuthActionLoading(false);
+    }
+  };
+
+  const signOutOfGoogle = async () => {
+    setAccountError('');
+    setAuthActionLoading(true);
+
+    try {
+      await signOut(auth);
+      setConfirmAccountSwitch(false);
+      setPendingGoogleCredential(null);
+    } catch (err) {
+      setAccountError('Sign-out failed. Try again.');
+      console.error('Sign-out error:', err);
+    } finally {
+      setAuthActionLoading(false);
+    }
+  };
 
   const createElection = async () => {
     if (!creatorName.trim()) {
@@ -227,12 +572,16 @@ function App() {
         id = docRef.id;
       }
 
-      saveElection({
+      const savedElection = {
         id,
         title: electionTitle.trim(),
         method: votingMethod,
         createdAt: electionData.createdAt,
-      });
+        createdByUid,
+      };
+
+      saveElection(savedElection);
+      setLocalSavedElections(getSavedElections());
       const votingUrl = `${window.location.origin}${window.location.pathname}?id=${id}`;
       const resultsUrl = `${window.location.origin}${window.location.pathname}?id=${id}&view=results`;
       setShareUrl(votingUrl);
@@ -582,6 +931,16 @@ function App() {
             {/* Home mode */}
             {mode === 'home' && (
               <HomePage
+                savedElections={savedElections}
+                authReady={authReady}
+                isAnonymous={currentUserIsAnonymous}
+                accountName={currentUserName}
+                accountEmail={currentUserEmail}
+                accountError={accountError}
+                authActionLoading={authActionLoading}
+                confirmAccountSwitch={confirmAccountSwitch}
+                onSignInWithGoogle={signInWithGoogle}
+                onSignOut={signOutOfGoogle}
                 onSelectMethod={(method) => {
                   setVotingMethod(method);
                   setMode('create');
@@ -963,6 +1322,7 @@ function App() {
                     await ensureSignedIn();
                     await deleteDoc(doc(db, 'elections', electionId));
                     removeSavedElection(electionId);
+                    setLocalSavedElections(getSavedElections());
                     setMode('home');
                     setElection(null);
                     setElectionId(null);
