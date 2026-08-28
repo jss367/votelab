@@ -18,6 +18,8 @@ import {
   collection,
   deleteDoc,
   doc,
+  documentId,
+  getDocs,
   onSnapshot,
   query,
   runTransaction,
@@ -87,6 +89,18 @@ const getGoogleAuthMessage = (err: unknown) => {
 
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
+
+const FIRESTORE_IN_FILTER_LIMIT = 30;
+
+const getIdChunks = (ids: string[]) => {
+  const chunks: string[][] = [];
+
+  for (let index = 0; index < ids.length; index += FIRESTORE_IN_FILTER_LIMIT) {
+    chunks.push(ids.slice(index, index + FIRESTORE_IN_FILTER_LIMIT));
+  }
+
+  return chunks;
+};
 
 function App() {
   const [mode, setMode] = useState<Mode>('home');
@@ -165,6 +179,13 @@ function App() {
     const byId = new Map<string, SavedElection>();
 
     for (const election of localSavedElections) {
+      if (
+        election.createdByUid &&
+        election.createdByUid !== currentUserUid
+      ) {
+        continue;
+      }
+
       byId.set(election.id, election);
     }
 
@@ -175,7 +196,7 @@ function App() {
     return Array.from(byId.values()).sort(
       (a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)
     );
-  }, [cloudSavedElections, localSavedElections]);
+  }, [cloudSavedElections, currentUserUid, localSavedElections]);
 
   // Subscribe to real-time election updates
   useEffect(() => {
@@ -255,6 +276,79 @@ function App() {
     return () => unsubscribe();
   }, [syncCurrentUserState]);
 
+  const reconcileLocalElectionCache = useCallback(
+    async (cloudElectionIds: Set<string>, ownerUid: string) => {
+      const savedElections = getSavedElections();
+      const ownerlessSavedIds = savedElections
+        .filter(
+          (savedElection) =>
+            !savedElection.createdByUid &&
+            !cloudElectionIds.has(savedElection.id)
+        )
+        .map(({ id }) => id);
+      const ownerlessCheckedIds = new Set(ownerlessSavedIds);
+      const remoteElections = new Map<string, Election>();
+
+      for (const ids of getIdChunks(ownerlessSavedIds)) {
+        if (ids.length === 0) {
+          continue;
+        }
+
+        const snapshot = await getDocs(
+          query(collection(db, 'elections'), where(documentId(), 'in', ids))
+        );
+
+        for (const snapshotDoc of snapshot.docs) {
+          remoteElections.set(snapshotDoc.id, snapshotDoc.data() as Election);
+        }
+      }
+
+      setLocalSavedElections((elections) => {
+        let changed = false;
+        const reconciledElections = elections.flatMap((savedElection) => {
+          if (savedElection.createdByUid === ownerUid) {
+            if (cloudElectionIds.has(savedElection.id)) {
+              return [savedElection];
+            }
+
+            changed = true;
+            return [];
+          }
+
+          if (!savedElection.createdByUid) {
+            if (cloudElectionIds.has(savedElection.id)) {
+              changed = true;
+              return [{ ...savedElection, createdByUid: ownerUid }];
+            }
+
+            const remoteElection = remoteElections.get(savedElection.id);
+
+            if (remoteElection?.createdByUid) {
+              changed = true;
+              return [
+                { ...savedElection, createdByUid: remoteElection.createdByUid },
+              ];
+            }
+
+            if (ownerlessCheckedIds.has(savedElection.id) && !remoteElection) {
+              changed = true;
+              return [];
+            }
+          }
+
+          return [savedElection];
+        });
+
+        if (changed) {
+          setSavedElections(reconciledElections);
+        }
+
+        return reconciledElections;
+      });
+    },
+    []
+  );
+
   useEffect(() => {
     if (!currentUserUid) {
       setCloudSavedElections([]);
@@ -283,25 +377,20 @@ function App() {
         const cloudElectionIds = new Set(cloudElections.map(({ id }) => id));
 
         setCloudSavedElections(cloudElections);
-        setLocalSavedElections((elections) => {
-          const reconciledElections = elections.filter(
-            (savedElection) =>
-              savedElection.createdByUid !== currentUserUid ||
-              cloudElectionIds.has(savedElection.id)
+
+        if (!snapshot.metadata.fromCache) {
+          reconcileLocalElectionCache(cloudElectionIds, currentUserUid).catch(
+            (err) => {
+              console.error('Error reconciling account elections:', err);
+            }
           );
-
-          if (reconciledElections.length !== elections.length) {
-            setSavedElections(reconciledElections);
-          }
-
-          return reconciledElections;
-        });
+        }
       },
       (err) => {
         console.error('Error loading account elections:', err);
       }
     );
-  }, [currentUserUid]);
+  }, [currentUserUid, reconcileLocalElectionCache]);
 
   const signInWithGoogle = async () => {
     setAuthActionLoading(true);
