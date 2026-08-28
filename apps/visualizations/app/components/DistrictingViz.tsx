@@ -179,18 +179,55 @@ function buildDistrictRaster(
     };
   }
 
-  let districtLabels = new Uint8Array(width * height);
+  const districtLabels = new Uint8Array(width * height);
+  const districtByColor = new Map<number, number>();
+  const districtColors: Array<{
+    districtId: number;
+    red: number;
+    green: number;
+    blue: number;
+  }> = [];
   paths.forEach((path, district) => {
-    maskContext.clearRect(0, 0, width, height);
-    maskContext.fillStyle = '#000000';
+    const districtId = district + 1;
+    const color = Math.imul(districtId, 0x9e3779) & 0xffffff;
+    districtByColor.set(color, districtId);
+    districtColors.push({
+      districtId,
+      red: color >> 16,
+      green: (color >> 8) & 0xff,
+      blue: color & 0xff,
+    });
+    maskContext.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
     maskContext.fill(path, 'evenodd');
-    const districtPixels = maskContext.getImageData(0, 0, width, height).data;
-    for (let pixel = 0; pixel < districtLabels.length; pixel++) {
-      if (districtPixels[pixel * 4 + 3] > 0) {
-        districtLabels[pixel] = district + 1;
+  });
+  const districtPixels = maskContext.getImageData(0, 0, width, height).data;
+  for (let pixel = 0; pixel < districtLabels.length; pixel++) {
+    const offset = pixel * 4;
+    if (districtPixels[offset + 3] === 0) continue;
+    const color =
+      (districtPixels[offset] << 16) |
+      (districtPixels[offset + 1] << 8) |
+      districtPixels[offset + 2];
+    const exactDistrict = districtByColor.get(color);
+    if (exactDistrict !== undefined) {
+      districtLabels[pixel] = exactDistrict;
+      continue;
+    }
+
+    let closestDistrict = 0;
+    let closestDistance = Number.POSITIVE_INFINITY;
+    for (const candidate of districtColors) {
+      const distance =
+        (districtPixels[offset] - candidate.red) ** 2 +
+        (districtPixels[offset + 1] - candidate.green) ** 2 +
+        (districtPixels[offset + 2] - candidate.blue) ** 2;
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestDistrict = candidate.districtId;
       }
     }
-  });
+    districtLabels[pixel] = closestDistrict;
+  }
 
   // Adjacent tract polygons can leave sub-pixel raster gaps even when their
   // geographic edges meet. Close only gaps surrounded by the same district so
@@ -213,7 +250,7 @@ function buildDistrictRaster(
         }
       }
     }
-    districtLabels = closed;
+    districtLabels.set(closed);
   }
   const exterior = new Uint8Array(width * height);
   const queue = new Int32Array(width * height);
@@ -513,31 +550,31 @@ function drawDistrictFills(
 function MapLegend({ mode }: { mode: DistrictMapMode }) {
   if (mode === 'partisan') {
     return (
-      <div className="flex items-center gap-3 text-xs text-slate-600">
-        <span>More Republican</span>
+      <div className="grid w-full max-w-md grid-cols-[auto_minmax(3rem,1fr)_auto] items-center gap-2 text-[11px] text-slate-600 sm:text-xs">
+        <span className="whitespace-nowrap">More Republican</span>
         <div
-          className="h-2.5 w-36 rounded-full border border-slate-200"
+          className="h-2.5 min-w-0 rounded-full border border-slate-200"
           style={{
             background:
               'linear-gradient(90deg, rgb(190,55,55), rgb(241,245,249), rgb(37,99,181))',
           }}
         />
-        <span>More Democratic</span>
+        <span className="whitespace-nowrap">More Democratic</span>
       </div>
     );
   }
   if (mode === 'population') {
     return (
-      <div className="flex items-center gap-3 text-xs text-slate-600">
-        <span>Below ideal</span>
+      <div className="grid w-full max-w-md grid-cols-[auto_minmax(3rem,1fr)_auto] items-center gap-2 text-[11px] text-slate-600 sm:text-xs">
+        <span className="whitespace-nowrap">Below ideal</span>
         <div
-          className="h-2.5 w-36 rounded-full border border-slate-200"
+          className="h-2.5 min-w-0 rounded-full border border-slate-200"
           style={{
             background:
               'linear-gradient(90deg, rgb(194,103,22), rgb(241,245,249), rgb(13,124,116))',
           }}
         />
-        <span>Above ideal</span>
+        <span className="whitespace-nowrap">Above ideal</span>
       </div>
     );
   }
