@@ -37,6 +37,7 @@ import {
   getSavedElections,
   removeSavedElection,
   saveElection,
+  setSavedElections,
   type SavedElection,
 } from './electionStorage';
 import HomePage from './HomePage';
@@ -268,18 +269,33 @@ function App() {
     return onSnapshot(
       ownedElections,
       (snapshot) => {
-        setCloudSavedElections(
-          snapshot.docs.map((snapshotDoc) => {
-            const data = snapshotDoc.data() as Election;
+        const cloudElections = snapshot.docs.map((snapshotDoc) => {
+          const data = snapshotDoc.data() as Election;
 
-            return {
-              id: snapshotDoc.id,
-              title: data.title,
-              method: data.votingMethod || 'smithApproval',
-              createdAt: data.createdAt,
-            };
-          })
-        );
+          return {
+            id: snapshotDoc.id,
+            title: data.title,
+            method: data.votingMethod || 'smithApproval',
+            createdAt: data.createdAt,
+            createdByUid: data.createdByUid,
+          };
+        });
+        const cloudElectionIds = new Set(cloudElections.map(({ id }) => id));
+
+        setCloudSavedElections(cloudElections);
+        setLocalSavedElections((elections) => {
+          const reconciledElections = elections.filter(
+            (savedElection) =>
+              savedElection.createdByUid !== currentUserUid ||
+              cloudElectionIds.has(savedElection.id)
+          );
+
+          if (reconciledElections.length !== elections.length) {
+            setSavedElections(reconciledElections);
+          }
+
+          return reconciledElections;
+        });
       },
       (err) => {
         console.error('Error loading account elections:', err);
@@ -464,6 +480,7 @@ function App() {
         title: electionTitle.trim(),
         method: votingMethod,
         createdAt: electionData.createdAt,
+        createdByUid,
       };
 
       saveElection(savedElection);
