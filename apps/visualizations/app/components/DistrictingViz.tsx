@@ -610,6 +610,7 @@ const DistrictMap: React.FC<DistrictMapProps> = ({
     height: number;
     paths: Path2D[];
     raster: DistrictRaster;
+    labelAnchors: Array<{ x: number; y: number }>;
   } | null>(null);
   const renderRef = useRef<{
     dataset: RealStateDistrictingDataset;
@@ -617,10 +618,30 @@ const DistrictMap: React.FC<DistrictMapProps> = ({
     mode: DistrictMapMode;
     height: number;
     canvas: HTMLCanvasElement;
-    labelsCanvas: HTMLCanvasElement;
     pixelsByDistrict: number[][];
   } | null>(null);
+  const labelsRef = useRef<{
+    dataset: RealStateDistrictingDataset;
+    result: RealDistrictingResult;
+    height: number;
+    displayWidth: number;
+    canvas: HTMLCanvasElement;
+  } | null>(null);
+  const [displayWidth, setDisplayWidth] = useState(MAP_WIDTH);
   const height = useMemo(() => mapHeight(dataset), [dataset]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(([entry]) => {
+      const nextWidth = Math.max(1, Math.round(entry.contentRect.width));
+      setDisplayWidth((currentWidth) =>
+        currentWidth === nextWidth ? currentWidth : nextWidth
+      );
+    });
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -631,6 +652,7 @@ const DistrictMap: React.FC<DistrictMapProps> = ({
     const cached = geometryRef.current;
     let paths: Path2D[];
     let raster: DistrictRaster;
+    let labelAnchors: Array<{ x: number; y: number }>;
     if (
       cached?.dataset === dataset &&
       cached.result === result &&
@@ -638,6 +660,7 @@ const DistrictMap: React.FC<DistrictMapProps> = ({
     ) {
       paths = cached.paths;
       raster = cached.raster;
+      labelAnchors = cached.labelAnchors;
     } else {
       const project = createProjection(dataset, MAP_WIDTH, height);
       paths = Array.from({ length: result.numDistricts }, () => new Path2D());
@@ -647,7 +670,20 @@ const DistrictMap: React.FC<DistrictMapProps> = ({
         addFeatureToPath(paths[district], feature, project);
       }
       raster = buildDistrictRaster(paths, MAP_WIDTH, height);
-      geometryRef.current = { dataset, result, height, paths, raster };
+      labelAnchors = findDistrictLabelAnchors(
+        raster,
+        MAP_WIDTH,
+        height,
+        result.centroids.map((centroid) => project([centroid.x, centroid.y]))
+      );
+      geometryRef.current = {
+        dataset,
+        result,
+        height,
+        paths,
+        raster,
+        labelAnchors,
+      };
     }
     rasterRef.current = raster;
 
@@ -675,21 +711,40 @@ const DistrictMap: React.FC<DistrictMapProps> = ({
       );
       if (!boundaries) return;
       baseContext.drawImage(boundaries.canvas, 0, 0);
+      rendered = {
+        dataset,
+        result,
+        mode,
+        height,
+        canvas: baseCanvas,
+        pixelsByDistrict: boundaries.pixelsByDistrict,
+      };
+      renderRef.current = rendered;
+    }
 
+    let renderedLabels = labelsRef.current;
+    if (
+      renderedLabels?.dataset !== dataset ||
+      renderedLabels.result !== result ||
+      renderedLabels.height !== height ||
+      renderedLabels.displayWidth !== displayWidth
+    ) {
       const labelsCanvas = document.createElement('canvas');
       labelsCanvas.width = MAP_WIDTH;
       labelsCanvas.height = height;
       const labelsContext = labelsCanvas.getContext('2d');
       if (!labelsContext) return;
-      const project = createProjection(dataset, MAP_WIDTH, height);
-      const labelAnchors = findDistrictLabelAnchors(
-        raster,
-        MAP_WIDTH,
-        height,
-        result.centroids.map((centroid) => project([centroid.x, centroid.y]))
-      );
-      const labelSize =
+      const baseLabelSize =
         result.numDistricts <= 20 ? 15 : result.numDistricts <= 40 ? 11 : 9;
+      const minimumCssLabelSize =
+        result.numDistricts <= 20 ? 12 : result.numDistricts <= 40 ? 10 : 9;
+      const labelSize = Math.min(
+        48,
+        Math.max(
+          baseLabelSize,
+          Math.round((minimumCssLabelSize * MAP_WIDTH) / displayWidth)
+        )
+      );
       labelsContext.textAlign = 'center';
       labelsContext.textBaseline = 'middle';
       labelsContext.font = `700 ${labelSize}px ui-sans-serif, system-ui, sans-serif`;
@@ -701,16 +756,14 @@ const DistrictMap: React.FC<DistrictMapProps> = ({
         labelsContext.fillStyle = '#0f172a';
         labelsContext.fillText(label, point.x, point.y);
       });
-      rendered = {
+      renderedLabels = {
         dataset,
         result,
-        mode,
         height,
-        canvas: baseCanvas,
-        labelsCanvas,
-        pixelsByDistrict: boundaries.pixelsByDistrict,
+        displayWidth,
+        canvas: labelsCanvas,
       };
-      renderRef.current = rendered;
+      labelsRef.current = renderedLabels;
     }
 
     ctx.clearRect(0, 0, MAP_WIDTH, height);
@@ -723,8 +776,8 @@ const DistrictMap: React.FC<DistrictMapProps> = ({
         height
       );
     }
-    ctx.drawImage(rendered.labelsCanvas, 0, 0);
-  }, [activeDistrict, dataset, height, mode, result]);
+    ctx.drawImage(renderedLabels.canvas, 0, 0);
+  }, [activeDistrict, dataset, displayWidth, height, mode, result]);
 
   const districtAtPointer = useCallback(
     (event: { clientX: number; clientY: number }) => {
