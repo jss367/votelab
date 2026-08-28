@@ -680,8 +680,7 @@ function MarginChart({
       </div>
       {hasScores && (
         <p className="mt-3 text-xs leading-relaxed text-slate-500">
-          Projection based on the two-party 2020 presidential vote, not a
-          congressional election result.
+          Based on the two-party 2020 presidential vote.
         </p>
       )}
     </div>
@@ -961,9 +960,7 @@ const DistrictingViz: React.FC = () => {
           <p className="mt-2">
             The plan uses {dataset.stateName} 2020 Census {unitLabel} covering{' '}
             {formatPopulation(totalPopulation)} people. Presidential results are
-            county totals distributed to map units by population share, so they
-            are useful as rough comparison signals—not official district
-            results.
+            county totals distributed to map units by population share.
             {result.bridges
               ? ` ${dataset.stateName} includes ${result.bridges} synthetic adjacency ${result.bridges === 1 ? 'connection' : 'connections'} for separated land areas.`
               : ''}
