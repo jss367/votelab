@@ -8,6 +8,7 @@ import {
   signInAnonymously,
   signInWithPopup,
   signOut,
+  type User,
 } from 'firebase/auth';
 import {
   addDoc,
@@ -122,6 +123,13 @@ function App() {
     []
   );
 
+  const syncCurrentUserState = useCallback((user: User | null) => {
+    setCurrentUserUid(user?.uid ?? null);
+    setCurrentUserName(user?.displayName ?? null);
+    setCurrentUserEmail(user?.email ?? null);
+    setCurrentUserIsAnonymous(user?.isAnonymous ?? true);
+  }, []);
+
   const ensureSignedIn = useCallback(async () => {
     if (auth.currentUser) {
       return auth.currentUser.uid;
@@ -201,10 +209,7 @@ function App() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setCurrentUserUid(user?.uid ?? null);
-      setCurrentUserName(user?.displayName ?? null);
-      setCurrentUserEmail(user?.email ?? null);
-      setCurrentUserIsAnonymous(user?.isAnonymous ?? true);
+      syncCurrentUserState(user);
       setAuthReady(true);
     });
 
@@ -215,7 +220,7 @@ function App() {
     });
 
     return () => unsubscribe();
-  }, [ensureSignedIn]);
+  }, [ensureSignedIn, syncCurrentUserState]);
 
   useEffect(() => {
     if (!currentUserUid) {
@@ -258,7 +263,9 @@ function App() {
         setAccountError('');
 
         try {
-          await linkWithPopup(auth.currentUser, googleProvider);
+          const credential = await linkWithPopup(auth.currentUser, googleProvider);
+          await credential.user.reload();
+          syncCurrentUserState(auth.currentUser ?? credential.user);
           setConfirmAccountSwitch(false);
           return;
         } catch (err) {
@@ -280,7 +287,8 @@ function App() {
       }
 
       setAccountError('');
-      await signInWithPopup(auth, googleProvider);
+      const credential = await signInWithPopup(auth, googleProvider);
+      syncCurrentUserState(credential.user);
       setConfirmAccountSwitch(false);
     } catch (err) {
       setAccountError(getGoogleAuthMessage(err));
