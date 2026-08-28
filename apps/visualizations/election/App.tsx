@@ -115,6 +115,7 @@ function App() {
   const [authReady, setAuthReady] = useState(false);
   const [authActionLoading, setAuthActionLoading] = useState(false);
   const [accountError, setAccountError] = useState('');
+  const [confirmAccountSwitch, setConfirmAccountSwitch] = useState(false);
   const [localSavedElections, setLocalSavedElections] =
     useState<SavedElection[]>(getSavedElections);
   const [cloudSavedElections, setCloudSavedElections] = useState<SavedElection[]>(
@@ -250,13 +251,15 @@ function App() {
   }, [currentUserUid]);
 
   const signInWithGoogle = async () => {
-    setAccountError('');
     setAuthActionLoading(true);
 
     try {
-      if (auth.currentUser?.isAnonymous) {
+      if (auth.currentUser?.isAnonymous && !confirmAccountSwitch) {
+        setAccountError('');
+
         try {
           await linkWithPopup(auth.currentUser, googleProvider);
+          setConfirmAccountSwitch(false);
           return;
         } catch (err) {
           const code = getFirebaseAuthCode(err);
@@ -267,10 +270,18 @@ function App() {
           ) {
             throw err;
           }
+
+          setConfirmAccountSwitch(true);
+          setAccountError(
+            'That Google account is already linked to VoteLab. Click again to switch to it; elections created in this browser before sign-in may remain tied to this browser.'
+          );
+          return;
         }
       }
 
+      setAccountError('');
       await signInWithPopup(auth, googleProvider);
+      setConfirmAccountSwitch(false);
     } catch (err) {
       setAccountError(getGoogleAuthMessage(err));
       console.error('Google sign-in error:', err);
@@ -285,6 +296,7 @@ function App() {
 
     try {
       await signOut(auth);
+      setConfirmAccountSwitch(false);
       await ensureSignedIn();
     } catch (err) {
       setAccountError('Sign-out failed. Try again.');
@@ -739,6 +751,7 @@ function App() {
                 accountEmail={currentUserEmail}
                 accountError={accountError}
                 authActionLoading={authActionLoading}
+                confirmAccountSwitch={confirmAccountSwitch}
                 onSignInWithGoogle={signInWithGoogle}
                 onSignOut={signOutOfGoogle}
                 onSelectMethod={(method) => {

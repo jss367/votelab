@@ -113,6 +113,7 @@ interface HomePageProps {
   accountEmail: string | null;
   accountError: string;
   authActionLoading: boolean;
+  confirmAccountSwitch: boolean;
   onSignInWithGoogle: () => void;
   onSignOut: () => void;
 }
@@ -126,6 +127,7 @@ const HomePage: React.FC<HomePageProps> = ({
   accountEmail,
   accountError,
   authActionLoading,
+  confirmAccountSwitch,
   onSignInWithGoogle,
   onSignOut,
 }) => {
@@ -171,7 +173,7 @@ const HomePage: React.FC<HomePageProps> = ({
             disabled={!authReady || authActionLoading}
             className="shrink-0"
           >
-            Sign in with Google
+            {confirmAccountSwitch ? 'Switch to Google Account' : 'Sign in with Google'}
           </Button>
         )}
       </div>
