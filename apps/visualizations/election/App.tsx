@@ -6,8 +6,10 @@ import {
   linkWithPopup,
   onAuthStateChanged,
   signInAnonymously,
+  signInWithCredential,
   signInWithPopup,
   signOut,
+  type AuthCredential,
   type User,
 } from 'firebase/auth';
 import {
@@ -55,6 +57,13 @@ type Mode = 'home' | 'create' | 'vote' | 'success' | 'results' | 'admin';
 const getFirebaseAuthCode = (err: unknown) =>
   typeof err === 'object' && err !== null && 'code' in err
     ? String((err as { code?: string }).code)
+    : '';
+
+const getFirebaseAuthEmail = (err: unknown) =>
+  typeof err === 'object' && err !== null && 'customData' in err
+    ? String(
+        (err as { customData?: { email?: string } }).customData?.email || ''
+      )
     : '';
 
 const getGoogleAuthMessage = (err: unknown) => {
@@ -117,6 +126,8 @@ function App() {
   const [authActionLoading, setAuthActionLoading] = useState(false);
   const [accountError, setAccountError] = useState('');
   const [confirmAccountSwitch, setConfirmAccountSwitch] = useState(false);
+  const [pendingGoogleCredential, setPendingGoogleCredential] =
+    useState<AuthCredential | null>(null);
   const [localSavedElections, setLocalSavedElections] =
     useState<SavedElection[]>(getSavedElections);
   const [cloudSavedElections, setCloudSavedElections] = useState<SavedElection[]>(
@@ -280,13 +291,32 @@ function App() {
     setAuthActionLoading(true);
 
     try {
+      if (confirmAccountSwitch && pendingGoogleCredential) {
+        setAccountError('');
+        const credential = await signInWithCredential(
+          auth,
+          pendingGoogleCredential
+        );
+        syncCurrentUserState(credential.user);
+        setConfirmAccountSwitch(false);
+        setPendingGoogleCredential(null);
+        return;
+      }
+
+      setPendingGoogleCredential(null);
+
       if (auth.currentUser?.isAnonymous && !confirmAccountSwitch) {
         setAccountError('');
 
         try {
           const credential = await linkWithPopup(auth.currentUser, googleProvider);
-          await credential.user.reload();
-          syncCurrentUserState(auth.currentUser ?? credential.user);
+          syncCurrentUserState(credential.user);
+          credential.user
+            .reload()
+            .then(() => syncCurrentUserState(auth.currentUser ?? credential.user))
+            .catch((err) => {
+              console.error('Linked user reload error:', err);
+            });
           setConfirmAccountSwitch(false);
           return;
         } catch (err) {
@@ -299,9 +329,22 @@ function App() {
             throw err;
           }
 
+          const credential = GoogleAuthProvider.credentialFromError(
+            err as Parameters<typeof GoogleAuthProvider.credentialFromError>[0]
+          );
+          const email = getFirebaseAuthEmail(err);
+
+          if (!credential) {
+            setAccountError(
+              'That Google account is already linked to VoteLab. Reload this page before switching accounts.'
+            );
+            return;
+          }
+
+          setPendingGoogleCredential(credential);
           setConfirmAccountSwitch(true);
           setAccountError(
-            'That Google account is already linked to VoteLab. Click again to switch to it; elections created in this browser before sign-in may remain tied to this browser.'
+            `The Google account${email ? ` ${email}` : ''} is already linked to VoteLab. Click again to switch to it; elections created in this browser before sign-in may remain tied to this browser.`
           );
           return;
         }
@@ -311,6 +354,7 @@ function App() {
       const credential = await signInWithPopup(auth, googleProvider);
       syncCurrentUserState(credential.user);
       setConfirmAccountSwitch(false);
+      setPendingGoogleCredential(null);
     } catch (err) {
       setAccountError(getGoogleAuthMessage(err));
       console.error('Google sign-in error:', err);
@@ -326,6 +370,7 @@ function App() {
     try {
       await signOut(auth);
       setConfirmAccountSwitch(false);
+      setPendingGoogleCredential(null);
     } catch (err) {
       setAccountError('Sign-out failed. Try again.');
       console.error('Sign-out error:', err);
