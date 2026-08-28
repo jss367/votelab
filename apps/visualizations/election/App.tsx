@@ -19,7 +19,7 @@ import {
   deleteDoc,
   doc,
   documentId,
-  getDocs,
+  getDocsFromServer,
   onSnapshot,
   query,
   runTransaction,
@@ -294,7 +294,7 @@ function App() {
           continue;
         }
 
-        const snapshot = await getDocs(
+        const snapshot = await getDocsFromServer(
           query(collection(db, 'elections'), where(documentId(), 'in', ids))
         );
 
