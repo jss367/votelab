@@ -945,7 +945,11 @@ const DistrictingViz: React.FC = () => {
         if (cancelled) return;
         setDataset(data);
         setResult(plan);
-        if (!plan.metrics.partisanScores) setMode('districts');
+        if (!plan.metrics.partisanScores) {
+          setMode((currentMode) =>
+            currentMode === 'partisan' ? 'districts' : currentMode
+          );
+        }
       })
       .catch((err: Error) => {
         if (!cancelled) setError(err.message);
