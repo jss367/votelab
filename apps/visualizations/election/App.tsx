@@ -190,6 +190,13 @@ function App() {
     }
 
     for (const election of cloudSavedElections) {
+      if (
+        election.createdByUid &&
+        election.createdByUid !== currentUserUid
+      ) {
+        continue;
+      }
+
       byId.set(election.id, election);
     }
 
@@ -350,8 +357,9 @@ function App() {
   );
 
   useEffect(() => {
+    setCloudSavedElections([]);
+
     if (!currentUserUid) {
-      setCloudSavedElections([]);
       return;
     }
 
