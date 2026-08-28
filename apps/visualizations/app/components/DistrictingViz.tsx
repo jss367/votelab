@@ -275,14 +275,23 @@ function buildDistrictRaster(
   return { labels: districtLabels, exterior };
 }
 
-function drawDistrictBoundaries(
-  ctx: CanvasRenderingContext2D,
+function buildDistrictBoundaryLayer(
   raster: DistrictRaster,
   width: number,
   height: number,
-  activeDistrict: number | null
+  numDistricts: number
 ) {
-  const boundaryImage = ctx.createImageData(width, height);
+  const boundaryCanvas = document.createElement('canvas');
+  boundaryCanvas.width = width;
+  boundaryCanvas.height = height;
+  const boundaryContext = boundaryCanvas.getContext('2d');
+  if (!boundaryContext) return null;
+
+  const boundaryImage = boundaryContext.createImageData(width, height);
+  const pixelsByDistrict = Array.from(
+    { length: numDistricts },
+    () => new Set<number>()
+  );
   const { labels: districtLabels, exterior } = raster;
 
   const districtAt = (x: number, y: number) => {
@@ -293,19 +302,17 @@ function drawDistrictBoundaries(
     if (x < 0 || x >= width || y < 0 || y >= height) return true;
     return exterior[y * width + x] === 1;
   };
-  const stamp = (x: number, y: number, selected: boolean) => {
-    const radius = selected ? 2 : 1;
-    for (let dy = -radius; dy <= radius; dy++) {
-      for (let dx = -radius; dx <= radius; dx++) {
+  const stamp = (x: number, y: number) => {
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
         const px = x + dx;
         const py = y + dy;
         if (px < 0 || px >= width || py < 0 || py >= height) continue;
         const offset = (py * width + px) * 4;
-        if (!selected && boundaryImage.data[offset + 3] === 255) continue;
-        boundaryImage.data[offset] = selected ? 15 : 51;
-        boundaryImage.data[offset + 1] = selected ? 23 : 65;
-        boundaryImage.data[offset + 2] = selected ? 42 : 85;
-        boundaryImage.data[offset + 3] = selected ? 255 : 190;
+        boundaryImage.data[offset] = 51;
+        boundaryImage.data[offset + 1] = 65;
+        boundaryImage.data[offset + 2] = 85;
+        boundaryImage.data[offset + 3] = 190;
       }
     }
   };
@@ -314,30 +321,62 @@ function drawDistrictBoundaries(
     for (let x = 0; x < width; x++) {
       const district = districtAt(x, y);
       if (district === 0) continue;
-      const neighborPoints = [
-        [x - 1, y],
-        [x + 1, y],
-        [x, y - 1],
-        [x, y + 1],
-      ];
-      const neighbors = neighborPoints.map(([nx, ny]) => districtAt(nx, ny));
-      const isBoundary = neighborPoints.some(([nx, ny], index) => {
-        const neighbor = neighbors[index];
-        return (
-          (neighbor !== 0 && neighbor !== district) ||
-          (neighbor === 0 && isExterior(nx, ny))
-        );
-      });
+      const left = districtAt(x - 1, y);
+      const right = districtAt(x + 1, y);
+      const top = districtAt(x, y - 1);
+      const bottom = districtAt(x, y + 1);
+      const isBoundary =
+        (left !== 0 && left !== district) ||
+        (right !== 0 && right !== district) ||
+        (top !== 0 && top !== district) ||
+        (bottom !== 0 && bottom !== district) ||
+        (left === 0 && isExterior(x - 1, y)) ||
+        (right === 0 && isExterior(x + 1, y)) ||
+        (top === 0 && isExterior(x, y - 1)) ||
+        (bottom === 0 && isExterior(x, y + 1));
       if (!isBoundary) continue;
-      const selectedId = activeDistrict === null ? 0 : activeDistrict + 1;
-      stamp(x, y, district === selectedId || neighbors.includes(selectedId));
+      stamp(x, y);
+      const pixel = y * width + x;
+      for (const districtId of [district, left, right, top, bottom]) {
+        if (districtId > 0) pixelsByDistrict[districtId - 1]?.add(pixel);
+      }
     }
   }
+  boundaryContext.putImageData(boundaryImage, 0, 0);
+  return {
+    canvas: boundaryCanvas,
+    pixelsByDistrict: pixelsByDistrict.map((pixels) => Array.from(pixels)),
+  };
+}
+
+function drawActiveDistrictBoundary(
+  ctx: CanvasRenderingContext2D,
+  pixels: number[],
+  width: number,
+  height: number
+) {
   const boundaryCanvas = document.createElement('canvas');
   boundaryCanvas.width = width;
   boundaryCanvas.height = height;
   const boundaryContext = boundaryCanvas.getContext('2d');
   if (!boundaryContext) return;
+  const boundaryImage = boundaryContext.createImageData(width, height);
+  for (const pixel of pixels) {
+    const x = pixel % width;
+    const y = Math.floor(pixel / width);
+    for (let dy = -2; dy <= 2; dy++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        const px = x + dx;
+        const py = y + dy;
+        if (px < 0 || px >= width || py < 0 || py >= height) continue;
+        const offset = (py * width + px) * 4;
+        boundaryImage.data[offset] = 15;
+        boundaryImage.data[offset + 1] = 23;
+        boundaryImage.data[offset + 2] = 42;
+        boundaryImage.data[offset + 3] = 255;
+      }
+    }
+  }
   boundaryContext.putImageData(boundaryImage, 0, 0);
   ctx.drawImage(boundaryCanvas, 0, 0);
 }
@@ -455,6 +494,15 @@ const DistrictMap: React.FC<DistrictMapProps> = ({
     paths: Path2D[];
     raster: DistrictRaster;
   } | null>(null);
+  const renderRef = useRef<{
+    dataset: RealStateDistrictingDataset;
+    result: RealDistrictingResult;
+    mode: DistrictMapMode;
+    height: number;
+    canvas: HTMLCanvasElement;
+    labelsCanvas: HTMLCanvasElement;
+    pixelsByDistrict: number[][];
+  } | null>(null);
   const height = useMemo(() => mapHeight(dataset), [dataset]);
 
   useEffect(() => {
@@ -463,7 +511,6 @@ const DistrictMap: React.FC<DistrictMapProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const project = createProjection(dataset, MAP_WIDTH, height);
     const cached = geometryRef.current;
     let paths: Path2D[];
     let raster: DistrictRaster;
@@ -475,6 +522,7 @@ const DistrictMap: React.FC<DistrictMapProps> = ({
       paths = cached.paths;
       raster = cached.raster;
     } else {
+      const project = createProjection(dataset, MAP_WIDTH, height);
       paths = Array.from({ length: result.numDistricts }, () => new Path2D());
       for (const feature of dataset.geometries.features) {
         const district = result.assignment[feature.properties.geoid];
@@ -486,28 +534,74 @@ const DistrictMap: React.FC<DistrictMapProps> = ({
     }
     pathsRef.current = paths;
 
+    let rendered = renderRef.current;
+    if (
+      rendered?.dataset !== dataset ||
+      rendered.result !== result ||
+      rendered.mode !== mode ||
+      rendered.height !== height
+    ) {
+      const baseCanvas = document.createElement('canvas');
+      baseCanvas.width = MAP_WIDTH;
+      baseCanvas.height = height;
+      const baseContext = baseCanvas.getContext('2d');
+      if (!baseContext) return;
+
+      baseContext.fillStyle = '#f8fafc';
+      baseContext.fillRect(0, 0, MAP_WIDTH, height);
+      drawDistrictFills(baseContext, raster, result, mode, MAP_WIDTH, height);
+      const boundaries = buildDistrictBoundaryLayer(
+        raster,
+        MAP_WIDTH,
+        height,
+        result.numDistricts
+      );
+      if (!boundaries) return;
+      baseContext.drawImage(boundaries.canvas, 0, 0);
+
+      const labelsCanvas = document.createElement('canvas');
+      labelsCanvas.width = MAP_WIDTH;
+      labelsCanvas.height = height;
+      const labelsContext = labelsCanvas.getContext('2d');
+      if (!labelsContext) return;
+      const project = createProjection(dataset, MAP_WIDTH, height);
+      const labelSize =
+        result.numDistricts <= 20 ? 15 : result.numDistricts <= 40 ? 11 : 9;
+      labelsContext.textAlign = 'center';
+      labelsContext.textBaseline = 'middle';
+      labelsContext.font = `700 ${labelSize}px ui-sans-serif, system-ui, sans-serif`;
+      result.centroids.forEach((centroid, district) => {
+        const point = project([centroid.x, centroid.y]);
+        const label = String(district + 1);
+        labelsContext.lineWidth = Math.max(3, labelSize / 3);
+        labelsContext.strokeStyle = 'rgba(255, 255, 255, 0.96)';
+        labelsContext.strokeText(label, point.x, point.y);
+        labelsContext.fillStyle = '#0f172a';
+        labelsContext.fillText(label, point.x, point.y);
+      });
+      rendered = {
+        dataset,
+        result,
+        mode,
+        height,
+        canvas: baseCanvas,
+        labelsCanvas,
+        pixelsByDistrict: boundaries.pixelsByDistrict,
+      };
+      renderRef.current = rendered;
+    }
+
     ctx.clearRect(0, 0, MAP_WIDTH, height);
-    ctx.fillStyle = '#f8fafc';
-    ctx.fillRect(0, 0, MAP_WIDTH, height);
-
-    drawDistrictFills(ctx, raster, result, mode, MAP_WIDTH, height);
-
-    drawDistrictBoundaries(ctx, raster, MAP_WIDTH, height, activeDistrict);
-
-    const labelSize =
-      result.numDistricts <= 20 ? 15 : result.numDistricts <= 40 ? 11 : 9;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = `700 ${labelSize}px ui-sans-serif, system-ui, sans-serif`;
-    result.centroids.forEach((centroid, district) => {
-      const point = project([centroid.x, centroid.y]);
-      const label = String(district + 1);
-      ctx.lineWidth = Math.max(3, labelSize / 3);
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.96)';
-      ctx.strokeText(label, point.x, point.y);
-      ctx.fillStyle = '#0f172a';
-      ctx.fillText(label, point.x, point.y);
-    });
+    ctx.drawImage(rendered.canvas, 0, 0);
+    if (activeDistrict !== null) {
+      drawActiveDistrictBoundary(
+        ctx,
+        rendered.pixelsByDistrict[activeDistrict] ?? [],
+        MAP_WIDTH,
+        height
+      );
+    }
+    ctx.drawImage(rendered.labelsCanvas, 0, 0);
   }, [activeDistrict, dataset, height, mode, result]);
 
   const districtAtPointer = useCallback(
