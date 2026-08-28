@@ -208,19 +208,40 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      syncCurrentUserState(user);
-      setAuthReady(true);
-    });
+    let anonymousSignInPending = false;
 
-    ensureSignedIn().catch((err) => {
-      setError('Error initializing anonymous sign-in');
-      console.error('Anonymous sign-in error:', err);
-      setAuthReady(true);
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        syncCurrentUserState(user);
+        setAuthReady(true);
+        anonymousSignInPending = false;
+        return;
+      }
+
+      if (anonymousSignInPending) {
+        return;
+      }
+
+      syncCurrentUserState(null);
+      setAuthReady(false);
+      anonymousSignInPending = true;
+      signInAnonymously(auth)
+        .then((credential) => {
+          syncCurrentUserState(credential.user);
+          setAuthReady(true);
+        })
+        .catch((err) => {
+          setError('Error initializing anonymous sign-in');
+          console.error('Anonymous sign-in error:', err);
+          setAuthReady(true);
+        })
+        .finally(() => {
+          anonymousSignInPending = false;
+        });
     });
 
     return () => unsubscribe();
-  }, [ensureSignedIn, syncCurrentUserState]);
+  }, [syncCurrentUserState]);
 
   useEffect(() => {
     if (!currentUserUid) {
@@ -305,7 +326,6 @@ function App() {
     try {
       await signOut(auth);
       setConfirmAccountSwitch(false);
-      await ensureSignedIn();
     } catch (err) {
       setAccountError('Sign-out failed. Try again.');
       console.error('Sign-out error:', err);
