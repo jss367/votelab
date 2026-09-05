@@ -8,6 +8,8 @@ export interface ElectionConfig {
   approvalThreshold: number;
 }
 
+const URL_FORMAT_VERSION = 2;
+
 /**
  * Serialize election config to URL search params.
  * Format: candidates=A,0.3,0.5,#ef4444;B,0.7,0.5,#3b82f6&blocs=0.5,0.5,0.1,500&method=irv&threshold=0.3
@@ -35,6 +37,9 @@ export const serializeConfig = (config: ElectionConfig): string => {
 
   params.set('method', config.method);
   params.set('threshold', config.approvalThreshold.toFixed(2));
+  // Format version. v2 percent-encodes candidate names; links without a
+  // version predate encoding and carry raw names.
+  params.set('v', String(URL_FORMAT_VERSION));
 
   return params.toString();
 };
@@ -48,11 +53,12 @@ const SPATIAL_METHODS: ReadonlySet<string> = new Set<VotingMethod>([
   'smithApproval',
 ]);
 
-// Names are percent-encoded on serialize so ',' and ';' in a name don't
-// corrupt the record. Links generated before encoding was added carry raw
-// names, which may contain a literal '%' that is not a valid escape; keep
-// those usable by falling back to the raw string when decoding fails.
-const decodeName = (raw: string): string => {
+// v2 links percent-encode candidate names so ',' and ';' in a name don't
+// corrupt the record. Unversioned (legacy) links carry raw names and must not
+// be decoded: a legacy name like "Alice%20Bob" is literal. The version marker
+// disambiguates; the catch only guards hand-edited v2 links with bad escapes.
+const decodeName = (raw: string, encoded: boolean): string => {
+  if (!encoded) return raw;
   try {
     return decodeURIComponent(raw);
   } catch {
@@ -78,6 +84,8 @@ export const parseConfig = (searchParams: URLSearchParams): ElectionConfig | nul
     const blocsStr = searchParams.get('blocs');
     const method = searchParams.get('method');
     const threshold = searchParams.get('threshold');
+    const encodedNames =
+      Number(searchParams.get('v') ?? 1) >= URL_FORMAT_VERSION;
 
     if (!candidatesStr || !blocsStr || !method || !SPATIAL_METHODS.has(method)) {
       return null;
@@ -85,7 +93,7 @@ export const parseConfig = (searchParams: URLSearchParams): ElectionConfig | nul
 
     const candidates: SpatialCandidate[] = candidatesStr.split(';').map((str) => {
       const [rawName, x, y, color] = str.split(',');
-      const name = decodeName(rawName ?? '');
+      const name = decodeName(rawName ?? '', encodedNames);
       if (!name || !color) throw new Error('Malformed candidate');
       return {
         id: name.toLowerCase(),

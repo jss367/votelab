@@ -173,6 +173,27 @@ describe('YeeDiagram', () => {
       const smithSet = computeSmithSet(matrix, ['a', 'b', 'c']);
       expect(smithSet).toHaveLength(3);
     });
+
+    it('includes tied top candidates and excludes the dominated outsider', () => {
+      // Ballots A > B > C and B > A > C: A and B tie, both beat C.
+      const matrix = {
+        a: { b: 1, c: 2 },
+        b: { a: 1, c: 2 },
+        c: { a: 0, b: 0 },
+      };
+      expect(computeSmithSet(matrix, ['a', 'b', 'c'])).toEqual(['a', 'b']);
+    });
+
+    it('excludes a candidate that loses to everyone above a cycle', () => {
+      // A > B > C > A cycle, all beat D.
+      const matrix = {
+        a: { b: 2, c: 1, d: 3 },
+        b: { a: 1, c: 2, d: 3 },
+        c: { a: 2, b: 1, d: 3 },
+        d: { a: 0, b: 0, c: 0 },
+      };
+      expect(computeSmithSet(matrix, ['a', 'b', 'c', 'd'])).toEqual(['a', 'b', 'c']);
+    });
   });
 
   describe('computeSmithApprovalWinner', () => {

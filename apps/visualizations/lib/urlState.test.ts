@@ -20,13 +20,18 @@ describe('urlState', () => {
     expect(parsed!.method).toBe('irv');
   });
 
-  it('keeps legacy links whose raw names contain a literal percent sign', () => {
-    // Older links were serialized without percent-encoding the name.
+  it('treats unversioned legacy links as raw names, even valid-looking escapes', () => {
+    // Older links were serialized without a version marker or name encoding.
     const params = new URLSearchParams(serializeConfig(config));
-    params.set('candidates', '100% Real,0.300,0.500,#ef4444;B,0.700,0.500,#3b82f6');
+    params.delete('v');
+    params.set(
+      'candidates',
+      '100% Real,0.300,0.500,#ef4444;Alice%20Bob,0.700,0.500,#3b82f6'
+    );
     const parsed = parseConfig(params);
     expect(parsed).not.toBeNull();
-    expect(parsed!.candidates[0].name).toBe('100% Real');
+    expect(parsed!.candidates.map((c) => c.name)).toEqual(['100% Real', 'Alice%20Bob']);
+    expect(parsed!.candidates[1].id).toBe('alice%20bob');
   });
 
   it('rejects an unknown method', () => {

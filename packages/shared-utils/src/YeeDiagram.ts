@@ -210,76 +210,43 @@ export const computeCondorcetWinner = (
   return computeIRVWinner(voters, candidates);
 };
 
+/**
+ * Smith set: the smallest non-empty set of candidates such that every member
+ * strictly beats every non-member head-to-head.
+ *
+ * Computed on the "beats-or-ties" graph (edge a -> b when a does at least as
+ * well as b). That relation is complete, so its condensation is a total order
+ * and its top strongly connected component is exactly the Smith set: members
+ * reach every candidate, and nobody outside can reach in (which would require
+ * beating-or-tying a member). Working on strict "beats" edges instead would
+ * split tied top candidates into separate components and miss cases like
+ * A ties B, both beat C, where the Smith set is {A, B}.
+ */
 export const computeSmithSet = (
   matrix: Record<string, Record<string, number>>,
   candidateIds: string[]
 ): string[] => {
-  const beats = new Map<string, Set<string>>();
-  candidateIds.forEach(id => beats.set(id, new Set()));
+  const n = candidateIds.length;
+  if (n === 0) return [];
+  const beatsOrTies = (a: string, b: string): boolean =>
+    (matrix[a]?.[b] ?? 0) >= (matrix[b]?.[a] ?? 0);
 
-  candidateIds.forEach(c1 => {
-    candidateIds.forEach(c2 => {
-      if (c1 !== c2 && matrix[c1][c2] > matrix[c2][c1]) {
-        beats.get(c1)!.add(c2);
+  const reachesAll = (start: string): boolean => {
+    const seen = new Set<string>([start]);
+    const stack = [start];
+    while (stack.length) {
+      const node = stack.pop()!;
+      for (const next of candidateIds) {
+        if (!seen.has(next) && beatsOrTies(node, next)) {
+          seen.add(next);
+          stack.push(next);
+        }
       }
-    });
-  });
-
-  const visited = new Set<string>();
-  const finishOrder: string[] = [];
-
-  const dfs1 = (node: string) => {
-    if (visited.has(node)) return;
-    visited.add(node);
-    beats.get(node)!.forEach(next => dfs1(next));
-    finishOrder.push(node);
+    }
+    return seen.size === n;
   };
 
-  candidateIds.forEach(id => dfs1(id));
-
-  const reversedBeats = new Map<string, Set<string>>();
-  candidateIds.forEach(id => reversedBeats.set(id, new Set()));
-  candidateIds.forEach(c1 => {
-    beats.get(c1)!.forEach(c2 => {
-      reversedBeats.get(c2)!.add(c1);
-    });
-  });
-
-  visited.clear();
-  const components: string[][] = [];
-
-  const dfs2 = (node: string, component: string[]) => {
-    if (visited.has(node)) return;
-    visited.add(node);
-    component.push(node);
-    reversedBeats.get(node)!.forEach(next => dfs2(next, component));
-  };
-
-  for (let i = finishOrder.length - 1; i >= 0; i--) {
-    const node = finishOrder[i];
-    if (!visited.has(node)) {
-      const component: string[] = [];
-      dfs2(node, component);
-      components.push(component);
-    }
-  }
-
-  for (const component of components) {
-    const componentSet = new Set(component);
-    const beatsAllOutside = candidateIds
-      .filter(id => !componentSet.has(id))
-      .every(outside =>
-        component.some(inside =>
-          matrix[inside][outside] > matrix[outside][inside]
-        )
-      );
-
-    if (beatsAllOutside || component.length === candidateIds.length) {
-      return component;
-    }
-  }
-
-  return candidateIds;
+  return candidateIds.filter(reachesAll);
 };
 
 export const computeSmithApprovalWinner = (
