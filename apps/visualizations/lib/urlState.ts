@@ -17,7 +17,10 @@ export const serializeConfig = (config: ElectionConfig): string => {
 
   // Candidates: name,x,y,color;name,x,y,color
   const candidatesStr = config.candidates
-    .map((c) => `${c.name},${c.x.toFixed(3)},${c.y.toFixed(3)},${c.color}`)
+    .map(
+      (c) =>
+        `${encodeURIComponent(c.name)},${c.x.toFixed(3)},${c.y.toFixed(3)},${c.color}`
+    )
     .join(';');
   params.set('candidates', candidatesStr);
 
@@ -36,28 +39,49 @@ export const serializeConfig = (config: ElectionConfig): string => {
   return params.toString();
 };
 
+const SPATIAL_METHODS: ReadonlySet<string> = new Set<VotingMethod>([
+  'plurality',
+  'approval',
+  'irv',
+  'borda',
+  'condorcet',
+  'smithApproval',
+]);
+
+const finiteOrThrow = (raw: string | undefined): number => {
+  const n = raw === undefined ? NaN : Number(raw);
+  if (!Number.isFinite(n)) throw new Error(`Invalid number: ${raw}`);
+  return n;
+};
+
 /**
  * Parse URL search params into election config.
- * Returns null if parsing fails.
+ * Returns null if the params are missing or malformed (unknown method,
+ * non-numeric coordinates, empty names), so callers fall back to defaults
+ * instead of crashing inside the election computation.
  */
 export const parseConfig = (searchParams: URLSearchParams): ElectionConfig | null => {
   try {
     const candidatesStr = searchParams.get('candidates');
     const blocsStr = searchParams.get('blocs');
-    const method = searchParams.get('method') as VotingMethod;
+    const method = searchParams.get('method');
     const threshold = searchParams.get('threshold');
 
-    if (!candidatesStr || !blocsStr || !method) {
+    if (!candidatesStr || !blocsStr || !method || !SPATIAL_METHODS.has(method)) {
       return null;
     }
 
     const candidates: SpatialCandidate[] = candidatesStr.split(';').map((str) => {
-      const [name, x, y, color] = str.split(',');
+      const [rawName, x, y, color] = str.split(',');
+      // Names are percent-encoded on serialize so ',' and ';' in a name don't
+      // corrupt the record. Decoding a plain (legacy) name is a no-op.
+      const name = decodeURIComponent(rawName ?? '');
+      if (!name || !color) throw new Error('Malformed candidate');
       return {
         id: name.toLowerCase(),
         name,
-        x: parseFloat(x),
-        y: parseFloat(y),
+        x: finiteOrThrow(x),
+        y: finiteOrThrow(y),
         color,
       };
     });
@@ -66,17 +90,19 @@ export const parseConfig = (searchParams: URLSearchParams): ElectionConfig | nul
       const [x, y, spread, count] = str.split(',');
       return {
         id: `bloc-${i}`,
-        position: { x: parseFloat(x), y: parseFloat(y) },
-        spread: parseFloat(spread),
-        count: parseInt(count, 10),
+        position: { x: finiteOrThrow(x), y: finiteOrThrow(y) },
+        spread: finiteOrThrow(spread),
+        count: Math.max(0, Math.floor(finiteOrThrow(count))),
       };
     });
+
+    if (candidates.length < 2 || blocs.length === 0) return null;
 
     return {
       candidates,
       blocs,
-      method,
-      approvalThreshold: threshold ? parseFloat(threshold) : 0.3,
+      method: method as VotingMethod,
+      approvalThreshold: threshold ? finiteOrThrow(threshold) : 0.3,
     };
   } catch {
     return null;

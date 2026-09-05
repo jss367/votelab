@@ -337,20 +337,6 @@ export const generateYeeDiagram = (config: YeeDiagramConfig): YeeDiagramResult =
   // This ensures consistent behavior across resolution changes
   const sampleRadius = 0.12;
 
-  // Debug: log input parameters
-  console.log('[YeeDiagram] Starting generation:', {
-    voterCount: voters.length,
-    candidateCount: candidates.length,
-    candidates: candidates.map(c => ({ id: c.id, name: c.name, x: c.x.toFixed(2), y: c.y.toFixed(2) })),
-    method,
-    resolution,
-    approvalThreshold,
-    sampleRadius,
-  });
-
-  // Debug: sample a few cells
-  const debugCells: Array<{ row: number; col: number; x: number; y: number; nearbyCount: number; winner: string }> = [];
-
   for (let row = 0; row < resolution; row++) {
     const gridRow: string[] = [];
     for (let col = 0; col < resolution; col++) {
@@ -375,34 +361,10 @@ export const generateYeeDiagram = (config: YeeDiagramConfig): YeeDiagramResult =
         winner = prefs[0].candidateId;
       }
 
-      // Debug: capture corner and center cells
-      if ((row === 0 && col === 0) ||
-          (row === 0 && col === resolution - 1) ||
-          (row === resolution - 1 && col === 0) ||
-          (row === resolution - 1 && col === resolution - 1) ||
-          (row === Math.floor(resolution / 2) && col === Math.floor(resolution / 2))) {
-        debugCells.push({
-          row, col,
-          x: parseFloat(cellX.toFixed(3)),
-          y: parseFloat(cellY.toFixed(3)),
-          nearbyCount: nearbyVoters.length,
-          winner,
-        });
-      }
-
       gridRow.push(winner);
     }
     grid.push(gridRow);
   }
-
-  console.log('[YeeDiagram] Sample cells:', debugCells);
-
-  // Count winners across the grid
-  const winnerCounts: Record<string, number> = {};
-  grid.forEach(row => row.forEach(w => {
-    winnerCounts[w] = (winnerCounts[w] || 0) + 1;
-  }));
-  console.log('[YeeDiagram] Winner distribution:', winnerCounts);
 
   return {
     grid,

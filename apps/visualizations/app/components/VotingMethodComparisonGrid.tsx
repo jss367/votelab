@@ -10,6 +10,7 @@ import {
   SpatialCandidate,
   SpatialVotingMethod,
   spatialVoteCalculators,
+  usesApprovalThreshold,
 } from '../../lib/spatialVoting';
 import { VotingMethod } from '../../lib/votingMethods';
 import {
@@ -179,7 +180,7 @@ const VotingMethodComparisonGrid = () => {
             px,
             py,
             candidates,
-            method === 'approval' ? DEFAULT_APPROVAL_THRESHOLD : 0
+            usesApprovalThreshold(method) ? DEFAULT_APPROVAL_THRESHOLD : 0
           );
           const winnerId = winnerIds[0];
           const color = candidateColors[winnerId];

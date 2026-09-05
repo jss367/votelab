@@ -391,9 +391,6 @@ function App() {
   };
 
   const addCandidate = async () => {
-    console.log('Add Candidate clicked');
-    console.log('newCandidate:', newCandidate);
-    console.log('electionId:', electionId);
     if (!newCandidate.trim() || !electionId) {
       return;
     }
@@ -439,8 +436,6 @@ function App() {
   };
 
   const addLocalCandidate = () => {
-    console.log('Adding local candidate in creation mode');
-    console.log('Current newCandidate:', newCandidate);
 
     if (!newCandidate.trim()) {
       setError('Please enter a candidate name');
@@ -468,17 +463,13 @@ function App() {
       customFields: newCandidateFields,
     };
 
-    console.log('Adding new candidate:', newCand);
     setCandidates([...candidates, newCand]);
     setNewCandidate('');
     setNewCandidateFields([]);
-    console.log('Updated candidates list:', [...candidates, newCand]);
   };
 
   const addExistingElectionCandidate = async () => {
-    console.log('Adding candidate to existing election');
     if (!newCandidate.trim() || !electionId) {
-      console.log('Validation failed:', { newCandidate, electionId });
       setError('Please enter a candidate name');
       return;
     }

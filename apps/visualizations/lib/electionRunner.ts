@@ -1,4 +1,4 @@
-import { Candidate, Election, Vote } from '@votelab/shared-utils';
+import { Candidate, Election, Vote, computeSmithSet } from '@votelab/shared-utils';
 
 export type ElectionMethod =
   | 'plurality'
@@ -61,7 +61,7 @@ function runApprovalElection(
   // Count approvals
   votes.forEach((vote) => {
     vote.approved.forEach((candidateId) => {
-      voteCounts[candidateId]++;
+      if (candidateId in voteCounts) voteCounts[candidateId]++;
     });
   });
 
@@ -218,6 +218,41 @@ function runCondorcetElection(
   };
 }
 
+/**
+ * Smith set + approval: restrict to the smallest set of candidates that beat
+ * every outsider head-to-head, then pick the most-approved among them.
+ */
+function runSmithApprovalElection(
+  votes: Vote[],
+  candidates: Candidate[]
+): ElectionResults {
+  const ids = candidates.map((c) => c.id);
+  const matrix: Record<string, Record<string, number>> = {};
+  for (const a of ids) {
+    matrix[a] = {};
+    for (const b of ids) if (a !== b) matrix[a][b] = 0;
+  }
+  for (const vote of votes) {
+    const ranking = vote.ranking.filter((id) => id in matrix);
+    for (let i = 0; i < ranking.length; i++) {
+      for (let j = i + 1; j < ranking.length; j++) {
+        if (ranking[i] !== ranking[j]) matrix[ranking[i]][ranking[j]]++;
+      }
+    }
+  }
+
+  const smithSet = new Set(computeSmithSet(matrix, ids));
+  const smithCandidates = candidates.filter((c) => smithSet.has(c.id));
+  const approval = runApprovalElection(votes, smithCandidates);
+  return {
+    ...approval,
+    roundDetails: [
+      `Smith set: ${[...smithSet].join(', ')}`,
+      ...approval.roundDetails,
+    ],
+  };
+}
+
 export function runElection(
   method: ElectionMethod,
   votes: Vote[],
@@ -235,8 +270,7 @@ export function runElection(
     case 'condorcet':
       return runCondorcetElection(votes, candidates);
     case 'smithApproval':
-      // For now, fall back to approval since Smith set calculation isn't implemented
-      return runApprovalElection(votes, candidates);
+      return runSmithApprovalElection(votes, candidates);
     default:
       throw new Error(`Unsupported election method: ${method}`);
   }
