@@ -190,6 +190,17 @@ describe('tallyStar', () => {
     const result = tallyStar(starVotes, candidates);
     expect(result.winner).toBe('1');
   });
+
+  it('handles a single candidate without a runoff', () => {
+    const starVotes: Vote[] = [
+      { voterName: 'V1', ranking: [], approved: [], scores: { '1': 5 }, timestamp: '' },
+      { voterName: 'V2', ranking: [], approved: [], scores: { '1': 2 }, timestamp: '' },
+    ];
+    const result = tallyStar(starVotes, [candidates[0]]);
+    expect(result.winner).toBe('1');
+    expect(result.finalists).toHaveLength(1);
+    expect(result.finalists[0].runoffVotes).toBe(2);
+  });
 });
 
 describe('tallyRankedPairs', () => {
@@ -250,6 +261,22 @@ describe('tallySTV', () => {
     ];
     const result = tallySTV(stvVotes, candidates, 2);
     expect(result.winners[0].candidateId).toBe('1');
+  });
+
+  it('fully consumes the ballots of a winner who meets the quota exactly', () => {
+    // 9 ballots, 2 seats -> Droop quota 4. Candidate 1 is elected with exactly
+    // 4 first preferences (zero surplus), so those ballots must not transfer to
+    // candidate 2. Remaining: candidate 3 has 3, candidate 2 has 2.
+    const stvVotes: Vote[] = [
+      ...Array.from({ length: 4 }, (_, i) => ({ voterName: `A${i}`, ranking: ['1', '2', '3'], approved: [], timestamp: '' })),
+      ...Array.from({ length: 3 }, (_, i) => ({ voterName: `C${i}`, ranking: ['3'], approved: [], timestamp: '' })),
+      ...Array.from({ length: 2 }, (_, i) => ({ voterName: `B${i}`, ranking: ['2'], approved: [], timestamp: '' })),
+    ];
+    const result = tallySTV(stvVotes, candidates, 2);
+    expect(result.quota).toBe(4);
+    expect(result.winners.map((w) => w.candidateId)).toEqual(['1', '3']);
+    const round2 = result.rounds[1].counts.find((c) => c.candidateId === '2');
+    expect(round2?.count).toBe(2);
   });
 });
 

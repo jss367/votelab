@@ -360,6 +360,15 @@ export function tallyStar(votes: Vote[], candidates: Candidate[]): STARResult {
   const finalist1 = scoringRound[0];
   const finalist2 = scoringRound[1];
 
+  // With a single candidate there is no runoff: the scoring leader wins outright.
+  if (!finalist2) {
+    return {
+      winner: finalist1.candidateId,
+      scoringRound,
+      finalists: [{ ...finalist1, runoffVotes: votes.length }],
+    };
+  }
+
   let votes1 = 0;
   let votes2 = 0;
   for (const vote of votes) {
@@ -500,14 +509,16 @@ export function tallySTV(votes: Vote[], candidates: Candidate[], seats: number):
       winners.push({ candidateId: meetingQuota.candidateId, name: meetingQuota.name, round: roundNum });
       rounds.push({ counts, elected: meetingQuota.candidateId, eliminated: null, quota });
 
+      // Transfer the surplus: every ballot currently counting for the winner
+      // continues at weight * (surplus / count). When the winner hits the quota
+      // exactly the surplus is zero and those ballots are fully consumed; they
+      // must not carry on at full weight to the voter's next preference.
       const surplus = meetingQuota.count - quota;
-      if (surplus > 0) {
-        const transferFraction = surplus / meetingQuota.count;
-        for (const ballot of ballots) {
-          const firstChoice = ballot.ranking.find((id) => remaining.has(id));
-          if (firstChoice === meetingQuota.candidateId) {
-            ballot.weight *= transferFraction;
-          }
+      const transferFraction = surplus / meetingQuota.count;
+      for (const ballot of ballots) {
+        const firstChoice = ballot.ranking.find((id) => remaining.has(id));
+        if (firstChoice === meetingQuota.candidateId) {
+          ballot.weight *= transferFraction;
         }
       }
       remaining.delete(meetingQuota.candidateId);

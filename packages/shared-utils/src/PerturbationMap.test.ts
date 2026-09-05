@@ -65,4 +65,24 @@ describe('generatePerturbationMap', () => {
     // B should win with overwhelming support
     expect(result.grid[9][9]).toBe('b');
   });
+  it('shifts voters that share a position independently', () => {
+    // Three B-supporters stacked on one point, one A-supporter. Shifting 100%
+    // of non-supporters fully onto A must move all three, not just one.
+    const stacked: Voter[] = [
+      { position: { x: 0.25, y: 0.5 } },
+      { position: { x: 0.75, y: 0.5 } },
+      { position: { x: 0.75, y: 0.5 } },
+      { position: { x: 0.75, y: 0.5 } },
+    ];
+    const result = generatePerturbationMap({
+      candidates,
+      voters: stacked,
+      targetCandidate: candidates[0], // A
+      method: 'plurality',
+      resolution: 2,
+      maxVoterPercent: 1,
+    });
+    // row 1 = full shift magnitude, col 1 = 100% of non-supporters
+    expect(result.grid[1][1]).toBe('a');
+  });
 });
