@@ -20,6 +20,15 @@ describe('urlState', () => {
     expect(parsed!.method).toBe('irv');
   });
 
+  it('keeps legacy links whose raw names contain a literal percent sign', () => {
+    // Older links were serialized without percent-encoding the name.
+    const params = new URLSearchParams(serializeConfig(config));
+    params.set('candidates', '100% Real,0.300,0.500,#ef4444;B,0.700,0.500,#3b82f6');
+    const parsed = parseConfig(params);
+    expect(parsed).not.toBeNull();
+    expect(parsed!.candidates[0].name).toBe('100% Real');
+  });
+
   it('rejects an unknown method', () => {
     const params = new URLSearchParams(serializeConfig(config));
     params.set('method', 'star');

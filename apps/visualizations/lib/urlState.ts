@@ -48,6 +48,18 @@ const SPATIAL_METHODS: ReadonlySet<string> = new Set<VotingMethod>([
   'smithApproval',
 ]);
 
+// Names are percent-encoded on serialize so ',' and ';' in a name don't
+// corrupt the record. Links generated before encoding was added carry raw
+// names, which may contain a literal '%' that is not a valid escape; keep
+// those usable by falling back to the raw string when decoding fails.
+const decodeName = (raw: string): string => {
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+};
+
 const finiteOrThrow = (raw: string | undefined): number => {
   const n = raw === undefined ? NaN : Number(raw);
   if (!Number.isFinite(n)) throw new Error(`Invalid number: ${raw}`);
@@ -73,9 +85,7 @@ export const parseConfig = (searchParams: URLSearchParams): ElectionConfig | nul
 
     const candidates: SpatialCandidate[] = candidatesStr.split(';').map((str) => {
       const [rawName, x, y, color] = str.split(',');
-      // Names are percent-encoded on serialize so ',' and ';' in a name don't
-      // corrupt the record. Decoding a plain (legacy) name is a no-op.
-      const name = decodeURIComponent(rawName ?? '');
+      const name = decodeName(rawName ?? '');
       if (!name || !color) throw new Error('Malformed candidate');
       return {
         id: name.toLowerCase(),
