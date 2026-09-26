@@ -168,7 +168,7 @@ describe('real districting', () => {
   });
 
   test('balances the default California tract fixture', () => {
-    const californiaDataset = californiaTracts as RealStateDistrictingDataset;
+    const californiaDataset = californiaTracts as unknown as RealStateDistrictingDataset;
     const weighted = districtRealByWeightedCentroid(californiaDataset, {
       seed: 1,
     });

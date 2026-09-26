@@ -32,6 +32,5 @@ firebase-debug.log*
 # Turbo
 .turbo
 /apps/visualizations/.next
-apps/election-site/tsconfig.tsbuildinfo
 apps/visualizations/tsconfig.tsbuildinfo
 /apps/visualizations/.cache

@@ -95,9 +95,9 @@ describe('selectBestDistricting', () => {
 
 describe('ReCom districting', () => {
   test('builds a valid plan for a high-district-count state (Illinois)', () => {
-    const result = bestPlan(illinoisTracts as RealStateDistrictingDataset, 6);
+    const result = bestPlan(illinoisTracts as unknown as RealStateDistrictingDataset, 6);
     expect(result.metrics.contiguousDistricts).toBe(
-      (illinoisTracts as RealStateDistrictingDataset).defaultDistricts
+      (illinoisTracts as unknown as RealStateDistrictingDataset).defaultDistricts
     );
     expect(result.metrics.maxDeviationFraction).toBeLessThanOrEqual(
       VALIDITY_TOLERANCE
@@ -106,12 +106,12 @@ describe('ReCom districting', () => {
   });
 
   test('builds a valid plan for Georgia', () => {
-    const result = bestPlan(georgiaTracts as RealStateDistrictingDataset, 6);
+    const result = bestPlan(georgiaTracts as unknown as RealStateDistrictingDataset, 6);
     expect(result.metrics.valid).toBe(true);
   });
 
   test('keeps every unit assigned and population conserved (California)', () => {
-    const dataset = californiaTracts as RealStateDistrictingDataset;
+    const dataset = californiaTracts as unknown as RealStateDistrictingDataset;
     const { result } = districtByRecom(structuredClone(dataset), { seed: 1 });
     expect(Object.keys(result.assignment).length).toBe(dataset.units.length);
     const assigned = dataset.units.reduce(
@@ -166,7 +166,7 @@ describe('ReCom districting', () => {
 
   test('bridges disconnected island components (Hawaii)', () => {
     const { result, bridges } = districtByRecom(
-      structuredClone(hawaiiTracts as RealStateDistrictingDataset),
+      structuredClone(hawaiiTracts as unknown as RealStateDistrictingDataset),
       { seed: 3 }
     );
     // Hawaii's tracts form 8 separate island components; bridging connects them

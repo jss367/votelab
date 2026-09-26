@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@repo/ui';
 import { tallyScore } from '@votelab/shared-utils';
 import { Medal, Users } from 'lucide-react';
 import React from 'react';
+import TieNotice from './TieNotice';
 import type { Election } from './types';
 
 const ScoreResults: React.FC<{ election: Election }> = ({ election }) => {
@@ -18,6 +19,8 @@ const ScoreResults: React.FC<{ election: Election }> = ({ election }) => {
           <span>{election.votes.length} total votes</span>
         </div>
       </div>
+
+      <TieNotice tied={result.tied} candidates={election.candidates} tiedFor="first place" />
       <div className="space-y-3">
         {result.scores.map((entry, index) => {
           const percentage = maxScore > 0 ? ((entry.score / maxScore) * 100).toFixed(1) : '0';

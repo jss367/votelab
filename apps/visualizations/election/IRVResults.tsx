@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@repo/ui';
 import { tallyIRV } from '@votelab/shared-utils';
 import { Medal, Users } from 'lucide-react';
 import React from 'react';
+import TieNotice from './TieNotice';
 import type { Election } from './types';
 
 const IRVResults: React.FC<{ election: Election }> = ({ election }) => {
@@ -20,6 +21,12 @@ const IRVResults: React.FC<{ election: Election }> = ({ election }) => {
           <span>{totalVotes} total votes</span>
         </div>
       </div>
+
+      <TieNotice
+        tied={result.tied}
+        candidates={election.candidates}
+        tiedFor="the win in the final round"
+      />
 
       <div className="text-center">
         <div className="inline-flex items-center gap-2 bg-green-50 border border-green-300 rounded-lg px-4 py-2">
@@ -52,7 +59,13 @@ const IRVResults: React.FC<{ election: Election }> = ({ election }) => {
                   )}
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-3">
+                <TieNotice
+                  tied={round.tied}
+                  candidates={election.candidates}
+                  tiedFor="last place"
+                  resolution={`${eliminatedName} was eliminated because they are listed last.`}
+                />
                 <div className="space-y-2">
                   {round.counts.map((entry) => {
                     const percentage = totalVotes > 0 ? ((entry.count / totalVotes) * 100).toFixed(1) : '0';

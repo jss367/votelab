@@ -122,7 +122,7 @@ const ElectionResults: React.FC<{ election: Election }> = ({ election }) => {
   const smithSet = calculateSmithSet(victories, election);
   const rankedCandidates =
     smithSet.length > 0
-      ? selectWinner(smithSet, victories, election, true)
+      ? selectWinner(smithSet, victories, election)
       : [];
 
   return (

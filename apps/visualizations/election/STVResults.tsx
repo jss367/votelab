@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@repo/ui';
 import { tallySTV } from '@votelab/shared-utils';
 import { Medal, Users } from 'lucide-react';
 import React, { useState } from 'react';
+import TieNotice from './TieNotice';
 import type { Election } from './types';
 
 const STVResults: React.FC<{ election: Election }> = ({ election }) => {
@@ -65,7 +66,13 @@ const STVResults: React.FC<{ election: Election }> = ({ election }) => {
                 {round.eliminated && <span className="text-sm font-normal text-red-600 ml-2">— {election.candidates.find(c => c.id === round.eliminated)?.name} eliminated</span>}
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
+              <TieNotice
+                tied={round.tied}
+                candidates={election.candidates}
+                tiedFor="last place"
+                resolution={`${election.candidates.find(c => c.id === round.eliminated)?.name} was eliminated because they are listed last.`}
+              />
               <div className="space-y-2">
                 {round.counts.map((entry) => (
                   <div key={entry.candidateId} className="flex items-center gap-3">
