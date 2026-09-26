@@ -22,6 +22,16 @@ const RankedPairsResults: React.FC<{ election: Election }> = ({ election }) => {
 
       <TieNotice tied={result.tied} candidates={election.candidates} tiedFor="first place (none of them is beaten in the locked pairs)" />
 
+      {result.lockingTies.map((tie) => (
+        <div key={tie.margin} className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-900">
+          <span className="font-semibold">Tie in pair locking:</span>{' '}
+          {tie.pairs.map((pair) => `${candidateMap.get(pair.winner)} over ${candidateMap.get(pair.loser)}`).join('; ')}
+          {' '}have the same victory margin ({tie.margin}). Candidate order determined which
+          pairs were locked to avoid a cycle. A different order can change the locked pairs
+          and may change the winner.
+        </div>
+      ))}
+
       <Card className="border-green-300 bg-green-50">
         <CardContent className="pt-4 pb-4">
           <div className="flex items-center gap-2">

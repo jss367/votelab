@@ -471,6 +471,11 @@ export interface RankedPairsResult {
   tied: string[];
   matrix: Record<string, Record<string, number>>;
   lockedPairs: Array<{ winner: string; loser: string; margin: number }>;
+  /** Equal-margin victories whose lock order changes which pairs survive. */
+  lockingTies: Array<{
+    margin: number;
+    pairs: Array<{ winner: string; loser: string }>;
+  }>;
 }
 
 export function tallyRankedPairs(votes: Vote[], candidates: Candidate[]): RankedPairsResult {
@@ -495,7 +500,11 @@ export function tallyRankedPairs(votes: Vote[], candidates: Candidate[]): Ranked
     graph.set(id, new Set());
   }
 
-  const wouldCreateCycle = (from: string, to: string): boolean => {
+  const wouldCreateCycle = (
+    from: string,
+    to: string,
+    edges = graph
+  ): boolean => {
     const visited = new Set<string>();
     const queue = [to];
     while (queue.length > 0) {
@@ -503,18 +512,43 @@ export function tallyRankedPairs(votes: Vote[], candidates: Candidate[]): Ranked
       if (current === from) return true;
       if (visited.has(current)) continue;
       visited.add(current);
-      for (const next of graph.get(current) ?? []) {
+      for (const next of edges.get(current) ?? []) {
         queue.push(next);
       }
     }
     return false;
   };
 
-  for (const pair of pairs) {
-    if (!wouldCreateCycle(pair.winner, pair.loser)) {
-      graph.get(pair.winner)!.add(pair.loser);
-      locked.push(pair);
+  const lockingTies: RankedPairsResult['lockingTies'] = [];
+  for (let start = 0; start < pairs.length;) {
+    let end = start + 1;
+    while (end < pairs.length && pairs[end].margin === pairs[start].margin) end++;
+    const group = pairs.slice(start, end);
+    // Edges already blocked by stronger victories cannot participate in an
+    // equal-margin ordering tie. Add all other edges provisionally: any cycle
+    // now depends on at least two edges in this group, so lock order matters.
+    const eligible = group.filter((pair) => !wouldCreateCycle(pair.winner, pair.loser));
+    if (eligible.length > 1) {
+      const combined = new Map([...graph].map(([id, edges]) => [id, new Set(edges)]));
+      for (const pair of eligible) combined.get(pair.winner)!.add(pair.loser);
+      const cyclic = eligible.filter((pair) =>
+        wouldCreateCycle(pair.winner, pair.loser, combined)
+      );
+      if (cyclic.length > 0) {
+        lockingTies.push({
+          margin: group[0].margin,
+          pairs: cyclic.map(({ winner, loser }) => ({ winner, loser })),
+        });
+      }
     }
+    // Preserve the existing deterministic result, but disclose ambiguous locks.
+    for (const pair of group) {
+      if (!wouldCreateCycle(pair.winner, pair.loser)) {
+        graph.get(pair.winner)!.add(pair.loser);
+        locked.push(pair);
+      }
+    }
+    start = end;
   }
 
   const hasIncoming = new Set<string>();
@@ -531,6 +565,7 @@ export function tallyRankedPairs(votes: Vote[], candidates: Candidate[]): Ranked
     tied: unbeaten.length > 1 ? unbeaten : [],
     matrix,
     lockedPairs: locked,
+    lockingTies,
   };
 }
 

@@ -123,6 +123,65 @@ describe('tie reporting', () => {
     expect(result.tied).toEqual(['a', 'b']);
   });
 
+  it('ranked pairs discloses an equal-margin cycle for every candidate order', () => {
+    const votes = [ranked('a', 'b', 'c'), ranked('b', 'c', 'a'), ranked('c', 'a', 'b')];
+    const orders = [
+      [0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0],
+    ];
+    const winners = new Set<string>();
+    for (const order of orders) {
+      const result = tallyRankedPairs(votes, order.map((i) => candidates[i]));
+      winners.add(result.winner);
+      expect(result.tied).toEqual([]);
+      expect(result.lockingTies).toHaveLength(1);
+      expect(result.lockingTies[0].margin).toBe(1);
+      expect(result.lockingTies[0].pairs).toHaveLength(3);
+      expect(result.lockingTies[0].pairs).toEqual(expect.arrayContaining([
+        { winner: 'a', loser: 'b' },
+        { winner: 'b', loser: 'c' },
+        { winner: 'c', loser: 'a' },
+      ]));
+    }
+    expect(winners.size).toBe(3);
+  });
+
+  it('ranked pairs does not flag equal margins that can all be locked', () => {
+    const result = tallyRankedPairs([ranked('a', 'b', 'c')], candidates);
+    expect(result.winner).toBe('a');
+    expect(result.lockingTies).toEqual([]);
+  });
+
+  // Each pair of ballots contributes +2 to just the requested matchup;
+  // their other pairwise preferences cancel.
+  const marginVotes = (edges: Array<[string, string, number]>, ids: string[]) =>
+    edges.flatMap(([winner, loser, margin]) => {
+      const rest = ids.filter((id) => id !== winner && id !== loser);
+      return Array.from({ length: margin / 2 }, () => [
+        ranked(winner, loser, ...rest),
+        ranked(...[...rest].reverse(), winner, loser),
+      ]).flat();
+    });
+
+  it('ranked pairs detects tied locks in a cycle that includes a stronger victory', () => {
+    const votes = marginVotes([['a', 'b', 4], ['b', 'c', 2], ['c', 'a', 2]], ['a', 'b', 'c']);
+    const result = tallyRankedPairs(votes, candidates);
+    expect(result.lockingTies).toEqual([{
+      margin: 2,
+      pairs: [{ winner: 'b', loser: 'c' }, { winner: 'c', loser: 'a' }],
+    }]);
+  });
+
+  it('ranked pairs excludes victories already blocked by stronger locked pairs', () => {
+    const four = [...candidates, { id: 'd', name: 'Dana' }];
+    const votes = marginVotes(
+      [['a', 'b', 6], ['b', 'c', 4], ['c', 'a', 2], ['c', 'd', 2]],
+      four.map((candidate) => candidate.id)
+    );
+    const result = tallyRankedPairs(votes, four);
+    expect(result.winner).toBe('a');
+    expect(result.lockingTies).toEqual([]);
+  });
+
   it('majority judgment reports identical grade profiles', () => {
     const result = tallyMajorityJudgment(
       [scored({ a: 4, b: 4, c: 1 }), scored({ a: 2, b: 2, c: 1 })],
