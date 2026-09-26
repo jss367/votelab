@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@repo/ui';
 import { tallyStar } from '@votelab/shared-utils';
 import { Medal, Users } from 'lucide-react';
 import React from 'react';
+import TieNotice from './TieNotice';
 import type { Election } from './types';
 
 const STARResults: React.FC<{ election: Election }> = ({ election }) => {
@@ -43,6 +44,17 @@ const STARResults: React.FC<{ election: Election }> = ({ election }) => {
           <span>{election.votes.length} total votes</span>
         </div>
       </div>
+
+      <TieNotice
+        tied={result.finalistTie}
+        candidates={election.candidates}
+        tiedFor="a spot in the runoff"
+      />
+      <TieNotice
+        tied={result.tied}
+        candidates={election.candidates}
+        tiedFor="the win, with equal runoff votes and equal total scores"
+      />
 
       <Card>
         <CardHeader><CardTitle>Scoring Round</CardTitle></CardHeader>

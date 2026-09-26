@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@repo/ui';
 import { tallyApproval } from '@votelab/shared-utils';
 import { Medal, Users } from 'lucide-react';
 import React from 'react';
+import TieNotice from './TieNotice';
 import type { Election } from './types';
 
 const ApprovalResults: React.FC<{ election: Election }> = ({ election }) => {
@@ -18,6 +19,8 @@ const ApprovalResults: React.FC<{ election: Election }> = ({ election }) => {
           <span>{totalVotes} total votes</span>
         </div>
       </div>
+
+      <TieNotice tied={result.tied} candidates={election.candidates} tiedFor="first place" />
 
       <div className="space-y-3">
         {result.counts.map((entry, index) => {

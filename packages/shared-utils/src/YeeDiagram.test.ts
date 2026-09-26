@@ -14,7 +14,7 @@ import {
   generateYeeDiagram,
   VotingMethod,
 } from './YeeDiagram.js';
-import { createVoterBloc, generateVotersFromBloc, generatePopulation, createPresetPopulation } from './VoterDistribution.js';
+import { createVoterBloc, generateVotersFromBloc } from './VoterDistribution.js';
 import { SpatialCandidate, Voter } from './types.js';
 
 describe('YeeDiagram', () => {

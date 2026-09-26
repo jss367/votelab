@@ -154,8 +154,7 @@ export const calculateSmithSet = (
 export const selectWinner = (
   smithSet: string[],
   victories: Victory[],
-  election: Election,
-  returnAllScores: boolean = false
+  election: Election
 ): CandidateScore[] => {
   // First calculate all metrics for each candidate
   const scores: CandidateScore[] = smithSet.map((candidate) => {

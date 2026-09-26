@@ -225,4 +225,56 @@ describe('Election Result Calculations', () => {
     const scores2 = selectWinner(smithSet, victories, cyclicElection);
     expect(scores2[0].name).toBe(scores[0].name);
   });
+
+  const mixedTieElection: Election = {
+    title: 'Test Election',
+    candidates: [
+      { id: '1', name: 'Candidate 1' },
+      { id: '2', name: 'Candidate 2' },
+      { id: '3', name: 'Candidate 3' },
+    ],
+    votes: [
+      // Candidate 1 > 2 > 3
+      {
+        voterName: 'Voter 1',
+        ranking: ['1', '2', '3'],
+        approved: ['1'],
+        timestamp: new Date().toISOString(),
+      },
+      {
+        voterName: 'Voter 2',
+        ranking: ['1', '2', '3'],
+        approved: ['1'],
+        timestamp: new Date().toISOString(),
+      },
+      // Candidate 2 > 3 > 1
+      {
+        voterName: 'Voter 3',
+        ranking: ['2', '3', '1'],
+        approved: ['2'],
+        timestamp: new Date().toISOString(),
+      },
+      // Candidate 3 > 1 > 2
+      {
+        voterName: 'Voter 4',
+        ranking: ['3', '1', '2'],
+        approved: ['3'],
+        timestamp: new Date().toISOString(),
+      },
+    ],
+    createdAt: new Date().toISOString(),
+  };
+
+  test('identifies correct Smith set with mixed victories and ties', () => {
+    const pairwise = getPairwiseResults(mixedTieElection);
+    const victories = getHeadToHeadVictories(pairwise);
+    const smithSet = calculateSmithSet(victories, mixedTieElection);
+
+    // Candidate 1 should be the only member of the Smith set because:
+    // - Beats Candidate 2 (3-1)
+    // - Ties with Candidate 3 (2-2)
+    // - Candidate 2 is excluded because they lose to Candidate 1
+    // - Candidate 3 is excluded because they lose to Candidate 2
+    expect(new Set(smithSet)).toEqual(new Set(['Candidate 1']));
+  });
 });
