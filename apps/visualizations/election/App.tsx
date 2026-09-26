@@ -6,13 +6,10 @@ import {
   addDoc,
   arrayUnion,
   collection,
-  deleteDoc,
   doc,
-  getDocs,
   onSnapshot,
   runTransaction,
   updateDoc,
-  writeBatch,
 } from 'firebase/firestore';
 import { Copy } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -22,6 +19,7 @@ import CandidateDetails from './CandidateDetails';
 import CustomFieldsInput from './CustomFieldsInput';
 import CustomFieldsManager from './CustomFieldsManager';
 import { isCustomFieldValueMissing } from './customFieldValue';
+import { deleteElection } from './deleteElection';
 import { removeSavedElection, saveElection } from './electionStorage';
 import HomePage from './HomePage';
 import MethodResults from './MethodResults';
@@ -1000,17 +998,7 @@ function App() {
                   try {
                     setLoading(true);
                     await ensureSignedIn();
-                    // Firestore doesn't delete subcollections with their parent,
-                    // so clear the ballots first (batches max out at 500 writes).
-                    const ballotDocs = (
-                      await getDocs(collection(db, 'elections', electionId, 'votes'))
-                    ).docs;
-                    for (let i = 0; i < ballotDocs.length; i += 500) {
-                      const batch = writeBatch(db);
-                      ballotDocs.slice(i, i + 500).forEach((d) => batch.delete(d.ref));
-                      await batch.commit();
-                    }
-                    await deleteDoc(doc(db, 'elections', electionId));
+                    await deleteElection(db, electionId);
                     removeSavedElection(electionId);
                     setMode('home');
                     setElectionDoc(null);
