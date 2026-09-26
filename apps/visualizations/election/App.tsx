@@ -20,6 +20,7 @@ import CustomFieldsInput from './CustomFieldsInput';
 import CustomFieldsManager from './CustomFieldsManager';
 import { isCustomFieldValueMissing } from './customFieldValue';
 import { deleteElection } from './deleteElection';
+import { useElectionBallots } from './useElectionBallots';
 import { removeSavedElection, saveElection } from './electionStorage';
 import HomePage from './HomePage';
 import MethodResults from './MethodResults';
@@ -49,8 +50,6 @@ function App() {
   );
   const [voterName, setVoterName] = useState('');
   const [electionDoc, setElectionDoc] = useState<Election | null>(null);
-  // Ballots from the votes subcollection, keyed by voter uid (see firestore.rules).
-  const [ballots, setBallots] = useState<Array<{ uid: string; vote: Vote }>>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [shareUrl, setShareUrl] = useState('');
@@ -71,6 +70,13 @@ function App() {
   const [candidateLabel, setCandidateLabel] = useState('');
   const [currentUserUid, setCurrentUserUid] = useState<string | null>(null);
   const [authReady, setAuthReady] = useState(false);
+
+  // Voting only needs the current user's ballot; results/admin need every vote.
+  const ballots = useElectionBallots(
+    db, electionId,
+    mode === 'results' || mode === 'admin' ? 'all' : mode === 'vote' ? 'own' : 'none',
+    currentUserUid, setError
+  );
 
   // Older elections stored ballots in the election doc's `votes` array; newer
   // ballots are one doc per voter in the votes subcollection. Count both.
@@ -143,25 +149,7 @@ function App() {
       }
     );
 
-    const unsubscribeBallots = onSnapshot(
-      collection(db, 'elections', id, 'votes'),
-      (snapshot) => {
-        setBallots(
-          snapshot.docs
-            .map((d) => ({ uid: d.id, vote: d.data() as Vote }))
-            .sort((a, b) => a.vote.timestamp.localeCompare(b.vote.timestamp))
-        );
-      },
-      (err) => {
-        setError('Error loading votes');
-        console.error(err);
-      }
-    );
-
-    return () => {
-      unsubscribe();
-      unsubscribeBallots();
-    };
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -1002,7 +990,6 @@ function App() {
                     removeSavedElection(electionId);
                     setMode('home');
                     setElectionDoc(null);
-                    setBallots([]);
                     setElectionId(null);
                     window.history.replaceState({}, '', window.location.pathname);
                   } catch (err) {
