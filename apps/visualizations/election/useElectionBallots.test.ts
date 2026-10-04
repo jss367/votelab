@@ -33,7 +33,7 @@ afterEach(cleanup);
 it('waits for sign-in and subscribes only to the current voter on a voting page', () => {
   const { result, rerender } = renderHook(({ uid }: { uid: string | null }) =>
     useElectionBallots(db, 'election', 'own', uid, onError),
-  { initialProps: { uid: null } });
+  { initialProps: { uid: null as string | null } });
   expect(subscriptions).toHaveLength(0);
   rerender({ uid: 'voter' });
   expect(subscriptions.map((s) => s.path)).toEqual(['elections/election/votes/voter']);
@@ -83,7 +83,7 @@ it('clears the old voter/election and ignores late callbacks from their subscrip
 it('loads public results without waiting for authentication or restarting on sign-in', () => {
   const { rerender } = renderHook(({ uid }: { uid: string | null }) =>
     useElectionBallots(db, 'election', 'all', uid, onError),
-  { initialProps: { uid: null } });
+  { initialProps: { uid: null as string | null } });
   expect(subscriptions[0].path).toBe('elections/election/votes');
   rerender({ uid: 'voter' });
   expect(subscriptions).toHaveLength(1);
