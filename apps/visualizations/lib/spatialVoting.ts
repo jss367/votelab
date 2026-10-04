@@ -224,6 +224,10 @@ export const generateVotesFromSpatialData = (
   );
 };
 
+/** Methods whose spatial calculator takes an approval-distance threshold. */
+export const usesApprovalThreshold = (method: string): boolean =>
+  method === 'approval' || method === 'smithApproval';
+
 // The actual calculators
 export const spatialVoteCalculators = {
   plurality: ((x, y, candidates) => {

@@ -11,6 +11,7 @@ import {
   SpatialCandidate,
   SpatialVotingMethod,
   spatialVoteCalculators,
+  usesApprovalThreshold,
 } from '../../lib/spatialVoting';
 import type { VotingMethod } from '../../lib/votingMethods';
 import { methodDescriptions, methods } from '../../lib/votingMethods';
@@ -217,7 +218,7 @@ const VotingMethodViz: React.FC = () => {
           voterX,
           voterY,
           candidates,
-          selectedMethod === 'approval' ? approvalThreshold : 0
+          usesApprovalThreshold(selectedMethod) ? approvalThreshold : 0
         );
         const winnerId = winnerIds[0]; // Take first winner
 
@@ -288,7 +289,7 @@ const VotingMethodViz: React.FC = () => {
         ctx.stroke();
       });
     }
-  }, [candidates, selectedMethod, approvalThreshold, voters]);
+  }, [candidates, selectedMethod, approvalThreshold, voters, isDarkMode]);
 
   const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -361,7 +362,7 @@ const VotingMethodViz: React.FC = () => {
             voterX,
             voterY,
             candidates,
-            method === 'approval' ? approvalThreshold : 0
+            usesApprovalThreshold(method) ? approvalThreshold : 0
           );
 
           if (method === 'approval') {
@@ -501,7 +502,7 @@ const VotingMethodViz: React.FC = () => {
             voter.x,
             voter.y,
             candidates,
-            method === 'approval' ? approvalThreshold : 0
+            usesApprovalThreshold(method) ? approvalThreshold : 0
           );
           if (method === 'approval') {
             voteResult.forEach((id) => votes.set(id, votes.get(id)! + 1));

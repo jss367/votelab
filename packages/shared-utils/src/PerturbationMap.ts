@@ -26,17 +26,27 @@ export interface PerturbationCellInfo {
 }
 
 /**
- * Find voters who don't rank targetCandidate first, sorted by distance to target.
- * These are the "persuadable" voters.
+ * Indices of voters whose closest candidate is not targetCandidate, sorted by
+ * distance to the target (closest first). These are the "persuadable" voters.
+ * Working with indices (rather than voter objects keyed by position) keeps two
+ * voters at the same position distinct, so no voter is ever shifted twice.
  */
-const findNonSupporters = (
+const findNonSupporterIndices = (
   voters: Voter[],
   candidates: SpatialCandidate[],
   targetCandidate: SpatialCandidate
-): Voter[] => {
+): number[] => {
+  const distToTarget = (voter: Voter) =>
+    distance(
+      voter.position.x,
+      voter.position.y,
+      targetCandidate.x,
+      targetCandidate.y
+    );
+
   return voters
-    .filter((voter) => {
-      // Find closest candidate
+    .map((voter, index) => ({ voter, index }))
+    .filter(({ voter }) => {
       let closestId = candidates[0].id;
       let closestDist = distance(
         voter.position.x,
@@ -44,7 +54,6 @@ const findNonSupporters = (
         candidates[0].x,
         candidates[0].y
       );
-
       for (const c of candidates) {
         const d = distance(voter.position.x, voter.position.y, c.x, c.y);
         if (d < closestDist) {
@@ -52,24 +61,10 @@ const findNonSupporters = (
           closestId = c.id;
         }
       }
-
       return closestId !== targetCandidate.id;
     })
-    .sort((a, b) => {
-      const distA = distance(
-        a.position.x,
-        a.position.y,
-        targetCandidate.x,
-        targetCandidate.y
-      );
-      const distB = distance(
-        b.position.x,
-        b.position.y,
-        targetCandidate.x,
-        targetCandidate.y
-      );
-      return distA - distB; // Closest non-supporters first
-    });
+    .sort((a, b) => distToTarget(a.voter) - distToTarget(b.voter))
+    .map(({ index }) => index);
 };
 
 /**
@@ -93,6 +88,25 @@ const shiftVoterToward = (
   };
 };
 
+/** Copy `voters`, shifting the first `numToShift` non-supporters toward the target. */
+const perturbVoters = (
+  voters: Voter[],
+  nonSupporterIndices: number[],
+  numToShift: number,
+  targetCandidate: SpatialCandidate,
+  shiftMagnitude: number
+): Voter[] => {
+  const perturbed = voters.map((v) => ({ ...v }));
+  for (const idx of nonSupporterIndices.slice(0, numToShift)) {
+    perturbed[idx] = shiftVoterToward(
+      perturbed[idx],
+      targetCandidate,
+      shiftMagnitude
+    );
+  }
+  return perturbed;
+};
+
 /**
  * Generate a perturbation map showing election outcomes as voters shift toward a target candidate.
  *
@@ -113,7 +127,11 @@ export const generatePerturbationMap = (
   } = config;
 
   const grid: string[][] = [];
-  const nonSupporters = findNonSupporters(voters, candidates, targetCandidate);
+  const nonSupporters = findNonSupporterIndices(
+    voters,
+    candidates,
+    targetCandidate
+  );
 
   for (let row = 0; row < resolution; row++) {
     const gridRow: string[] = [];
@@ -127,26 +145,13 @@ export const generatePerturbationMap = (
       // Number of non-supporters to shift
       const numToShift = Math.round(voterPercent * nonSupporters.length);
 
-      // Create perturbed voter list
-      const perturbedVoters = voters.map((v) => ({ ...v }));
-
-      // Shift the selected non-supporters
-      const votersToShift = nonSupporters.slice(0, numToShift);
-      const voterPositionMap = new Map(
-        voters.map((v, i) => [`${v.position.x},${v.position.y}`, i])
+      const perturbedVoters = perturbVoters(
+        voters,
+        nonSupporters,
+        numToShift,
+        targetCandidate,
+        shiftMagnitude
       );
-
-      for (const voter of votersToShift) {
-        const key = `${voter.position.x},${voter.position.y}`;
-        const idx = voterPositionMap.get(key);
-        if (idx !== undefined) {
-          perturbedVoters[idx] = shiftVoterToward(
-            perturbedVoters[idx],
-            targetCandidate,
-            shiftMagnitude
-          );
-        }
-      }
 
       // Run election
       const winner = computeWinner(
@@ -183,27 +188,21 @@ export const getPerturbationCellInfo = (
   const voterPercent = (col / (resolution - 1)) * maxVoterPercent;
   const shiftMagnitude = row / (resolution - 1);
 
-  const nonSupporters = findNonSupporters(voters, candidates, targetCandidate);
+  const nonSupporters = findNonSupporterIndices(
+    voters,
+    candidates,
+    targetCandidate
+  );
   const votersShifted = Math.round(voterPercent * nonSupporters.length);
 
   // Recompute winner for this cell
-  const perturbedVoters = voters.map((v) => ({ ...v }));
-  const votersToShift = nonSupporters.slice(0, votersShifted);
-  const voterPositionMap = new Map(
-    voters.map((v, i) => [`${v.position.x},${v.position.y}`, i])
+  const perturbedVoters = perturbVoters(
+    voters,
+    nonSupporters,
+    votersShifted,
+    targetCandidate,
+    shiftMagnitude
   );
-
-  for (const voter of votersToShift) {
-    const key = `${voter.position.x},${voter.position.y}`;
-    const idx = voterPositionMap.get(key);
-    if (idx !== undefined) {
-      perturbedVoters[idx] = shiftVoterToward(
-        perturbedVoters[idx],
-        targetCandidate,
-        shiftMagnitude
-      );
-    }
-  }
 
   const winner = computeWinner(
     perturbedVoters,

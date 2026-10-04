@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@repo/ui';
 import { tallyCumulative } from '@votelab/shared-utils';
 import { Medal, Users } from 'lucide-react';
 import React, { useState } from 'react';
+import TieNotice from './TieNotice';
 import type { Election } from './types';
 
 const CumulativeResults: React.FC<{ election: Election }> = ({ election }) => {
@@ -37,6 +38,8 @@ const CumulativeResults: React.FC<{ election: Election }> = ({ election }) => {
           </div>
         </CardContent>
       </Card>
+
+      <TieNotice tied={result.tied} candidates={election.candidates} tiedFor="the last seat" />
 
       <div className="space-y-3">
         {result.totals.map((entry, index) => {

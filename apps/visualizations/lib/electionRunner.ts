@@ -1,4 +1,4 @@
-import { Candidate, Election, Vote } from '@votelab/shared-utils';
+import { Candidate, Election, Vote, computeSmithSet } from '@votelab/shared-utils';
 
 export type ElectionMethod =
   | 'plurality'
@@ -61,7 +61,7 @@ function runApprovalElection(
   // Count approvals
   votes.forEach((vote) => {
     vote.approved.forEach((candidateId) => {
-      voteCounts[candidateId]++;
+      if (candidateId in voteCounts) voteCounts[candidateId]++;
     });
   });
 
@@ -156,29 +156,47 @@ function runIRVElection(
   };
 }
 
+/**
+ * Pairwise preference matrix: matrix[a][b] = ballots ranking a above b.
+ * A ranked candidate beats every unranked one (matching the shared tallies in
+ * @votelab/shared-utils); a pair where neither is ranked contributes nothing.
+ * Ids not in `candidates` are ignored.
+ */
+function buildPairwiseMatrix(
+  votes: Vote[],
+  candidates: Candidate[]
+): Record<string, Record<string, number>> {
+  const ids = candidates.map((c) => c.id);
+  const matrix: Record<string, Record<string, number>> = {};
+  for (const a of ids) {
+    matrix[a] = {};
+    for (const b of ids) if (a !== b) matrix[a][b] = 0;
+  }
+  for (const vote of votes) {
+    const pos = new Map<string, number>();
+    vote.ranking.forEach((id, i) => {
+      if (id in matrix && !pos.has(id)) pos.set(id, i);
+    });
+    for (let x = 0; x < ids.length; x++) {
+      for (let y = x + 1; y < ids.length; y++) {
+        const a = ids[x];
+        const b = ids[y];
+        const pa = pos.get(a) ?? Infinity;
+        const pb = pos.get(b) ?? Infinity;
+        if (pa === Infinity && pb === Infinity) continue;
+        if (pa < pb) matrix[a][b]++;
+        else if (pb < pa) matrix[b][a]++;
+      }
+    }
+  }
+  return matrix;
+}
+
 function runCondorcetElection(
   votes: Vote[],
   candidates: Candidate[]
 ): ElectionResults {
-  // Create pairwise preference matrix
-  const preferences: Record<string, Record<string, number>> = {};
-  candidates.forEach((c1) => {
-    preferences[c1.id] = {};
-    candidates.forEach((c2) => {
-      if (c1.id !== c2.id) {
-        preferences[c1.id][c2.id] = 0;
-      }
-    });
-  });
-
-  // Count pairwise preferences
-  votes.forEach((vote) => {
-    for (let i = 0; i < vote.ranking.length; i++) {
-      for (let j = i + 1; j < vote.ranking.length; j++) {
-        preferences[vote.ranking[i]][vote.ranking[j]]++;
-      }
-    }
-  });
+  const preferences = buildPairwiseMatrix(votes, candidates);
 
   // Find Condorcet winner (if exists)
   let condorcetWinner: string | null = null;
@@ -218,6 +236,28 @@ function runCondorcetElection(
   };
 }
 
+/**
+ * Smith set + approval: restrict to the smallest set of candidates that beat
+ * every outsider head-to-head, then pick the most-approved among them.
+ */
+function runSmithApprovalElection(
+  votes: Vote[],
+  candidates: Candidate[]
+): ElectionResults {
+  const ids = candidates.map((c) => c.id);
+  const matrix = buildPairwiseMatrix(votes, candidates);
+  const smithSet = new Set(computeSmithSet(matrix, ids));
+  const smithCandidates = candidates.filter((c) => smithSet.has(c.id));
+  const approval = runApprovalElection(votes, smithCandidates);
+  return {
+    ...approval,
+    roundDetails: [
+      `Smith set: ${[...smithSet].join(', ')}`,
+      ...approval.roundDetails,
+    ],
+  };
+}
+
 export function runElection(
   method: ElectionMethod,
   votes: Vote[],
@@ -235,8 +275,7 @@ export function runElection(
     case 'condorcet':
       return runCondorcetElection(votes, candidates);
     case 'smithApproval':
-      // For now, fall back to approval since Smith set calculation isn't implemented
-      return runApprovalElection(votes, candidates);
+      return runSmithApprovalElection(votes, candidates);
     default:
       throw new Error(`Unsupported election method: ${method}`);
   }

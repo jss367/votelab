@@ -1,8 +1,14 @@
-import { render, screen } from '@testing-library/react';
+// @vitest-environment jsdom
+import '@testing-library/jest-dom/vitest';
+import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, test, vi } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import AdminView from './AdminView';
 import type { Election } from './types';
+
+afterEach(() => {
+  cleanup();
+});
 
 const baseElection: Election = {
   title: 'Test Election',
@@ -29,6 +35,8 @@ const defaultProps = {
   onReopenVoting: noopAsync,
   onDelete: noopAsync,
   onUpdate: noopAsync,
+  onEditCandidate: noopAsync,
+  onRemoveCandidate: noopAsync,
 };
 
 describe('AdminView owner gate', () => {

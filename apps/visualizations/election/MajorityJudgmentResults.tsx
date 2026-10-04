@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@repo/ui';
 import { tallyMajorityJudgment, MJ_GRADES } from '@votelab/shared-utils';
 import { Medal, Users } from 'lucide-react';
 import React from 'react';
+import TieNotice from './TieNotice';
 import type { Election } from './types';
 
 const GRADE_COLORS = ['#ef4444', '#f97316', '#eab308', '#3b82f6', '#22c55e', '#10b981'];
@@ -20,6 +21,8 @@ const MajorityJudgmentResults: React.FC<{ election: Election }> = ({ election })
           <span>{totalVotes} total votes</span>
         </div>
       </div>
+
+      <TieNotice tied={result.tied} candidates={election.candidates} tiedFor="first place (identical grades)" />
 
       <div className="space-y-3">
         {result.medianGrades.map((entry, index) => {

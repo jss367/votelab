@@ -49,13 +49,6 @@ service cloud.firestore {
         && !(request.resource.data.createdByUid is string);
     }
 
-    function publicVoteAppend() {
-      return signedIn()
-        && resource.data.votingOpen == true
-        && changedOnly(['votes'])
-        && hasSameExistingItems(request.resource.data.votes, resource.data.votes);
-    }
-
     function publicCandidateAppend() {
       return signedIn()
         && resource.data.submissionsClosed == false
@@ -66,8 +59,44 @@ service cloud.firestore {
     match /elections/{electionId} {
       allow read: if true;
       allow create: if validElectionCreate();
-      allow update: if ownerUpdate() || legacyUpdate() || publicVoteAppend() || publicCandidateAppend();
+      allow update: if ownerUpdate() || legacyUpdate() || publicCandidateAppend();
       allow delete: if isOwner() || isLegacyElection();
+
+      // Ballots live in a subcollection keyed by the voter's uid, which limits
+      // each signed-in user to one ballot per election: create requires the doc
+      // id to be the caller's uid, and there is no update rule, so writing a
+      // second ballot to the same id is rejected. Ballots cast before this
+      // change remain in the election doc's `votes` array and still count.
+      match /votes/{voterUid} {
+        function election() {
+          return get(/databases/$(database)/documents/elections/$(electionId)).data;
+        }
+
+        function validVote() {
+          let vote = request.resource.data;
+          return vote.keys().hasOnly(['voterName', 'ranking', 'approved', 'scores', 'timestamp'])
+            && vote.voterName is string
+            && vote.ranking is list
+            && vote.approved is list
+            && vote.timestamp is string
+            && (!('scores' in vote) || vote.scores is map);
+        }
+
+        // Mirrors the election doc's delete rule (owner, or anyone for a legacy
+        // election with no owner uid), so whoever can delete the election can
+        // also clear its ballots first.
+        function canManageElection() {
+          let owner = election().get('createdByUid', null);
+          return !(owner is string) || (signedIn() && request.auth.uid == owner);
+        }
+
+        allow read: if true;
+        allow create: if signedIn()
+          && request.auth.uid == voterUid
+          && election().votingOpen == true
+          && validVote();
+        allow delete: if canManageElection();
+      }
     }
   }
 }

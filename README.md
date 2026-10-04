@@ -6,8 +6,7 @@ A monorepo of voting applications built with Turborepo. Explore and run election
 
 ## Apps
 
-- **election-site** — Create and run elections with any voting method. Vite + React, hosted on Firebase.
-- **visualizations** — Interactive visualizations of how voting methods behave. Next.js.
+- **visualizations** — The VoteLab site: interactive visualizations of how voting methods behave, plus the Run Elections app at `/elections`. Next.js static export, hosted on Firebase.
 
 ## Packages
 

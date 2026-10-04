@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@repo/ui';
 import { tallyRRV } from '@votelab/shared-utils';
 import { Medal, Users } from 'lucide-react';
 import React, { useState } from 'react';
+import TieNotice from './TieNotice';
 import type { Election } from './types';
 
 const RRVResults: React.FC<{ election: Election }> = ({ election }) => {
@@ -71,7 +72,13 @@ const RRVResults: React.FC<{ election: Election }> = ({ election }) => {
                   </span>
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-3">
+                <TieNotice
+                  tied={round.tied}
+                  candidates={election.candidates}
+                  tiedFor="this round's seat"
+                  resolution={`${round.winnerName} won it because they are listed first.`}
+                />
                 <div className="space-y-2">
                   {round.weightedScores.map((entry) => {
                     const percentage = maxScore > 0 ? ((entry.score / maxScore) * 100).toFixed(1) : '0';

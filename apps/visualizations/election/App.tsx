@@ -16,14 +16,12 @@ import {
   addDoc,
   arrayUnion,
   collection,
-  deleteDoc,
   doc,
   documentId,
   getDocsFromServer,
   onSnapshot,
   query,
   runTransaction,
-  setDoc,
   updateDoc,
   where,
 } from 'firebase/firestore';
@@ -35,6 +33,8 @@ import CandidateDetails from './CandidateDetails';
 import CustomFieldsInput from './CustomFieldsInput';
 import CustomFieldsManager from './CustomFieldsManager';
 import { isCustomFieldValueMissing } from './customFieldValue';
+import { deleteElection } from './deleteElection';
+import { useElectionBallots } from './useElectionBallots';
 import {
   getSavedElections,
   removeSavedElection,
@@ -114,7 +114,7 @@ function App() {
     new Set()
   );
   const [voterName, setVoterName] = useState('');
-  const [election, setElection] = useState<Election | null>(null);
+  const [electionDoc, setElectionDoc] = useState<Election | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [shareUrl, setShareUrl] = useState('');
@@ -155,6 +155,26 @@ function App() {
     setCurrentUserEmail(user?.email ?? null);
     setCurrentUserIsAnonymous(user?.isAnonymous ?? true);
   }, []);
+
+  // Voting only needs the current user's ballot; results/admin need every vote.
+  const ballots = useElectionBallots(
+    db, electionId,
+    mode === 'results' || mode === 'admin' ? 'all' : mode === 'vote' ? 'own' : 'none',
+    currentUserUid, setError
+  );
+
+  // Older elections stored ballots in the election doc's `votes` array; newer
+  // ballots are one doc per voter in the votes subcollection. Count both.
+  const election = useMemo<Election | null>(
+    () =>
+      electionDoc && {
+        ...electionDoc,
+        votes: [...(electionDoc.votes ?? []), ...ballots.map((b) => b.vote)],
+      },
+    [electionDoc, ballots]
+  );
+  const hasVoted =
+    currentUserUid !== null && ballots.some((b) => b.uid === currentUserUid);
 
   const ensureSignedIn = useCallback(async () => {
     if (auth.currentUser) {
@@ -230,7 +250,7 @@ function App() {
       (snapshot) => {
         if (snapshot.exists()) {
           const data = snapshot.data() as Election;
-          setElection(data);
+          setElectionDoc(data);
           setCandidates(data.candidates);
         } else {
           setError('Election not found');
@@ -691,7 +711,7 @@ function App() {
 
     try {
       setLoading(true);
-      await ensureSignedIn();
+      const voterUid = await ensureSignedIn();
       // For ranked methods, use the voter's ballot ordering. Fall back to the
       // election's candidate order if they didn't reorder anything (or their
       // only selections were since-deleted candidates). Plurality is handled by
@@ -711,9 +731,10 @@ function App() {
       };
 
       const electionRef = doc(db, 'elections', electionId);
-      // Re-read inside a transaction and abort if voting has closed since the
-      // ballot was opened — a plain append would record a vote after close from
-      // a stale votingOpen snapshot.
+      const ballotRef = doc(db, 'elections', electionId, 'votes', voterUid);
+      // The security rules enforce both checks below; doing them in a
+      // transaction first lets us show a specific error instead of a generic
+      // permission failure.
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(electionRef);
         if (!snap.exists()) {
@@ -722,7 +743,10 @@ function App() {
         if (!(snap.data() as Election).votingOpen) {
           throw new Error('VOTING_CLOSED');
         }
-        tx.update(electionRef, { votes: arrayUnion(vote) });
+        if ((await tx.get(ballotRef)).exists()) {
+          throw new Error('ALREADY_VOTED');
+        }
+        tx.set(ballotRef, vote);
       });
 
       // onSnapshot handles the update automatically
@@ -730,6 +754,8 @@ function App() {
     } catch (err) {
       if (err instanceof Error && err.message === 'VOTING_CLOSED') {
         setError('Voting has closed for this election.');
+      } else if (err instanceof Error && err.message === 'ALREADY_VOTED') {
+        setError('You have already voted in this election.');
       } else {
         setError('Error submitting vote');
       }
@@ -740,9 +766,6 @@ function App() {
   };
 
   const addCandidate = async () => {
-    console.log('Add Candidate clicked');
-    console.log('newCandidate:', newCandidate);
-    console.log('electionId:', electionId);
     if (!newCandidate.trim() || !electionId) {
       return;
     }
@@ -788,8 +811,6 @@ function App() {
   };
 
   const addLocalCandidate = () => {
-    console.log('Adding local candidate in creation mode');
-    console.log('Current newCandidate:', newCandidate);
 
     if (!newCandidate.trim()) {
       setError('Please enter a candidate name');
@@ -817,17 +838,13 @@ function App() {
       customFields: newCandidateFields,
     };
 
-    console.log('Adding new candidate:', newCand);
     setCandidates([...candidates, newCand]);
     setNewCandidate('');
     setNewCandidateFields([]);
-    console.log('Updated candidates list:', [...candidates, newCand]);
   };
 
   const addExistingElectionCandidate = async () => {
-    console.log('Adding candidate to existing election');
     if (!newCandidate.trim() || !electionId) {
-      console.log('Validation failed:', { newCandidate, electionId });
       setError('Please enter a candidate name');
       return;
     }
@@ -1237,8 +1254,16 @@ function App() {
                   </div>
                 )}
 
+                {election.votingOpen && hasVoted && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <p className="text-green-800">
+                      You have already voted in this election.
+                    </p>
+                  </div>
+                )}
+
                 {/* Voting interface - show when voting is open */}
-                {election.votingOpen && (
+                {election.votingOpen && !hasVoted && (
                   <>
                     <Input
                       value={voterName}
@@ -1320,11 +1345,11 @@ function App() {
                   try {
                     setLoading(true);
                     await ensureSignedIn();
-                    await deleteDoc(doc(db, 'elections', electionId));
+                    await deleteElection(db, electionId);
                     removeSavedElection(electionId);
                     setLocalSavedElections(getSavedElections());
                     setMode('home');
-                    setElection(null);
+                    setElectionDoc(null);
                     setElectionId(null);
                     window.history.replaceState({}, '', window.location.pathname);
                   } catch (err) {
