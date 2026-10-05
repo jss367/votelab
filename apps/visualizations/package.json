@@ -8,7 +8,7 @@
     "start": "npx serve@latest out",
     "lint": "next lint",
     "build:maps": "tsx scripts/build-district-maps.ts",
-    "deploy": "turbo build --filter=voting-visualization && firebase deploy --only hosting",
+    "deploy": "turbo build --filter=voting-visualization && firebase deploy --only hosting,firestore:rules",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"

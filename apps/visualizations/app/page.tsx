@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import LegacyElectionRedirect from './LegacyElectionRedirect';
 
 const visualizations = [
   { href: '/visualizations', label: 'Election Explorer' },
@@ -12,6 +13,7 @@ const visualizations = [
 export default function Home() {
   return (
     <main className="container mx-auto p-4 max-w-5xl">
+      <LegacyElectionRedirect />
       <header className="py-12 text-center">
         <h1 className="text-4xl font-bold mb-3">VoteLab</h1>
         <p className="text-lg text-gray-600">

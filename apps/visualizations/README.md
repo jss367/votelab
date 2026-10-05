@@ -28,19 +28,17 @@ they change (otherwise a cached env-less build can be deployed by mistake).
 ## Deploy
 
 ```bash
-npm run deploy   # builds the hub and runs `firebase deploy --only hosting`
+npm run deploy   # builds the hub and runs `firebase deploy --only hosting,firestore:rules`
 ```
 
 The Firebase Hosting target is set in `firebase.json` (`site`) and points at
 production, `votelab` (votelab.web.app).
 
-`npm run deploy` does not deploy Firestore security rules. When
-`firestore.rules` changes, deploy them too:
+`npm run deploy` ships the site and Firestore security rules together, because
+the app depends on the rules. For example, ballots are stored one per voter in
+`elections/{id}/votes/{uid}`, and only rules that allow that path let the
+results page read them. To deploy just the rules:
 
 ```bash
 firebase deploy --only firestore:rules
 ```
-
-Ship rules and site together when a change depends on both. For example,
-ballots are stored one per voter in `elections/{id}/votes/{uid}`, and only
-rules that allow that path accept them.
